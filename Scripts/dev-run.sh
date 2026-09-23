@@ -183,7 +183,6 @@ run_unit_tests() {
     # ignored and the cases skip. XCTest forwards `TEST_RUNNER_<name>` as
     # `<name>`, which is the form that actually arrives, so both are exported.
     local model="${OSW_TEST_MULTILINGUAL_MODEL:-}"
-    local skip_calibrated=()
 
     # A caller-supplied `-only-testing:` narrows the run; without one the whole
     # unit bundle runs.
@@ -209,7 +208,6 @@ run_unit_tests() {
         if kill -0 "$pid" 2>/dev/null; then continue; fi
         rm -f "$store"
     done
-
     if [[ -z "$model" ]]; then
         model="$(multilingual_test_model || true)"
     fi
@@ -218,20 +216,6 @@ run_unit_tests() {
         export TEST_RUNNER_OSW_TEST_MULTILINGUAL_MODEL="$model"
         echo "Multilingual cases run against:"
         echo "  $model"
-        # The long-form fixtures assert that a phrase straddles each ~30-second
-        # decoder boundary *in whisper's own segmentation*, which is a property of
-        # the model they were measured with: verified that it passes with
-        # ggml-tiny.bin and fails with ggml-large-v3-turbo ("long_en lost its
-        # phrase across an adjacent 30-second boundary"). Reporting a boundary
-        # artefact of a different model as a defect would be worse than skipping
-        # it, so it is skipped - with the reason - unless the calibrated model is
-        # the one in play. Asking for it by name still runs it.
-        if (( ${#selection[@]} > 0 )) && [[ "$(basename "$model")" != "ggml-tiny.bin" ]]; then
-            skip_calibrated=(-skip-testing:OpenSuperWhisperTests/WhisperLongFormLanguageIntegrationTests)
-            echo "  (the long-form boundary fixtures are calibrated to ggml-tiny.bin, so"
-            echo "   WhisperLongFormLanguageIntegrationTests stays skipped for this model;"
-            echo "   cache ggml-tiny.bin in .build/test-models to run it)"
-        fi
     else
         echo "No multilingual model on this machine; those cases will skip."
     fi
@@ -244,7 +228,6 @@ run_unit_tests() {
         ENABLE_DEBUG_DYLIB=NO \
         OSW_BUNDLE_ID_SUFFIX="$BUNDLE_ID_SUFFIX" \
         ${selection[@]+"${selection[@]}"} \
-        ${skip_calibrated[@]+"${skip_calibrated[@]}"} \
         ${TEST_ARGS[@]+"${TEST_ARGS[@]}"}
 }
 

@@ -388,7 +388,20 @@ class WhisperEngine: TranscriptionEngine {
         params.noContext = false
         let rollingContextCapacity = max(1, modelTextContext / 2)
         params.nMaxTextCtx = Int32(clamping: rollingContextCapacity)
-        params.noTimestamps = !settings.showTimestamps
+        // The decoder keeps producing timestamps even when the transcript does
+        // not show them, and `showTimestamps` only decides the "[t0->t1] "
+        // prefixes added below. whisper.cpp's long-form loop cannot tell how far
+        // a window actually got without timestamp tokens: in no-timestamps mode
+        // it advances `seek` by a whole 30-second chunk as soon as the decoder
+        // ends the window (whisper.cpp: "if (params.single_segment ||
+        // params.no_timestamps) { result_len = i + 1; seek_delta =
+        // 100*WHISPER_CHUNK_SIZE; }"). A window the model finished early then
+        // takes the rest of its audio with it - with large-v3-turbo the second
+        // window of long_en decoded only its last sentence, and long_ru lost
+        // "Первая контрольная фраза" at the 30-second seam and "по-прежнему" at
+        // the 60-second one. With timestamps the seek follows the audio the
+        // decoder really covered, so no speech is skipped.
+        params.noTimestamps = false
         params.suppressBlank = settings.suppressBlankAudio
         let isAutoDetect = settings.selectedLanguage == "auto"
         params.language = isAutoDetect ? nil : settings.selectedLanguage
