@@ -29,9 +29,22 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
+
+# A linked git worktree (.git is a file, not a directory) is a crew/CI checkout,
+# never the checkout whose app someone is actually testing. Give it its own
+# bundle id so its Accessibility grant, preferences and recordings can never
+# collide with the shipped identity's: several builds sharing
+# ru.starmel.OpenSuperWhisper show up as one indistinguishable
+# "OpenSuperWhisper" row in System Settings, and a grant made for one copy is
+# silently useless for another.
+BUNDLE_ID_SUFFIX=""
+if [[ -f .git ]]; then
+    BUNDLE_ID_SUFFIX=".dev"
+fi
+
 # Build the app
 echo "Building OpenSuperWhisper..."
-BUILD_OUTPUT=$(xcodebuild -scheme OpenSuperWhisper -configuration Debug -jobs 8 -derivedDataPath build -quiet -destination 'platform=macOS,arch=arm64' -skipPackagePluginValidation -skipMacroValidation -UseModernBuildSystem=YES -clonedSourcePackagesDirPath SourcePackages -skipUnavailableActions CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO OTHER_CODE_SIGN_FLAGS="--entitlements OpenSuperWhisper/OpenSuperWhisper.entitlements" build 2>&1)
+BUILD_OUTPUT=$(xcodebuild -scheme OpenSuperWhisper -configuration Debug -jobs 8 -derivedDataPath build -quiet -destination 'platform=macOS,arch=arm64' -skipPackagePluginValidation -skipMacroValidation -UseModernBuildSystem=YES -clonedSourcePackagesDirPath SourcePackages -skipUnavailableActions CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO OSW_BUNDLE_ID_SUFFIX="$BUNDLE_ID_SUFFIX" OTHER_CODE_SIGN_FLAGS="--entitlements OpenSuperWhisper/OpenSuperWhisper.entitlements" build 2>&1)
 # Capture xcodebuild's own status immediately: the pretty-printer below resets $?.
 BUILD_STATUS=$?
 

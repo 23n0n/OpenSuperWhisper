@@ -1,6 +1,7 @@
 import ApplicationServices
 import CoreGraphics
 import Foundation
+import os
 
 /// Delivers text to the focused application by simulating keyboard events.
 ///
@@ -12,6 +13,50 @@ enum KeyboardSimulator {
 
     /// Maximum number of UTF-16 code units carried by a single event.
     static let maxUTF16PerEvent = 20
+
+    /// What one injection attempt observed and did.
+    ///
+    /// The trust value is read at the moment of injection, not cached: macOS
+    /// re-evaluates an app's Accessibility grant while it runs, so a value read
+    /// at launch (or at the previous dictation) can be wrong by the time the
+    /// keystrokes are posted.
+    struct InjectionResult: Equatable {
+        /// Live `AXIsProcessTrusted()` observed immediately before posting.
+        let trusted: Bool
+        /// How many events were handed to `post`.
+        let eventsPosted: Int
+
+        /// Whether any keystroke was actually handed to the system.
+        var injected: Bool { eventsPosted > 0 }
+    }
+
+    /// The unified-log subsystem and category of the one-line-per-dictation
+    /// injection record, readable with
+    /// `log stream --predicate 'subsystem == "ru.starmel.OpenSuperWhisper"'`.
+    static let logSubsystem = "ru.starmel.OpenSuperWhisper"
+    static let logCategory = "keyboard-injection"
+    private static let log = Logger(subsystem: logSubsystem, category: logCategory)
+
+    /// Live answer to "may this process post synthetic keystrokes right now?".
+    static var isTrustedForInjection: Bool { AXIsProcessTrusted() }
+
+    /// Records exactly one line per dictation. `print` is invisible for an app
+    /// launched by LaunchServices (its stdout is `/dev/null`), which is how the
+    /// shipped app runs, so the line that explains a dropped dictation goes to
+    /// the unified log with `privacy: .public` fields.
+    static func logDictation(
+        trusted: Bool,
+        characters: Int,
+        injected: Bool,
+        eventsPosted: Int
+    ) {
+        log.notice("""
+            dictation-injection trusted=\(trusted ? 1 : 0, privacy: .public) \
+            chars=\(characters, privacy: .public) \
+            injected=\(injected ? 1 : 0, privacy: .public) \
+            events=\(eventsPosted, privacy: .public)
+            """)
+    }
 
     /// Virtual key code for Return.
     static let returnKeyCode: CGKeyCode = 0x24
@@ -29,15 +74,26 @@ enum KeyboardSimulator {
     ///
     /// - Parameters:
     ///   - text: The text to type.
+    ///   - trusted: Whether this process may post synthetic events. Defaults to
+    ///     the live `AXIsProcessTrusted()` answer, which is what production
+    ///     uses; injectable so a test can pin the answer instead of depending on
+    ///     whether the machine happens to hold the grant.
     ///   - post: Sink for the generated events. Defaults to posting to the HID
     ///     event tap; tests inject a capture closure.
-    static func typeText(_ text: String, post: (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) }) {
-        guard !text.isEmpty else { return }
+    /// - Returns: What was observed and posted. When `trusted` is false the
+    ///   events are still handed to `post`, but macOS discards every event an
+    ///   untrusted process posts, so the text did not reach the focused app —
+    ///   the caller must tell the user instead of discarding the text silently.
+    @discardableResult
+    static func typeText(
+        _ text: String,
+        trusted: Bool = isTrustedForInjection,
+        post: (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) }
+    ) -> InjectionResult {
+        var eventsPosted = 0
 
-        if !AXIsProcessTrusted() {
-            print("KeyboardSimulator: process is not trusted for Accessibility; "
-                + "synthetic keystrokes will be silently ignored by the system. "
-                + "Grant Accessibility permission to deliver transcriptions.")
+        guard !text.isEmpty else {
+            return InjectionResult(trusted: trusted, eventsPosted: 0)
         }
 
         // Normalize CRLF and CR to a single newline so no line break is lost.
@@ -47,12 +103,17 @@ enum KeyboardSimulator {
 
         var buffer = ""
 
+        func emit(_ events: [CGEvent]) {
+            for event in events {
+                post(event)
+                eventsPosted += 1
+            }
+        }
+
         func flushBuffer() {
             guard !buffer.isEmpty else { return }
             for chunk in chunks(of: buffer, maxUTF16: maxUTF16PerEvent) {
-                for event in makeUnicodeEvents(for: chunk) {
-                    post(event)
-                }
+                emit(makeUnicodeEvents(for: chunk))
             }
             buffer = ""
         }
@@ -61,20 +122,18 @@ enum KeyboardSimulator {
             switch character {
             case "\n":
                 flushBuffer()
-                for event in makeKeyEvents(for: returnKeyCode) {
-                    post(event)
-                }
+                emit(makeKeyEvents(for: returnKeyCode))
             case "\t":
                 flushBuffer()
-                for event in makeKeyEvents(for: tabKeyCode) {
-                    post(event)
-                }
+                emit(makeKeyEvents(for: tabKeyCode))
             default:
                 buffer.append(character)
             }
         }
 
         flushBuffer()
+
+        return InjectionResult(trusted: trusted, eventsPosted: eventsPosted)
     }
 
     /// Splits `text` into chunks of at most `maxUTF16` UTF-16 code units.
