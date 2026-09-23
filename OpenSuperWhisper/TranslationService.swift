@@ -47,6 +47,12 @@ enum TranslationError: Error, LocalizedError {
 final class TranslationService {
     static let shared = TranslationService()
 
+    /// Session used for translation requests.
+    ///
+    /// Kept as a mutable static so tests can inject a `URLProtocol`-stubbed
+    /// session. Production always uses `URLSession.shared`.
+    static var urlSession: URLSession = .shared
+
     private init() {}
 
     // MARK: - Public API
@@ -63,6 +69,9 @@ final class TranslationService {
         do {
             return try await transform(text)
         } catch {
+            // Surface the failure so a down/misconfigured endpoint is
+            // distinguishable from translation simply being disabled.
+            print("[TranslationService] transform failed, returning raw text: \(error)")
             return text
         }
     }
@@ -71,7 +80,9 @@ final class TranslationService {
     /// caller can fall back to the raw transcript.
     func transform(_ text: String) async throws -> String {
         let prefs = AppPreferences.shared
-        guard let url = URL(string: prefs.transformEndpoint) else {
+        let endpoint = prefs.transformEndpoint
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: endpoint) else {
             throw TranslationError.invalidEndpoint
         }
 
@@ -85,10 +96,10 @@ final class TranslationService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
-        request.timeoutInterval = prefs.transformTimeout
+        request.timeoutInterval = max(1, min(prefs.transformTimeout, 120))
 
         try Task.checkCancellation()
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await Self.urlSession.data(for: request)
         try Task.checkCancellation()
 
         if let httpResponse = response as? HTTPURLResponse,
@@ -151,21 +162,38 @@ final class TranslationService {
         return trimmed
     }
 
-    /// Removes ` thinking...<｜end▁of▁thinking｜>` blocks and other common
-    /// reasoning markers from `text`.
+    /// Removes Qwen3 reasoning blocks (an open think tag through the
+    /// end-of-thinking token, a closed think tag, and the unterminated trailing
+    /// case) plus the ASCII thinking/reasoning markers from `text`.
     static func stripReasoning(from text: String) -> String {
+        // Build every reasoning tag from Unicode scalars so the source never
+        // contains literal angle brackets (which are easy to corrupt).
+        let openThinkTag = "\u{3C}think\u{3E}"              // <think>
+        let closeThinkTag = "\u{3C}/think\u{3E}"            // </think>
+        let openMarkupTag = "\u{3C}thinking\u{3E}"          // <thinking>
+        let closeMarkupTag = "\u{3C}/thinking\u{3E}"        // </thinking>
+        let openReasoningTag = "\u{3C}reasoning\u{3E}"      // <reasoning>
+        let closeReasoningTag = "\u{3C}/reasoning\u{3E}"    // </reasoning>
+
         // The Qwen3 end-of-thinking token uses full-width/special characters;
-        // build it from scalars so it never depends on editor encoding.
+        // build it from scalars too so it never depends on editor encoding.
         let endThinkToken = "<\u{FF5C}end\u{2581}of\u{2581}thinking\u{FF5C}>"
+
+        let escapedOpenThink = NSRegularExpression.escapedPattern(for: openThinkTag)
+        let escapedCloseThink = NSRegularExpression.escapedPattern(for: closeThinkTag)
         let escapedEndThink = NSRegularExpression.escapedPattern(for: endThinkToken)
+        let escapedOpenMarkup = NSRegularExpression.escapedPattern(for: openMarkupTag)
+        let escapedCloseMarkup = NSRegularExpression.escapedPattern(for: closeMarkupTag)
+        let escapedOpenReasoning = NSRegularExpression.escapedPattern(for: openReasoningTag)
+        let escapedCloseReasoning = NSRegularExpression.escapedPattern(for: closeReasoningTag)
 
         // Terminated blocks first (lazy), then any unterminated trailing block.
         let patterns = [
-            "(?is) thinking.*?\(escapedEndThink)",
-            "(?is) thinking.*? response",
-            "(?is) thinking.*",
-            "(?is)<thinking>.*?</thinking>",
-            "(?is)<reasoning>.*?</reasoning>"
+            "(?is)\(escapedOpenThink).*?\(escapedEndThink)",
+            "(?is)\(escapedOpenThink).*?\(escapedCloseThink)",
+            "(?is)\(escapedOpenThink).*",
+            "(?is)\(escapedOpenMarkup).*?\(escapedCloseMarkup)",
+            "(?is)\(escapedOpenReasoning).*?\(escapedCloseReasoning)"
         ]
         var result = text
         for pattern in patterns {
