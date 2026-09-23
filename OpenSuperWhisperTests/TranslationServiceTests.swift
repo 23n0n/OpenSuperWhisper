@@ -239,6 +239,19 @@ final class TranslationServiceTests: XCTestCase {
         XCTAssertEqual(try TranslationService.parseContent(from: data), "Visible English.")
     }
 
+    func testParseContent_stripsUnterminatedThinkingAndReasoningBlocks() throws {
+        let thinking = "Visible first. " + openMarkupTag + "trailing reasoning"
+        XCTAssertEqual(
+            try TranslationService.parseContent(from: makeResponse(content: thinking)),
+            "Visible first."
+        )
+        let reasoning = "Visible first. " + openReasoningTag + "trailing reasoning"
+        XCTAssertEqual(
+            try TranslationService.parseContent(from: makeResponse(content: reasoning)),
+            "Visible first."
+        )
+    }
+
     func testStripReasoning_removesBareEndTokenAnywhere() {
         XCTAssertEqual(
             TranslationService.stripReasoning(from: "Before " + endThinkToken + " after"),

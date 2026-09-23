@@ -163,9 +163,10 @@ final class TranslationService {
         return trimmed
     }
 
-    /// Removes Qwen3 reasoning blocks (an open think tag through the
-    /// end-of-thinking token, a closed think tag, and the unterminated trailing
-    /// case) plus the ASCII thinking/reasoning markers from `text`.
+    /// Removes Qwen3 reasoning traces from `text`: paired and unterminated
+    /// think/thinking/reasoning blocks, the bare end-of-thinking token, and any
+    /// orphan closing tag. It never removes the plain words "thinking" or
+    /// "reasoning".
     static func stripReasoning(from text: String) -> String {
         // Build every reasoning tag from Unicode scalars so the source never
         // contains literal angle brackets (which are easy to corrupt).
@@ -194,7 +195,9 @@ final class TranslationService {
             "(?is)\(escapedOpenThink).*?\(escapedCloseThink)",
             "(?is)\(escapedOpenThink).*",
             "(?is)\(escapedOpenMarkup).*?\(escapedCloseMarkup)",
-            "(?is)\(escapedOpenReasoning).*?\(escapedCloseReasoning)"
+            "(?is)\(escapedOpenReasoning).*?\(escapedCloseReasoning)",
+            "(?is)\(escapedOpenMarkup).*",
+            "(?is)\(escapedOpenReasoning).*"
         ]
         var result = text
         for pattern in patterns {
