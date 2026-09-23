@@ -127,6 +127,27 @@ final class AppPreferences {
     @UserDefault(key: "autoPasteTranscription", defaultValue: true)
     var autoPasteTranscription: Bool
 
+    // Translation / tone settings
+    @UserDefault(key: "translateEnabled", defaultValue: false)
+    var translateEnabled: Bool
+
+    @UserDefault(key: "transformToneMode", defaultValue: ToneMode.neutral.rawValue)
+    private var transformToneModeRaw: String
+
+    var transformToneMode: ToneMode {
+        get { ToneMode(rawValue: transformToneModeRaw) ?? .neutral }
+        set { transformToneModeRaw = newValue.rawValue }
+    }
+
+    @UserDefault(key: "transformEndpoint", defaultValue: "http://127.0.0.1:1919/v1/chat/completions")
+    var transformEndpoint: String
+
+    @UserDefault(key: "transformModel", defaultValue: "Qwen/Qwen3-14B-MLX-6bit")
+    var transformModel: String
+
+    @UserDefault(key: "transformTimeout", defaultValue: 8.0)
+    var transformTimeout: Double
+
     @UserDefault(key: "escCancelWithoutConfirmation", defaultValue: false)
     var escCancelWithoutConfirmation: Bool
 
