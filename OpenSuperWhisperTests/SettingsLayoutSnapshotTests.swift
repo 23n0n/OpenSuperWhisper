@@ -103,7 +103,8 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
     /// first scroll view to the bottom, and captures it with `cacheDisplay`.
     @discardableResult
     private func captureHosted(_ view: some View, size: CGSize, named name: String,
-                               scrolledToBottom: Bool = false) throws -> (image: CGImage, size: CGSize) {
+                               scrolledToBottom: Bool = false,
+                               fullContent: Bool = false) throws -> (image: CGImage, size: CGSize) {
         let window = NSWindow(contentRect: NSRect(origin: CGPoint(x: 40, y: 40), size: size),
                               styleMask: [.borderless],
                               backing: .buffered,
@@ -122,6 +123,26 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
             clip.scroll(to: NSPoint(x: 0, y: bottom))
             scrollView.reflectScrolledClipView(clip)
             runLoopTurn(0.3)
+        }
+
+        // The whole tab, however tall it is: drawing the scroll view's document
+        // view covers every card without guessing a window size, so the test
+        // does not depend on how much content the current build has.
+        if fullContent, let document = firstScrollView(in: hosting)?.documentView {
+            let rect = document.bounds
+            guard let documentRep = document.bitmapImageRepForCachingDisplay(in: rect) else {
+                window.close()
+                throw SnapshotError.renderFailed("\(name): no bitmap for the tab's content")
+            }
+            document.cacheDisplay(in: rect, to: documentRep)
+            guard let documentImage = documentRep.cgImage else {
+                window.close()
+                throw SnapshotError.renderFailed("\(name): cacheDisplay produced no content image")
+            }
+            let capture = try writePNG(documentImage, named: name)
+            window.close()
+            runLoopTurn(0.1)
+            return (capture, rect.size)
         }
 
         let visible = hosting.bounds
@@ -454,17 +475,58 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
         }
     }
 
-    /// The whole card stack must be intact when there is room for it: seven cards
-    /// on the transcription tab, each one a separate band of pixels.
-    func testEveryTranscriptionCardLaysOutWhenThereIsRoom() throws {
-        let height = min(1400, (NSScreen.main?.visibleFrame.height ?? 800) - 80)
-        let size = CGSize(width: 520, height: height)
-        let capture = try captureHosted(Self.body("transcription", of: SettingsView()), size: size,
-                                        named: "tab-transcription-tall-520x\(Int(height))")
-        let bands = try assertCardsSeparated(in: capture.image, name: "tab-transcription-tall")
-        XCTAssertGreaterThanOrEqual(bands.count, 7,
-                                    "the transcription tab has seven cards; only \(bands.count) laid out "
-                                    + "as separate bands")
+    /// Every card has to lay out intact, whatever the transforms are set to:
+    /// the Translation & Tone card grows rows and captions with the switches, so
+    /// the tab's height is not a constant this test may assume. The whole tab is
+    /// drawn from the scroll view's document view, and what is asserted is the
+    /// shape of the stack — page padding at both ends, real gaps between cards,
+    /// no card crushed to a sliver — not a card count for today's content.
+    func testEveryTranscriptionCardLaysOutWhateverTheSwitchesSay() throws {
+        let savedTranslate = AppPreferences.shared.translateEnabled
+        let savedTone = AppPreferences.shared.toneEnabled
+        defer {
+            AppPreferences.shared.translateEnabled = savedTranslate
+            AppPreferences.shared.toneEnabled = savedTone
+        }
+
+        let states: [(name: String, translate: Bool, tone: Bool)] = [
+            ("both-off", false, false),
+            ("tone-only", false, true),
+            ("both-on", true, true),
+        ]
+
+        for state in states {
+            AppPreferences.shared.translateEnabled = state.translate
+            AppPreferences.shared.toneEnabled = state.tone
+
+            let name = "tab-transcription-content-\(state.name)"
+            let capture = try captureHosted(Self.body("transcription", of: SettingsView()),
+                                            size: CGSize(width: 520, height: 600),
+                                            named: name, fullContent: true)
+            let bands = try assertCardsSeparated(in: capture.image, name: name)
+
+            // The page padding has to be there at both ends of the stack, which
+            // it cannot be if a card is drawn through the top or bottom edge.
+            let topPadding = bands.first?.start ?? -1
+            let bottomPadding = capture.image.height - 1 - (bands.last?.end ?? -1)
+            XCTAssertEqual(topPadding, Int(Self.pagePadding), accuracy: 2,
+                           "\(name): the card stack starts \(topPadding) pt into the tab, "
+                           + "expected the \(Int(Self.pagePadding)) pt page padding")
+            XCTAssertEqual(bottomPadding, Int(Self.pagePadding), accuracy: 2,
+                           "\(name): the card stack ends \(bottomPadding) pt before the end of the tab, "
+                           + "expected the \(Int(Self.pagePadding)) pt page padding")
+
+            // A settings tab with a handful of cards; the count is only here to
+            // catch a stack that collapsed to one or two bands.
+            XCTAssertGreaterThanOrEqual(bands.count, 5,
+                                        "\(name): only \(bands.count) card bands are drawn")
+
+            for band in bands {
+                XCTAssertGreaterThanOrEqual(band.height, Int(Self.minimumCardHeightPoints),
+                                            "\(name): a card at rows \(band.start)-\(band.end) is only "
+                                            + "\(band.height) pt tall — its content is crushed")
+            }
+        }
     }
 
     /// The controls under the fold are reachable: scrolling the transcription tab
@@ -597,6 +659,13 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
     /// 4 pt of page background: the least padding a card can keep at an edge and
     /// still look inset. Anything less means the content is running through it.
     private static let minimumPagePaddingPoints: CGFloat = 4
+
+    /// The page padding the tab bodies put around their card stack.
+    private static let pagePadding: CGFloat = 16
+
+    /// A card holds a headline and at least one row of content; anything much
+    /// shorter than this has been compressed by its neighbours.
+    private static let minimumCardHeightPoints: CGFloat = 40
 
     /// 4 pt: anything less and the rounded card outlines touch.
     private static let minimumCardGapPoints: CGFloat = 4
