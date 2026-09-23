@@ -138,15 +138,23 @@ class IndicatorViewModel: ObservableObject {
     }
 
     func startRecording() {
-        if isTranscriptionBusy {
-            showBusyMessage()
-            return
-        }
-
+        // The microphone is checked before the busy state, not after it. The
+        // engine load starts inside TranscriptionService's own initializer, so
+        // "busy" is the normal state for the first seconds after launch - and the
+        // old order answered "Processing..." to every attempt in that window,
+        // never mentioning the input device the user is missing. A missing
+        // microphone is a precondition for recording; busy only describes work
+        // that is already running.
+        //
         // getActiveMicrophone() only reads the cached currentMicrophone, so
         // this guard costs no CoreAudio HAL round-trip on the main thread.
         guard MicrophoneService.shared.getActiveMicrophone() != nil else {
             showAutoDismissingMessage(.noMicrophone)
+            return
+        }
+
+        if isTranscriptionBusy {
+            showBusyMessage()
             return
         }
         
