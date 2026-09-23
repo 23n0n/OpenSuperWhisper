@@ -24,9 +24,18 @@
 # Usage:
 #   Scripts/dev-run.sh              - build, sign, then run the app in the foreground
 #   Scripts/dev-run.sh build        - build and sign only
+#   Scripts/dev-run.sh test         - build, run the unit suite, then re-sign
 #   Scripts/dev-run.sh --reset-tcc  - also drop the current Accessibility grant
 #                                     before launching (needed once when moving
 #                                     off an ad-hoc-signed build; see Readme)
+#
+# Why `test` is a mode of this script and not a bare xcodebuild: `xcodebuild test`
+# rebuilds the app target with CODE_SIGNING_ALLOWED=NO, which leaves the bundle on
+# disk linker-signed, i.e. `# designated => cdhash H"..."`. Launching that copy
+# reintroduces the exact failure this script exists to prevent - tccd refuses the
+# identity requirement the Accessibility grant is stored with (`status: -67050`) -
+# so the suite runs here and the bundle is signed and asserted afterwards, whether
+# the tests passed or not.
 #
 # Environment overrides:
 #   DEVELOPER_DIR   Xcode to build with (default: /Applications/Xcode.app/Contents/Developer)
@@ -58,11 +67,13 @@ APP_BINARY="$APP/Contents/MacOS/OpenSuperWhisper"
 DR_RECORD="$REPO_ROOT/build/.dev-sign-dr"
 
 JUST_BUILD=false
+RUN_TESTS=false
 RESET_TCC=false
 
 for arg in "$@"; do
     case "$arg" in
         build) JUST_BUILD=true ;;
+        test) RUN_TESTS=true ;;
         --reset-tcc) RESET_TCC=true ;;
         -h|--help)
             awk 'NR > 1 { if ($0 == "set -euo pipefail") exit; sub(/^# ?/, ""); print }' "$0"
@@ -77,6 +88,128 @@ for tool in cmake cargo xcodebuild codesign; do
         exit 1
     fi
 done
+
+# Whatever the build or the test run did, the split debug-dylib layout must not
+# reach the signing step or a launch: the leftovers are removed, and the script
+# fails loudly if they survive the removal, or if the executable is still the
+# ~40 KB debug stub (the binary TCC attributes and refuses).
+assert_single_binary_layout() {
+    local leftover split_left exec_bytes
+
+    for leftover in "$APP/Contents/MacOS"/*.debug.dylib "$APP/Contents/MacOS/__preview.dylib"; do
+        [[ -e "$leftover" ]] && rm -f "$leftover"
+    done
+
+    split_left="$(find "$APP/Contents/MacOS" -maxdepth 1 \
+        \( -name "*.debug.dylib" -o -name "__preview.dylib" \) 2>/dev/null)"
+    if [[ -n "$split_left" ]]; then
+        echo "dev-run.sh: the bundle still contains Xcode's debug dylib layout:" >&2
+        echo "$split_left" >&2
+        echo "  a split bundle cannot hold a TCC grant; investigate the build first" >&2
+        exit 1
+    fi
+
+    exec_bytes="$(stat -f %z "$APP_BINARY" 2>/dev/null || echo 0)"
+    if (( exec_bytes < 1000000 )); then
+        echo "dev-run.sh: $APP_BINARY is ${exec_bytes} bytes - Xcode's debug stub, not the app." >&2
+        echo "  Remove the product and build again:" >&2
+        echo "    rm -rf \"$APP\"" >&2
+        exit 1
+    fi
+}
+
+# Reads the designated requirement back off the finished bundle and refuses to
+# leave an ad-hoc one behind, because `cdhash H"..."` is invalidated by every
+# rebuild and is what makes the Accessibility grant unusable. dev-sign.sh applies
+# the same rule at signing time; this asserts the *state of the bundle on disk*,
+# so a build, a test run or a bare re-sign all end the same way instead of
+# trusting that nothing overwrote the signature afterwards.
+assert_identity_requirement() {
+    DESIGNATED="$(codesign -d -r- "$APP" 2>&1 \
+        | grep -E '^#?[[:space:]]*designated =>' \
+        | sed -E 's/^#?[[:space:]]*designated => //')"
+
+    if [[ -z "$DESIGNATED" ]]; then
+        echo "dev-run.sh: the bundle has no designated requirement; it is not signed" >&2
+        exit 1
+    fi
+    if [[ "$DESIGNATED" == *"cdhash H"* \
+          && "$DESIGNATED" != *"certificate leaf"* \
+          && "$DESIGNATED" != *"anchor apple"* ]]; then
+        echo "dev-run.sh: the bundle on disk is ad-hoc signed: $DESIGNATED" >&2
+        echo "  Launching it would refuse the stored Accessibility grant again." >&2
+        echo "  Sign it with the identity: Scripts/dev-sign.sh \"$APP\"" >&2
+        exit 1
+    fi
+}
+
+# A multilingual whisper model this machine happens to have, offered to the
+# language-report cases through their documented opt-in. Nothing is exported when
+# there is no candidate, which is the state CI runs in: the plain suite must never
+# depend on a developer's downloaded files.
+multilingual_test_model() {
+    local dir file
+    for dir in \
+        "$REPO_ROOT/.build/test-models" \
+        "$HOME/Library/Application Support/ru.starmel.OpenSuperWhisper${BUNDLE_ID_SUFFIX}/whisper-models" \
+        "$HOME/Library/Application Support/ru.starmel.OpenSuperWhisper/whisper-models"
+    do
+        [[ -d "$dir" ]] || continue
+        for file in "$dir"/*.bin; do
+            [[ -e "$file" ]] || continue
+            case "$(basename "$file")" in
+                # English-only (cannot detect a language), or not a whisper model.
+                *.en.bin|*.en-*.bin|ggml-silero*) continue ;;
+            esac
+            printf '%s\n' "$file"
+            return 0
+        done
+    done
+    return 1
+}
+
+run_unit_tests() {
+    # `xcodebuild test` launches the app-hosted test bundle with a stripped
+    # environment: a plain `OSW_TEST_MULTILINGUAL_MODEL=... xcodebuild test` is
+    # ignored and the cases skip. XCTest forwards `TEST_RUNNER_<name>` as
+    # `<name>`, which is the form that actually arrives, so both are exported.
+    local model="${OSW_TEST_MULTILINGUAL_MODEL:-}"
+    local skip_calibrated=()
+    if [[ -z "$model" ]]; then
+        model="$(multilingual_test_model || true)"
+    fi
+    if [[ -n "$model" ]]; then
+        export OSW_TEST_MULTILINGUAL_MODEL="$model"
+        export TEST_RUNNER_OSW_TEST_MULTILINGUAL_MODEL="$model"
+        echo "Multilingual cases run against:"
+        echo "  $model"
+        # The long-form fixtures assert that a phrase straddles each ~30-second
+        # decoder boundary *in whisper's own segmentation*, which is a property of
+        # the model they were measured with: verified that it passes with
+        # ggml-tiny.bin and fails with ggml-large-v3-turbo ("long_en lost its
+        # phrase across an adjacent 30-second boundary"). Reporting a boundary
+        # artefact of a different model as a defect would be worse than skipping
+        # it, so it is skipped - with the reason - unless the calibrated model is
+        # the one in play.
+        if [[ "$(basename "$model")" != "ggml-tiny.bin" ]]; then
+            skip_calibrated=(-skip-testing:OpenSuperWhisperTests/WhisperLongFormLanguageIntegrationTests)
+            echo "  (the long-form boundary fixtures are calibrated to ggml-tiny.bin, so"
+            echo "   WhisperLongFormLanguageIntegrationTests stays skipped for this model;"
+            echo "   cache ggml-tiny.bin in .build/test-models to run it)"
+        fi
+    else
+        echo "No multilingual model on this machine; those cases will skip."
+    fi
+
+    xcodebuild test -project OpenSuperWhisper.xcodeproj -scheme OpenSuperWhisper \
+        -destination 'platform=macOS,arch=arm64' \
+        -derivedDataPath build -clonedSourcePackagesDirPath SourcePackages \
+        -skipPackagePluginValidation -skipMacroValidation -skipUnavailableActions \
+        CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
+        ENABLE_DEBUG_DYLIB=NO \
+        OSW_BUNDLE_ID_SUFFIX="$BUNDLE_ID_SUFFIX" \
+        -only-testing:OpenSuperWhisperTests ${skip_calibrated[@]+"${skip_calibrated[@]}"}
+}
 
 # The engines come first, in the one order that works: build-native.sh configures
 # and builds libllama (which owns the single ggml), installs that ggml package and
@@ -171,39 +304,25 @@ if [[ ! -d "$APP" ]]; then
     exit 1
 fi
 
-# Whatever the build did, the stale split layout must not reach the signing
-# step or a launch: the leftovers are removed, and the build fails loudly if
-# they survive the removal, or if the executable is still the debug stub.
-for leftover in "$APP/Contents/MacOS"/*.debug.dylib "$APP/Contents/MacOS/__preview.dylib"; do
-    [[ -e "$leftover" ]] && rm -f "$leftover"
-done
-
-SPLIT_LEFT="$(find "$APP/Contents/MacOS" -maxdepth 1 \
-    \( -name "*.debug.dylib" -o -name "__preview.dylib" \) 2>/dev/null)"
-if [[ -n "$SPLIT_LEFT" ]]; then
-    echo "dev-run.sh: the bundle still contains Xcode's debug dylib layout:" >&2
-    echo "$SPLIT_LEFT" >&2
-    echo "  a split bundle cannot hold a TCC grant; investigate the build first" >&2
-    exit 1
+# The suite rebuilds the app target ad-hoc, so it runs before the bundle is
+# signed and asserted. A failing suite must not skip that: the app on disk has to
+# be launchable and grant-bearing whatever the tests said, so the status is kept
+# and reported at the end.
+TEST_STATUS=0
+if $RUN_TESTS; then
+    echo "Running the unit suite..."
+    run_unit_tests || TEST_STATUS=$?
 fi
 
-EXEC_BYTES="$(stat -f %z "$APP_BINARY" 2>/dev/null || echo 0)"
-if (( EXEC_BYTES < 1000000 )); then
-    echo "dev-run.sh: $APP_BINARY is ${EXEC_BYTES} bytes - Xcode's debug stub, not the app." >&2
-    echo "  Remove the product and build again:" >&2
-    echo "    rm -rf \"$APP\"" >&2
-    exit 1
-fi
+assert_single_binary_layout
 
 "$SCRIPT_DIR/dev-sign.sh" "$APP"
 
+assert_identity_requirement
+
 # A designated requirement that changes between rebuilds is the exact failure
-# this whole path exists to avoid, so remember it and compare. codesign marks
-# an ad-hoc requirement with a leading `#` (`# designated => cdhash H"..."`),
-# which is exactly the shape worth catching, so both forms are read.
-DESIGNATED="$(codesign -d -r- "$APP" 2>&1 \
-    | grep -E '^#?[[:space:]]*designated =>' \
-    | sed -E 's/^#?[[:space:]]*designated => //')"
+# this whole path exists to avoid, so remember it and compare. `$DESIGNATED` was
+# read back off the bundle by assert_identity_requirement above.
 mkdir -p "$(dirname "$DR_RECORD")"
 if [[ -f "$DR_RECORD" ]]; then
     PREVIOUS="$(cat "$DR_RECORD")"
@@ -231,6 +350,18 @@ fi
 if $JUST_BUILD; then
     echo "Built and signed: $APP"
     exit 0
+fi
+
+if $RUN_TESTS; then
+    echo "Bundle on disk: $APP"
+    echo "  designated requirement: $DESIGNATED"
+    if [[ $TEST_STATUS -eq 0 ]]; then
+        echo "Unit suite passed and the app is signed for the next launch."
+        exit 0
+    fi
+    echo "Unit suite FAILED; the app was re-signed anyway so the next launch" >&2
+    echo "cannot be the ad-hoc copy the test run left behind." >&2
+    exit "$TEST_STATUS"
 fi
 
 echo "Starting the app..."

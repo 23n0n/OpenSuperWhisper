@@ -26,11 +26,22 @@ The language integration test is opt-in when no multilingual model is present.
 Point it at any real multilingual whisper.cpp model:
 
 ```sh
-OSW_TEST_MULTILINGUAL_MODEL=/path/to/ggml-tiny.bin \
+TEST_RUNNER_OSW_TEST_MULTILINGUAL_MODEL=/path/to/ggml-tiny.bin \
   xcodebuild test -project OpenSuperWhisper.xcodeproj \
   -scheme OpenSuperWhisper -destination 'platform=macOS' \
   -only-testing:OpenSuperWhisperTests/WhisperLongFormLanguageIntegrationTests
 ```
+
+The `TEST_RUNNER_` prefix is the part that matters: `xcodebuild test` starts the
+app-hosted test bundle with a stripped environment, so a plain
+`OSW_TEST_MULTILINGUAL_MODEL=…` in front of the command is silently ignored and the
+cases skip instead of running (verified on macOS 27: the plain variable skips, the
+prefixed one runs). XCTest forwards `TEST_RUNNER_<name>` to the test process as
+`<name>`.
+
+`Scripts/dev-run.sh test` does this for you, and finds a model on this machine when
+one is there (`.build/test-models`, then the app's own `whisper-models` folder). With
+none it leaves the cases skipped, as CI does.
 
 For a local smoke test, the official multilingual tiny model can be cached in
 the path that the test discovers automatically:
