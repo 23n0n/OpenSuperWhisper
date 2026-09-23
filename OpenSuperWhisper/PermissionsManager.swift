@@ -1,27 +1,24 @@
 import AVFoundation
 import AppKit
 import Foundation
-import IOKit.hid
 
 enum Permission {
     case microphone
     case accessibility
-    case inputMonitoring
 }
 
 class PermissionsManager: ObservableObject {
     @Published var isMicrophonePermissionGranted = false
     @Published var isAccessibilityPermissionGranted = false
-    @Published var isInputMonitoringPermissionGranted = false
     /// False until the first async TCC check completes; the UI must not show
     /// "permission missing" warnings while the actual status is still unknown,
     /// otherwise they flash on every settings screen open.
     @Published private(set) var hasCompletedInitialCheck = false
 
-    // TCC status queries (AVCaptureDevice.authorizationStatus, IOHIDCheckAccess)
-    // are synchronous XPC round-trips to tccd taking 40-100 ms — they must
-    // never run on the main thread (traces showed them dropping animation
-    // frames every second while the polling timer was active).
+    // TCC status queries (AVCaptureDevice.authorizationStatus) are synchronous
+    // XPC round-trips to tccd taking 40-100 ms — they must never run on the
+    // main thread (traces showed them dropping animation frames every second
+    // while the polling timer was active).
     private let checkQueue = DispatchQueue(label: "com.opensuperwhisper.permissions", qos: .utility)
     private var isCheckInFlight = false
 
@@ -93,8 +90,17 @@ class PermissionsManager: ObservableObject {
             self?.isIndicatorSessionActive = false
         }
 
+        let injectionTrustObserver = NotificationCenter.default.addObserver(
+            forName: .accessibilityPermissionNeededForInjection,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.checkAccessibilityPermission()
+        }
+
         windowObservers = [showObserver, closeObserver, hideObserver,
-                           indicatorShowObserver, indicatorHideObserver]
+                           indicatorShowObserver, indicatorHideObserver,
+                           injectionTrustObserver]
 
         if let window = NSApplication.shared.mainWindow, window.isKeyWindow {
             startPermissionChecking()
@@ -121,14 +127,12 @@ class PermissionsManager: ObservableObject {
         checkQueue.async { [weak self] in
             let microphone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
             let accessibility = AXIsProcessTrusted()
-            let inputMonitoring = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted
 
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 self.isCheckInFlight = false
                 self.isMicrophonePermissionGranted = microphone
                 self.isAccessibilityPermissionGranted = accessibility
-                self.isInputMonitoringPermissionGranted = inputMonitoring
                 self.hasCompletedInitialCheck = true
             }
         }
@@ -152,36 +156,15 @@ class PermissionsManager: ObservableObject {
         }
     }
 
-    func checkInputMonitoringPermission() {
-        checkQueue.async { [weak self] in
-            let granted = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted
-            DispatchQueue.main.async {
-                self?.isInputMonitoringPermissionGranted = granted
-            }
-        }
-    }
-
+    /// A dictation was not typed because macOS discarded the keystrokes: the
+    /// grant may have been lost while the app was running (rebuilding an
+    /// ad-hoc-signed bundle invalidates it). The `.accessibilityPermissionNeededForInjection`
+    /// observer re-reads it live instead of trusting a cached value.
     func requestAccessibilityPermissionOrOpenSystemPreferences() {
         if AXIsProcessTrusted() {
             isAccessibilityPermissionGranted = true
         } else {
             openSystemPreferences(for: .accessibility)
-        }
-    }
-
-    /// Shows the system Input Monitoring prompt if it hasn't been decided yet,
-    /// otherwise opens System Settings so the user can grant it manually.
-    func requestInputMonitoringPermissionOrOpenSystemPreferences() {
-        switch IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) {
-        case kIOHIDAccessTypeGranted:
-            isInputMonitoringPermissionGranted = true
-        case kIOHIDAccessTypeUnknown:
-            let granted = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
-            DispatchQueue.main.async { [weak self] in
-                self?.isInputMonitoringPermissionGranted = granted
-            }
-        default:
-            openSystemPreferences(for: .inputMonitoring)
         }
     }
 
@@ -215,9 +198,6 @@ class PermissionsManager: ObservableObject {
         case .accessibility:
             urlString =
                 "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-        case .inputMonitoring:
-            urlString =
-                "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
         }
 
         if let url = URL(string: urlString) {

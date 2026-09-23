@@ -44,6 +44,8 @@ class IndicatorViewModel: ObservableObject {
     private let transcriptionQueue: TranscriptionQueue
     private let stopRecordingOperation: () async -> RecordedAudio?
     private let cancelAudioRecordingOperation: () -> Void
+    private let injectTextOperation: (String) -> KeyboardSimulator.InjectionResult
+    private let transformTextOperation: (String, String?) async -> String
     
     init(
         transcriptionService: TranscriptionService = .shared,
@@ -53,6 +55,12 @@ class IndicatorViewModel: ObservableObject {
         },
         cancelAudioRecording: @escaping () -> Void = {
             AudioRecorder.shared.cancelRecording()
+        },
+        injectText: @escaping (String) -> KeyboardSimulator.InjectionResult = {
+            KeyboardSimulator.typeText($0)
+        },
+        transformText: @escaping (String, String?) async -> String = {
+            await TranslationService.shared.transformIfEnabled($0, sourceLanguage: $1)
         }
     ) {
         self.recordingStore = recordingStore
@@ -60,6 +68,8 @@ class IndicatorViewModel: ObservableObject {
         self.transcriptionQueue = TranscriptionQueue.shared
         self.stopRecordingOperation = stopRecording
         self.cancelAudioRecordingOperation = cancelAudioRecording
+        self.injectTextOperation = injectText
+        self.transformTextOperation = transformText
         
         recorder.$startFailure
             .compactMap { $0 }
@@ -278,10 +288,7 @@ class IndicatorViewModel: ObservableObject {
 
                     try Task.checkCancellation()
                     guard self.decodingSessionID == sessionID else { throw CancellationError() }
-                    let finalText = await TranslationService.shared.transformIfEnabled(
-                        text,
-                        sourceLanguage: output.language
-                    )
+                    let finalText = await transformTextOperation(text, output.language)
                     try Task.checkCancellation()
                     guard self.decodingSessionID == sessionID else { throw CancellationError() }
                     insertText(finalText)
@@ -336,13 +343,52 @@ class IndicatorViewModel: ObservableObject {
             if prefs.autoCopyToClipboard {
                 ClipboardUtil.copyToClipboard(finalText)
             }
-            KeyboardSimulator.typeText(finalText)
-        } else if prefs.autoCopyToClipboard {
-            // Only copy to clipboard, don't paste
-            ClipboardUtil.copyToClipboard(finalText)
+            let result = injectTextOperation(finalText)
+            KeyboardSimulator.logDictation(
+                trusted: result.trusted,
+                characters: finalText.count,
+                injected: result.injected,
+                eventsPosted: result.eventsPosted
+            )
+            if !result.trusted {
+                reportInjectionWithoutAccessibilityTrust()
+            }
+        } else {
+            KeyboardSimulator.logDictation(
+                trusted: KeyboardSimulator.isTrustedForInjection,
+                characters: finalText.count,
+                injected: false,
+                eventsPosted: 0
+            )
+            if prefs.autoCopyToClipboard {
+                // Only copy to clipboard, don't paste
+                ClipboardUtil.copyToClipboard(finalText)
+            }
         }
         // If both are false, do nothing
+    }
 
+    /// macOS drops every event an untrusted process posts, so a dictation that
+    /// reached this point was typed nowhere. Say so through the app's existing
+    /// permission surface instead of letting the text look lost — the
+    /// transcript stays in the history, and the grant can be restored.
+    private func reportInjectionWithoutAccessibilityTrust() {
+        // The permission UI reads a value refreshed while a window was key; the
+        // indicator is a non-activating panel, so that value can still claim
+        // the grant is present while macOS refuses the keystrokes. Ask for a
+        // fresh check now rather than trusting the cached one.
+        NotificationCenter.default.post(name: .accessibilityPermissionNeededForInjection, object: nil)
+        AppErrorCenter.shared.report(
+            "Transcription was not typed",
+            message: "macOS discarded OpenSuperWhisper's simulated keystrokes because this copy of "
+                + "the app is not trusted for Accessibility, so the dictation did not reach the "
+                + "focused app. It is saved in the History tab.\n\n"
+                + "Open System Settings › Privacy & Security › Accessibility and make sure the "
+                + "OpenSuperWhisper entry for this copy is switched on. If it already looks "
+                + "enabled, switch it off and on again — several builds of the app share that "
+                + "name, and a grant made for a different copy does not apply to the one "
+                + "running. Removing the stale row and granting the app again also works."
+        )
     }
     
     static func applyPostProcessing(_ text: String) -> String {

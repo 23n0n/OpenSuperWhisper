@@ -163,6 +163,39 @@ final class KeyboardSimulatorTests: XCTestCase {
         XCTAssertEqual(NSPasteboard.general.changeCount, changeCountBefore)
     }
 
+    // MARK: - Reported outcome
+
+    /// The outcome is what the one-line dictation log and the user-facing
+    /// warning are built from, so it must report the trust state the injection
+    /// actually saw and count the events it actually posted.
+    func testTypeTextReportsLiveTrustAndPostedEventCount() {
+        var events: [CGEvent] = []
+        let result = KeyboardSimulator.typeText("Hé!") { events.append($0) }
+
+        XCTAssertEqual(result.eventsPosted, events.count)
+        XCTAssertEqual(result.eventsPosted, 2)
+        XCTAssertTrue(result.injected)
+        XCTAssertEqual(result.trusted, KeyboardSimulator.isTrustedForInjection)
+    }
+
+    func testTypeTextReportsNothingPostedForEmptyText() {
+        let result = KeyboardSimulator.typeText("") { _ in }
+
+        XCTAssertEqual(result.eventsPosted, 0)
+        XCTAssertFalse(result.injected)
+    }
+
+    /// The trust answer is injectable, so a test can pin it instead of depending
+    /// on whether the host process happens to hold the Accessibility grant.
+    func testTypeTextHonoursAnInjectedTrustValue() {
+        var events: [CGEvent] = []
+        let result = KeyboardSimulator.typeText("pinned", trusted: false) { events.append($0) }
+
+        XCTAssertFalse(result.trusted)
+        XCTAssertEqual(result.eventsPosted, events.count)
+        XCTAssertEqual(result.eventsPosted, 2)
+    }
+
     // MARK: - Helpers
 
     /// True when a chunk's UTF-16 round-trips losslessly and contains no

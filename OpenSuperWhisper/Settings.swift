@@ -1211,7 +1211,7 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Apply tone")
                                     .font(.subheadline)
-                                Text("Rewrite English dictation in the selected tone; Polish is never toned")
+                                Text("Rewrite the result in the selected tone — Polish is toned through translation; with translation off only English is rewritten")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -1667,10 +1667,10 @@ struct SettingsView: View {
                                     .foregroundColor(.secondary)
 
                                 permissionWarning(
-                                    message: "⚠️ This mode requires Input Monitoring permission. macOS requires this to detect single modifier key presses globally. Only modifier key events (⌘, ⌥, ⇧, ⌃, Fn) are monitored — no regular keystrokes are captured.",
-                                    isGranted: permissionsManager.isInputMonitoringPermissionGranted
+                                    message: "This mode requires Accessibility permission so single modifier key presses can be detected globally. Only modifier key events (⌘, ⌥, ⇧, ⌃, Fn) are monitored — no regular keystrokes are captured.",
+                                    isGranted: permissionsManager.isAccessibilityPermissionGranted
                                 ) {
-                                    permissionsManager.requestInputMonitoringPermissionOrOpenSystemPreferences()
+                                    permissionsManager.requestAccessibilityPermissionOrOpenSystemPreferences()
                                 }
                             }
                         case .mouse:
