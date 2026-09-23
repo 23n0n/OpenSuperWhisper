@@ -961,7 +961,7 @@ final class TranslationServiceTests: XCTestCase {
         AppPreferences.shared.transformTargetLanguage = .polish
         XCTAssertEqual(AppPreferences.shared.transformTargetLanguage, .polish)
         XCTAssertEqual(
-            UserDefaults.standard.string(forKey: key),
+            AppPreferences.defaults.string(forKey: key),
             TransformLanguage.polish.rawValue
         )
 
@@ -973,17 +973,17 @@ final class TranslationServiceTests: XCTestCase {
     /// picker: it must read back as English, the direction the app shipped.
     func testAppPreferences_targetLanguageDefaultsToEnglish() {
         let key = "transformTargetLanguage"
-        let original = UserDefaults.standard.object(forKey: key)
-        UserDefaults.standard.removeObject(forKey: key)
+        let original = AppPreferences.defaults.object(forKey: key)
+        AppPreferences.defaults.removeObject(forKey: key)
         defer {
             if let original {
-                UserDefaults.standard.set(original, forKey: key)
+                AppPreferences.defaults.set(original, forKey: key)
             } else {
-                UserDefaults.standard.removeObject(forKey: key)
+                AppPreferences.defaults.removeObject(forKey: key)
             }
         }
 
-        XCTAssertNil(UserDefaults.standard.object(forKey: key))
+        XCTAssertNil(AppPreferences.defaults.object(forKey: key))
         XCTAssertEqual(AppPreferences.shared.transformTargetLanguage, .english)
     }
 
