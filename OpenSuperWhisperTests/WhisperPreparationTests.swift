@@ -108,10 +108,7 @@ final class WhisperPreparationTests: XCTestCase {
 
     func testPreparedStatePreservesTextAndIsReleasedAfterUse() async throws {
         let model = try TestFixtures.tinyEnglishModel()
-        let original = AppPreferences.shared.selectedWhisperModelPath
-        AppPreferences.shared.selectedWhisperModelPath = model.path
-        defer { AppPreferences.shared.selectedWhisperModelPath = original }
-        let engine = WhisperEngine()
+        let engine = WhisperEngine(modelPath: model.path)
         try await engine.initialize()
         var settings = Settings()
         settings.selectedLanguage = "en"
