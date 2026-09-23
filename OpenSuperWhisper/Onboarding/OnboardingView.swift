@@ -482,9 +482,21 @@ struct OnboardingView: View {
             
             Divider()
             
-            // Footer with Continue button
+            // Footer with Continue button. Onboarding is never a dead end:
+            // Continue needs a downloaded model, and a download can fail, be
+            // refused, or be pointless on a machine that already has one.
+            // Skip finishes onboarding exactly as Continue does - every choice
+            // here is also in Settings.
             HStack {
+                Button("Skip for now") {
+                    handleContinueButtonTap()
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+                .help("Continue to the app without downloading a model")
+
                 Spacer()
+
                 Button(action: {
                     handleContinueButtonTap()
                 }) {

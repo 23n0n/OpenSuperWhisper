@@ -90,13 +90,35 @@ where the app gets built automatically on GitHub's CI.
 A Debug build from `run.sh` carries no identity — it is at best linker-signed with an
 ad-hoc signature, and Xcode writes the target's code into `OpenSuperWhisper.debug.dylib`
 behind a stub binary (`ENABLE_DEBUG_DYLIB` defaults to `YES` in Debug). An ad-hoc
-signature's designated requirement is a hash of the exact binary (`cdhash H"…"`), and
-macOS stores Accessibility, Microphone and Automation grants against that requirement.
-Every rebuild therefore produces a binary that no longer matches the grant: System
-Settings still shows Accessibility as granted while the app is refused.
+signature's designated requirement is a hash of the exact binary
+(`# designated => cdhash H"…"`), and macOS stores Accessibility, Microphone and
+Automation grants against that requirement. Every rebuild therefore produces a binary
+that no longer matches the grant: System Settings still shows Accessibility as granted
+while the app is refused. tccd logs exactly that, seconds after the grant was recorded:
+
+```
+tccd: Update Access Record: kTCCServiceAccessibility for ru.starmel.OpenSuperWhisper to Allowed (System Set)
+tccd: -[TCCDAccessIdentity matchesCodeRequirement:]: SecStaticCodeCheckValidity() static code
+      (0x7b9f1bc300) from ru.starmel.OpenSuperWhisper : identifier
+      "ru.starmel.OpenSuperWhisper" and certificate leaf = H"32266bcc…"; status: -67050
+```
+
+`-67050` is `errSecCSReqFailed`: the copy that is running does not satisfy the
+requirement the grant was stored with. The same trap has a second half — because the
+real code lives in the debug dylib, the binary TCC attributes is the ~40 KB stub, not
+the app. `Scripts/dev-run.sh` (and therefore `./run.sh`) removes a product left in that
+split layout before building it and refuses to launch one that survives.
+
+The recorded grant can be tested against any build without launching it, with the same
+check tccd performs:
+
+```shell
+codesign --verify -R '=identifier "ru.starmel.OpenSuperWhisper" and certificate leaf = H"32266bcc…"' <app>
+```
 
 Sign local builds with a real (self-signed) identity instead. It is created without
-sudo, without an Apple account, and lives in its own keychain:
+sudo, without an Apple account, and lives in its own keychain. `./run.sh` is now a thin
+alias for `Scripts/dev-run.sh`, so the command above already takes this path:
 
 ```shell
 Scripts/dev-signing-identity.sh   # once per machine: creates "OpenSuperWhisper Local Dev"
@@ -104,9 +126,7 @@ Scripts/dev-run.sh                # build (debug dylib off), sign, run
 Scripts/dev-run.sh build          # build and sign only
 ```
 
-`Scripts/dev-run.sh` is `run.sh` plus `ENABLE_DEBUG_DYLIB=NO` and a signing pass, so the
-bundle you launch is the one that got signed. To sign a bundle built by `./run.sh`
-instead, or any other copy, point the signing script at it:
+Any other copy can be signed the same way, by pointing the signing script at it:
 
 ```shell
 Scripts/dev-sign.sh build/Build/Products/Debug/OpenSuperWhisper.app
@@ -129,9 +149,11 @@ Scripts/dev-signing-identity.sh --remove
 
 Granting is the one step no script can do for you: the app has to be running and asking
 for it, and you have to turn the switch on in System Settings → Privacy & Security →
-Accessibility (or in the app's own permission screen). When you move from an
-ad-hoc-signed build to an identity-signed one, the recorded grant matches the old
-requirement, so drop it once and grant again:
+Accessibility. The app never blocks on this — it shows an inline "Keystrokes are off —
+grant Accessibility" notice with a button that opens that pane, and the notice clears
+itself as soon as the switch is on. When you move from an ad-hoc-signed build to an
+identity-signed one, the recorded grant matches the old requirement, so drop it once and
+grant again:
 
 ```shell
 tccutil reset Accessibility ru.starmel.OpenSuperWhisper
