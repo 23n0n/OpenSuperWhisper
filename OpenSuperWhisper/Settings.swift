@@ -197,6 +197,36 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
+    @Published var translateEnabled: Bool {
+        didSet {
+            AppPreferences.shared.translateEnabled = translateEnabled
+        }
+    }
+
+    @Published var transformToneMode: ToneMode {
+        didSet {
+            AppPreferences.shared.transformToneMode = transformToneMode
+        }
+    }
+
+    @Published var transformEndpoint: String {
+        didSet {
+            AppPreferences.shared.transformEndpoint = transformEndpoint
+        }
+    }
+
+    @Published var transformModel: String {
+        didSet {
+            AppPreferences.shared.transformModel = transformModel
+        }
+    }
+
+    @Published var transformTimeout: Double {
+        didSet {
+            AppPreferences.shared.transformTimeout = transformTimeout
+        }
+    }
+
     private let downloadWhisper: (URL, String, @escaping (Double) -> Void) async throws -> Void
 
     private let downloadFluid: (AsrModelVersion, ProgressHandler?) async throws -> AsrModels
@@ -230,6 +260,11 @@ class SettingsViewModel: ObservableObject {
         self.addSpaceAfterSentence = prefs.addSpaceAfterSentence
         self.autoCopyToClipboard = prefs.autoCopyToClipboard
         self.autoPasteTranscription = prefs.autoPasteTranscription
+        self.translateEnabled = prefs.translateEnabled
+        self.transformToneMode = prefs.transformToneMode
+        self.transformEndpoint = prefs.transformEndpoint
+        self.transformModel = prefs.transformModel
+        self.transformTimeout = prefs.transformTimeout
 
         if let savedPath = prefs.selectedWhisperModelPath ?? prefs.selectedModelPath {
             self.selectedModelURL = URL(fileURLWithPath: savedPath)
@@ -1000,6 +1035,77 @@ struct SettingsView: View {
                                 .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
                                 .labelsHidden()
                         }
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.controlBackgroundColor).opacity(0.3))
+                .cornerRadius(12)
+
+                // Translation & Tone
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Translation & Tone")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Translate Polish to English")
+                                    .font(.subheadline)
+                                Text("Send the transcript to a local OpenAI-compatible endpoint before pasting")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $viewModel.translateEnabled)
+                                .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
+                                .labelsHidden()
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Tone")
+                                .font(.subheadline)
+                            Picker("Tone", selection: $viewModel.transformToneMode) {
+                                ForEach(ToneMode.allCases) { tone in
+                                    Text(tone.displayName).tag(tone)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .disabled(!viewModel.translateEnabled)
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Endpoint")
+                                .font(.subheadline)
+                            TextField("http://127.0.0.1:1919/v1/chat/completions", text: $viewModel.transformEndpoint)
+                                .textFieldStyle(.roundedBorder)
+                                .disabled(!viewModel.translateEnabled)
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Model")
+                                .font(.subheadline)
+                            TextField("Qwen/Qwen3-14B-MLX-6bit", text: $viewModel.transformModel)
+                                .textFieldStyle(.roundedBorder)
+                                .disabled(!viewModel.translateEnabled)
+                        }
+
+                        HStack {
+                            Text("Timeout (seconds):")
+                                .font(.subheadline)
+                            Spacer()
+                            TextField("", value: $viewModel.transformTimeout, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 70)
+                                .disabled(!viewModel.translateEnabled)
+                        }
+
+                        Text("Dictation history keeps the raw Polish transcript; the pasted text is the translated, tone-adjusted English.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                 }
                 .padding()
