@@ -23,15 +23,115 @@ struct OptionalUserDefault<T> {
 
 final class AppPreferences {
     static let shared = AppPreferences()
+
+    /// Shape version of the stored preferences. Bump this whenever a stored
+    /// value has to be reinterpreted; `migrateOldPreferences()` then runs the
+    /// matching migration once per install.
+    static let prefsSchemaVersion = 1
+    static let prefsSchemaVersionKey = "prefsSchemaVersion"
+
     private init() {
         migrateOldPreferences()
     }
-    
+
+    /// One-time migrations for installs that already carry preferences.
+    ///
+    /// Every step converges an existing install onto the current model of the
+    /// world and is safe to run again (a fresh install has nothing stored, so
+    /// nothing happens at all). Installing a new version over an old one must
+    /// leave the user with working dictation, not with a pointer to a file the
+    /// app no longer owns.
     private func migrateOldPreferences() {
         if let oldPath = UserDefaults.standard.string(forKey: "selectedModelPath"),
            UserDefaults.standard.string(forKey: "selectedWhisperModelPath") == nil {
             UserDefaults.standard.set(oldPath, forKey: "selectedWhisperModelPath")
         }
+
+        let defaults = UserDefaults.standard
+        guard defaults.integer(forKey: Self.prefsSchemaVersionKey) < Self.prefsSchemaVersion else { return }
+
+        // 1. Whisper model paths are app-owned storage or nothing. A path that
+        //    points into a git checkout (or anywhere else outside the app's own
+        //    folder) is adopted by copying the file in; a path whose file is
+        //    gone is dropped, and the app falls back to the model it ships.
+        let modelsDirectory = WhisperModelManager.modelsDirectory
+        for key in ["selectedWhisperModelPath", "selectedModelPath"] {
+            guard let stored = defaults.string(forKey: key) else { continue }
+            if let migrated = Self.adoptedModelPath(stored: stored, modelsDirectory: modelsDirectory) {
+                defaults.set(migrated, forKey: key)
+            } else {
+                defaults.removeObject(forKey: key)
+            }
+        }
+
+        // 2. A transform model id this build does not ship is stale (the
+        //    pre-built-in-runtime default was an MLX id the app never loaded).
+        //    With the external-endpoint override on, an arbitrary id is the
+        //    user's business and is left alone.
+        if let stored = defaults.string(forKey: "transformModel") {
+            if let migrated = Self.migratedTransformModelID(
+                stored: stored,
+                externalEndpointEnabled: defaults.bool(forKey: "transformUseExternalEndpoint")
+            ) {
+                defaults.set(migrated, forKey: "transformModel")
+            } else {
+                defaults.removeObject(forKey: "transformModel")
+            }
+        }
+
+        defaults.set(Self.prefsSchemaVersion, forKey: Self.prefsSchemaVersionKey)
+    }
+
+    /// The transform model id to keep, or `nil` when the stored one should be
+    /// dropped.
+    ///
+    /// Any id the shipped catalogue knows survives. Anything else is only
+    /// meaningful to an external endpoint, so it survives exactly when that
+    /// override is on; otherwise the preference falls back to the built-in
+    /// default model.
+    static func migratedTransformModelID(
+        stored: String,
+        externalEndpointEnabled: Bool
+    ) -> String? {
+        if externalEndpointEnabled { return stored }
+        if TransformModelManager.availableModels.contains(where: { $0.id == stored }) { return stored }
+        return nil
+    }
+
+    /// The app-owned path for a stored model path, or `nil` when there is
+    /// nothing usable to point at.
+    ///
+    /// A path already inside `modelsDirectory` is kept as is. One outside it is
+    /// copied in — once — and the copy is returned. A path whose file does not
+    /// exist yields `nil` so the caller drops it.
+    static func adoptedModelPath(
+        stored: String,
+        modelsDirectory: URL,
+        fileManager: FileManager = .default
+    ) -> String? {
+        let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let storedURL = URL(fileURLWithPath: trimmed).standardizedFileURL
+        let directoryPath = modelsDirectory.standardizedFileURL.path
+        if storedURL.path == directoryPath || storedURL.path.hasPrefix(directoryPath + "/") {
+            return trimmed
+        }
+
+        guard fileManager.fileExists(atPath: storedURL.path) else { return nil }
+
+        let destination = modelsDirectory.appendingPathComponent(storedURL.lastPathComponent)
+        if !fileManager.fileExists(atPath: destination.path) {
+            do {
+                try fileManager.createDirectory(at: modelsDirectory, withIntermediateDirectories: true)
+                try fileManager.copyItem(at: storedURL, to: destination)
+                print("[AppPreferences] adopted \(storedURL.path) into app storage")
+            } catch {
+                print("[AppPreferences] could not adopt \(storedURL.path): \(error)")
+                return nil
+            }
+        }
+        return destination.path
     }
     
     // Engine settings
@@ -146,6 +246,13 @@ final class AppPreferences {
         get { ToneMode(rawValue: transformToneModeRaw) ?? .neutral }
         set { transformToneModeRaw = newValue.rawValue }
     }
+
+    /// Advanced override. Off by default: the app carries its own llama.cpp
+    /// runtime, and the transform runs in this process against app-owned
+    /// weights. Turn this on to send the transform to an OpenAI-compatible
+    /// endpoint on this machine instead (a self-hosted `llama-server`, say).
+    @UserDefault(key: "transformUseExternalEndpoint", defaultValue: false)
+    var transformUseExternalEndpoint: Bool
 
     @UserDefault(key: "transformEndpoint", defaultValue: "http://127.0.0.1:1919/v1/chat/completions")
     var transformEndpoint: String

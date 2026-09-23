@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><style>
+body { font: 13px -apple-system, "Helvetica Neue", sans-serif; color: #333; }
+h2 { font-size: 15px; margin: 0 0 8px 0; }
+ul { margin: 6px 0 12px 18px; padding: 0; }
+li { margin: 3px 0; }
+code { font-family: Menlo, monospace; font-size: 12px; }
+</style></head>
+<body>
+<h2>OpenSuperWhisper is installed</h2>
+
+<p>The app is in <code>/Applications</code>, and everything it needs to run is inside it:
+the whisper speech engine and the llama.cpp transform engine are linked into the same
+binary, and neither one needs Homebrew, a background server or a listening port.</p>
+
+<h2>The transform model downloads on first use</h2>
+
+<p>Translation and tone need a language model (about 1 GB). It is <em>not</em> in this
+installer &mdash; every update would then carry it again. Turn on
+<strong>Translate Polish to English</strong> or <strong>Apply tone</strong> in
+Settings &rarr; Transcription, press <strong>Download model</strong> next to it, and the
+app fetches the weights into its own folder, verifies the published checksum, and keeps
+them there. Until then, dictation is pasted unchanged.</p>
+
+<h2>Uninstalling</h2>
+
+<p>One operation removes everything: the app, your dictation history, the downloaded
+models and the installer receipt.</p>
+
+<ul>
+  <li>Settings &rarr; Advanced &rarr; <strong>Uninstall OpenSuperWhisper&hellip;</strong>, or the same item in the menu-bar menu.</li>
+  <li><code>/Applications/Uninstall OpenSuperWhisper.command</code>, if the app is already gone.</li>
+</ul>
+
+<p>It leaves <code>~/models</code>, <code>/opt/homebrew</code> and every other
+application's data untouched.</p>
+</body>
+</html>

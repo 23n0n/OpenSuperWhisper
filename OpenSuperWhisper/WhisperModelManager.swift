@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 
-class WhisperDownloadDelegate: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate {
+class ModelDownloadDelegate: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate {
     private let progressCallback: (Double) -> Void
     private var expectedContentLength: Int64 = 0
     var completionHandler: ((URL?, Error?) -> Void)?
@@ -63,16 +63,27 @@ class WhisperDownloadDelegate: NSObject, URLSessionTaskDelegate, URLSessionDownl
 
 class WhisperModelManager {
     static let shared = WhisperModelManager()
-    
-    private let modelsDirectoryName = "whisper-models"
+
+    /// The model the app ships inside its own bundle.
+    static let defaultModelName = "ggml-tiny.en.bin"
+
+    private static let modelsDirectoryName = "whisper-models"
     private var activeDownloadTasks: [String: URLSessionDownloadTask] = [:]
     private let downloadTasksLock = NSLock()
-    
-    var modelsDirectory: URL {
+
+    /// `~/Library/Application Support/<bundle id>/whisper-models/`
+    ///
+    /// Static so the preference migration can tell an app-owned model path from
+    /// a foreign one without instantiating the manager.
+    static var modelsDirectory: URL {
         let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let modelsDirectory = applicationSupport.appendingPathComponent(Bundle.main.bundleIdentifier!).appendingPathComponent(modelsDirectoryName)
-        return modelsDirectory
+        let bundleID = Bundle.main.bundleIdentifier ?? "ru.starmel.OpenSuperWhisper"
+        return applicationSupport
+            .appendingPathComponent(bundleID)
+            .appendingPathComponent(modelsDirectoryName)
     }
+
+    var modelsDirectory: URL { Self.modelsDirectory }
     
     private init() {
         createModelsDirectoryIfNeeded()
@@ -88,7 +99,7 @@ class WhisperModelManager {
     }
     
     private func copyDefaultModelIfNeeded() {
-        let defaultModelName = "ggml-tiny.en.bin"
+        let defaultModelName = Self.defaultModelName
         let destinationURL = modelsDirectory.appendingPathComponent(defaultModelName)
         
         // Check if model already exists
@@ -109,10 +120,23 @@ class WhisperModelManager {
 
     // Call this on every startup to ensure at least one model is present
     public func ensureDefaultModelPresent() {
-        let defaultModelName = "ggml-tiny.en.bin"
-        let destinationURL = modelsDirectory.appendingPathComponent(defaultModelName)
-        if !FileManager.default.fileExists(atPath: destinationURL.path) {
+        let defaultModelName = Self.defaultModelName
+        let defaultModelURL = modelsDirectory.appendingPathComponent(defaultModelName)
+        if !FileManager.default.fileExists(atPath: defaultModelURL.path) {
             copyDefaultModelIfNeeded()
+        }
+
+        // A selection that points at a file which is not there anymore (the
+        // checkout it came from was moved, the file was deleted) would fail
+        // every dictation with contextInitializationFailed. Point it at the
+        // model the app owns instead.
+        let prefs = AppPreferences.shared
+        if let stored = prefs.selectedWhisperModelPath,
+           !stored.isEmpty,
+           !FileManager.default.fileExists(atPath: stored),
+           FileManager.default.fileExists(atPath: defaultModelURL.path) {
+            print("Selected whisper model \(stored) is gone; falling back to the bundled one")
+            prefs.selectedWhisperModelPath = defaultModelURL.path
         }
     }
     
@@ -145,7 +169,7 @@ class WhisperModelManager {
         print("- Destination: \(destinationURL.path)")
         
         return try await withCheckedThrowingContinuation { continuation in
-            let delegate = WhisperDownloadDelegate(progressCallback: progressCallback)
+            let delegate = ModelDownloadDelegate(progressCallback: progressCallback)
             let configuration = URLSessionConfiguration.default
             configuration.waitsForConnectivity = true
             configuration.timeoutIntervalForRequest = 60

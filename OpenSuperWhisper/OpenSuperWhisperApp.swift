@@ -102,6 +102,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
         terminationTask = Task { @MainActor in
             await TranscriptionService.shared.shutdown()
             await TranscriptionQueue.shared.stopProcessingQueue()
+            TransformRuntime.shared.unload()
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
@@ -329,6 +330,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
         menu.addItem(microphoneMenu)
         
         menu.addItem(NSMenuItem.separator())
+
+        let uninstallItem = NSMenuItem(
+            title: "Uninstall OpenSuperWhisper…",
+            action: #selector(uninstallApp(_:)),
+            keyEquivalent: ""
+        )
+        uninstallItem.target = self
+        menu.addItem(uninstallItem)
+
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q"))
         
         statusItem?.menu = menu
@@ -377,6 +387,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
     }
     
     @objc private func quitApp() {
+        NSApplication.shared.terminate(nil)
+    }
+
+    /// The menu-bar entry point for the same operation Settings offers. A menu
+    /// item cannot present a sheet, so the consequences are spelled out in an
+    /// alert instead.
+    @objc private func uninstallApp(_ sender: Any?) {
+        let alert = NSAlert()
+        alert.messageText = "Uninstall OpenSuperWhisper?"
+        alert.informativeText = """
+            This removes the app and everything it has stored on this Mac: your \
+            dictation history, the downloaded speech and transform models, your \
+            settings and the installer receipt. It cannot be undone.
+
+            \(UninstallService.untouchedNote)
+            """
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "Uninstall")
+        alert.addButton(withTitle: "Cancel")
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        do {
+            try UninstallService.startUninstall(resetPermissions: false)
+        } catch {
+            let failure = NSAlert()
+            failure.messageText = "Uninstall failed"
+            failure.informativeText = error.localizedDescription
+            failure.alertStyle = .warning
+            failure.runModal()
+            return
+        }
         NSApplication.shared.terminate(nil)
     }
     

@@ -118,7 +118,13 @@ final class TranslationServiceTests: XCTestCase {
         prefs.toneEnabled = false
 
         StubURLProtocol.reset()
-        service = TranslationService(urlSession: makeStubbedSession())
+        // These tests drive the HTTP override, injected rather than read from
+        // the shared preferences: test classes run in parallel processes and
+        // would otherwise fight over one preference file.
+        service = TranslationService(
+            urlSession: makeStubbedSession(),
+            usesExternalEndpoint: { true }
+        )
     }
 
     override func tearDown() {
@@ -646,7 +652,7 @@ final class TranslationServiceTests: XCTestCase {
         let body = try makeResponse(content: "Hello world.")
         StubURLProtocol.outcome = .success(statusCode: 200, body: body)
 
-        let result = try await service.transform("Cześć", policy: .translate)
+        let result = try await service.transformOverHTTP("Cześć", policy: .translate)
 
         XCTAssertEqual(result, "Hello world.")
         XCTAssertEqual(StubURLProtocol.requestCount, 1)
@@ -662,7 +668,7 @@ final class TranslationServiceTests: XCTestCase {
         StubURLProtocol.outcome = .success(statusCode: 500, body: Data())
 
         do {
-            _ = try await service.transform("Cześć", policy: .translate)
+            _ = try await service.transformOverHTTP("Cześć", policy: .translate)
             XCTFail("Expected an httpError")
         } catch let error as TranslationError {
             guard case .httpError(let statusCode) = error else {
@@ -678,7 +684,7 @@ final class TranslationServiceTests: XCTestCase {
         enableTranslation(endpoint: "")
 
         do {
-            _ = try await service.transform("Cześć", policy: .translate)
+            _ = try await service.transformOverHTTP("Cześć", policy: .translate)
             XCTFail("Expected an invalidEndpoint error")
         } catch TranslationError.invalidEndpoint {
             // expected
@@ -694,7 +700,7 @@ final class TranslationServiceTests: XCTestCase {
             body: try makeResponse(content: "Hello.")
         )
 
-        _ = try await service.transform("Cześć", policy: .translate)
+        _ = try await service.transformOverHTTP("Cześć", policy: .translate)
 
         XCTAssertEqual(
             StubURLProtocol.lastRequest?.url?.absoluteString,
@@ -709,7 +715,7 @@ final class TranslationServiceTests: XCTestCase {
             body: try makeResponse(content: "Hello.")
         )
 
-        _ = try await service.transform("Cześć", policy: .translate)
+        _ = try await service.transformOverHTTP("Cześć", policy: .translate)
 
         let timeout = try XCTUnwrap(StubURLProtocol.lastRequest?.timeoutInterval)
         XCTAssertEqual(timeout, 1, accuracy: 0.001, "A 0s timeout must be clamped up to 1s")
@@ -722,12 +728,12 @@ final class TranslationServiceTests: XCTestCase {
         )
 
         enableTranslation(timeout: 999)
-        _ = try await service.transform("Cześć", policy: .translate)
+        _ = try await service.transformOverHTTP("Cześć", policy: .translate)
         let upper = try XCTUnwrap(StubURLProtocol.lastRequest?.timeoutInterval)
         XCTAssertEqual(upper, 120, accuracy: 0.001, "A 999s timeout must be clamped down to 120s")
 
         enableTranslation(timeout: 8)
-        _ = try await service.transform("Cześć", policy: .translate)
+        _ = try await service.transformOverHTTP("Cześć", policy: .translate)
         let inRange = try XCTUnwrap(StubURLProtocol.lastRequest?.timeoutInterval)
         XCTAssertEqual(inRange, 8, accuracy: 0.001, "An in-range timeout must pass through unchanged")
     }
@@ -736,7 +742,7 @@ final class TranslationServiceTests: XCTestCase {
         enableTranslation(timeout: 5)
         StubURLProtocol.outcome = .hang
 
-        let task = Task { try await service.transform("Cześć", policy: .translate) }
+        let task = Task { try await service.transformOverHTTP("Cześć", policy: .translate) }
 
         // Wait until the in-flight request reaches the stub.
         let deadline = Date().addingTimeInterval(5)

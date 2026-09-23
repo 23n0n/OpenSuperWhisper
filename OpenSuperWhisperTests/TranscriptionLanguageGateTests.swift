@@ -90,7 +90,13 @@ final class TranscriptionLanguageGateTests: XCTestCase {
     private func stubbedTranslationService() -> TranslationService {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
-        return TranslationService(urlSession: URLSession(configuration: configuration))
+        // The gate's HTTP path is what these tests stub, injected rather than
+        // read from the shared preferences (parallel test processes share one
+        // preference file).
+        return TranslationService(
+            urlSession: URLSession(configuration: configuration),
+            usesExternalEndpoint: { true }
+        )
     }
 
     private func stubContent(_ content: String) throws {

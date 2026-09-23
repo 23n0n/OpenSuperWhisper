@@ -233,6 +233,115 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
+    /// Advanced override: run the transform against an external endpoint
+    /// instead of the engine built into the app.
+    @Published var transformUseExternalEndpoint: Bool {
+        didSet {
+            AppPreferences.shared.transformUseExternalEndpoint = transformUseExternalEndpoint
+            refreshTransformModelState()
+        }
+    }
+
+    // MARK: - Built-in transform model
+
+    @Published var transformModelInstalled = false
+    @Published var isDownloadingTransformModel = false
+    @Published var transformModelDownloadProgress: Double = 0
+    @Published var transformModelError: String?
+
+    private var transformDownloadTask: Task<Void, Never>?
+
+    /// The catalogue entry for the stored id, resolved to the built-in default
+    /// when the stored id is not one this build ships.
+    var resolvedTransformModel: TransformModel {
+        TransformModelManager.shared.resolvedModel(forID: transformModel)
+    }
+
+    var transformModelStateDescription: String {
+        if isDownloadingTransformModel {
+            return "Downloading \(resolvedTransformModel.sizeDescription)…"
+        }
+        if transformModelInstalled {
+            return "Installed — \(resolvedTransformModel.sizeDescription)"
+        }
+        return "Not downloaded — \(resolvedTransformModel.sizeDescription)"
+    }
+
+    var transformModelSourceDescription: String {
+        "\(resolvedTransformModel.displayName), \(resolvedTransformModel.licence), from \(resolvedTransformModel.source)"
+    }
+
+    /// True when a switch wants the transform but nothing could run it yet.
+    var transformNeedsModel: Bool {
+        (translateEnabled || toneEnabled)
+            && !transformUseExternalEndpoint
+            && !transformModelInstalled
+            && !isDownloadingTransformModel
+    }
+
+    /// Recomputes the installed state off the main thread: the first check of a
+    /// hand-placed model hashes ~1 GB.
+    func refreshTransformModelState() {
+        let model = resolvedTransformModel
+        let usesExternal = transformUseExternalEndpoint
+        Task.detached(priority: .utility) { [weak self] in
+            let installed = TransformModelManager.shared.verifiedPath(for: model) != nil
+            await MainActor.run {
+                guard let self else { return }
+                self.transformModelInstalled = installed || usesExternal
+            }
+        }
+    }
+
+    @MainActor
+    func downloadTransformModel() async {
+        guard !isDownloadingTransformModel else { return }
+        transformModelError = nil
+
+        do {
+            try DiskSpaceUtil.ensureEnoughFreeSpaceForModelDownload()
+        } catch {
+            transformModelError = error.localizedDescription
+            return
+        }
+
+        let model = resolvedTransformModel
+        isDownloadingTransformModel = true
+        transformModelDownloadProgress = 0
+        defer {
+            isDownloadingTransformModel = false
+            transformModelDownloadProgress = 0
+        }
+
+        do {
+            try await TransformModelManager.shared.download(model: model) { progress in
+                Task { @MainActor [weak self] in
+                    self?.transformModelDownloadProgress = progress
+                }
+            }
+            await MainActor.run { self.refreshTransformModelState() }
+        } catch {
+            transformModelError = error.localizedDescription
+        }
+    }
+
+    func cancelTransformModelDownload() {
+        TransformModelManager.shared.cancelDownload(modelID: resolvedTransformModel.id)
+        isDownloadingTransformModel = false
+        transformModelDownloadProgress = 0
+    }
+
+    func removeTransformModel() {
+        transformModelError = nil
+        do {
+            try TransformModelManager.shared.remove(resolvedTransformModel)
+            TransformRuntime.shared.unload()
+            refreshTransformModelState()
+        } catch {
+            transformModelError = error.localizedDescription
+        }
+    }
+
     private let downloadWhisper: (URL, String, @escaping (Double) -> Void) async throws -> Void
 
     private let downloadFluid: (AsrModelVersion, ProgressHandler?) async throws -> AsrModels
@@ -272,6 +381,7 @@ class SettingsViewModel: ObservableObject {
         self.transformEndpoint = prefs.transformEndpoint
         self.transformModel = prefs.transformModel
         self.transformTimeout = prefs.transformTimeout
+        self.transformUseExternalEndpoint = prefs.transformUseExternalEndpoint
 
         if let savedPath = prefs.selectedWhisperModelPath ?? prefs.selectedModelPath {
             self.selectedModelURL = URL(fileURLWithPath: savedPath)
@@ -279,6 +389,7 @@ class SettingsViewModel: ObservableObject {
         loadAvailableModels()
         initializeDownloadableModels()
         initializeFluidAudioModels()
+        refreshTransformModelState()
         
         if !supportedLanguages.contains(selectedLanguage) {
             let fallback = LanguageUtil.fallbackLanguage(engine: selectedEngine)
@@ -724,6 +835,9 @@ struct SettingsView: View {
     @State private var isRecordingNewShortcut = false
     @State private var selectedTab = 0
     @State private var previousModelURL: URL?
+    @State private var showingUninstallSheet = false
+    @State private var resetPermissionsOnUninstall = false
+    @State private var uninstallError: String?
     
     private var sheetSize: CGSize {
         let visibleFrame = NSScreen.main?.visibleFrame.size ?? CGSize(width: 1280, height: 800)
@@ -807,6 +921,29 @@ struct SettingsView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingUninstallSheet) {
+            UninstallConfirmationSheet(
+                resetPermissions: $resetPermissionsOnUninstall,
+                onCancel: { showingUninstallSheet = false },
+                onConfirm: {
+                    showingUninstallSheet = false
+                    performUninstall()
+                }
+            )
+        }
+    }
+
+    /// Starts the uninstaller and quits. The script waits for this process to
+    /// exit before it removes anything, which is the only way an app can delete
+    /// the bundle it is running from.
+    private func performUninstall() {
+        do {
+            try UninstallService.startUninstall(resetPermissions: resetPermissionsOnUninstall)
+        } catch {
+            uninstallError = error.localizedDescription
+            return
+        }
+        NSApplication.shared.terminate(nil)
     }
     
     private var modelSettings: some View {
@@ -1097,31 +1234,67 @@ struct SettingsView: View {
                             .disabled(!viewModel.toneEnabled)
                         }
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Endpoint")
-                                .font(.subheadline)
-                            TextField("http://127.0.0.1:1919/v1/chat/completions", text: $viewModel.transformEndpoint)
-                                .textFieldStyle(.roundedBorder)
-                                .disabled(!(viewModel.translateEnabled || viewModel.toneEnabled))
-                        }
+                        // Built-in runtime: the weights the app downloads and
+                        // runs itself. The endpoint fields live in Advanced,
+                        // because they are the override, not the default.
+                        Divider()
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Model")
-                                .font(.subheadline)
-                            TextField("qwen2.5-1.5b-instruct-q4_k_m", text: $viewModel.transformModel)
-                                .textFieldStyle(.roundedBorder)
-                                .disabled(!(viewModel.translateEnabled || viewModel.toneEnabled))
-                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Transform model")
+                                        .font(.subheadline)
+                                    Text(viewModel.transformModelStateDescription)
+                                        .font(.caption)
+                                        .foregroundColor(viewModel.transformModelInstalled ? .secondary : .orange)
+                                }
+                                Spacer()
+                                if viewModel.isDownloadingTransformModel {
+                                    Button("Cancel") {
+                                        viewModel.cancelTransformModelDownload()
+                                    }
+                                    .font(.subheadline)
+                                } else if viewModel.transformModelInstalled {
+                                    Button("Remove") {
+                                        viewModel.removeTransformModel()
+                                    }
+                                    .font(.subheadline)
+                                } else {
+                                    Button("Download model") {
+                                        Task { await viewModel.downloadTransformModel() }
+                                    }
+                                    .font(.subheadline)
+                                    .buttonStyle(.borderedProminent)
+                                    .disabled(viewModel.transformUseExternalEndpoint)
+                                }
+                            }
 
-                        HStack {
-                            Text("Timeout (seconds):")
-                                .font(.subheadline)
-                            Spacer()
-                            TextField("", value: $viewModel.transformTimeout, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .multilineTextAlignment(.trailing)
-                                .frame(width: 70)
-                                .disabled(!(viewModel.translateEnabled || viewModel.toneEnabled))
+                            if viewModel.isDownloadingTransformModel {
+                                ProgressView(value: viewModel.transformModelDownloadProgress)
+                                Text(String(
+                                    format: "%.0f%% of %@",
+                                    viewModel.transformModelDownloadProgress * 100,
+                                    viewModel.resolvedTransformModel.sizeDescription
+                                ))
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            }
+
+                            if viewModel.transformNeedsModel {
+                                Text("Until this model is downloaded, dictation is pasted unchanged.")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+
+                            if let error = viewModel.transformModelError {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                            }
+
+                            Text("Runs inside the app: \(viewModel.transformModelSourceDescription). Downloaded into the app's own folder, so uninstalling takes it with it.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
 
                         Text("The pasted text depends on the language and the two switches: raw by default, translated when Polish meets the translation switch, tone-adjusted when English meets the tone switch. Dictation history always keeps the raw transcript, and recordings transcribed from the list are never transformed. Language awareness needs a multilingual whisper model in Auto-detect; with a fixed language the app trusts your setting.")
@@ -1285,12 +1458,104 @@ struct SettingsView: View {
                 .background(Color(.controlBackgroundColor).opacity(0.3))
                 .cornerRadius(12)
                 
+                // Transform backend (advanced override)
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Transform Backend")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Use an external endpoint")
+                                    .font(.subheadline)
+                                Text("Send the transform to an OpenAI-compatible endpoint instead of the engine built into the app")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $viewModel.transformUseExternalEndpoint)
+                                .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
+                                .labelsHidden()
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Endpoint")
+                                .font(.subheadline)
+                            TextField("http://127.0.0.1:1919/v1/chat/completions", text: $viewModel.transformEndpoint)
+                                .textFieldStyle(.roundedBorder)
+                                .disabled(!viewModel.transformUseExternalEndpoint)
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Model id")
+                                .font(.subheadline)
+                            TextField("qwen2.5-1.5b-instruct-q4_k_m", text: $viewModel.transformModel)
+                                .textFieldStyle(.roundedBorder)
+                                .disabled(!viewModel.transformUseExternalEndpoint)
+                            Text(viewModel.transformUseExternalEndpoint
+                                 ? "The id the endpoint reports in /v1/models."
+                                 : "The model the built-in engine loads: \(viewModel.resolvedTransformModel.displayName).")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        HStack {
+                            Text("Timeout (seconds):")
+                                .font(.subheadline)
+                            Spacer()
+                            TextField("", value: $viewModel.transformTimeout, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 70)
+                                .disabled(!viewModel.transformUseExternalEndpoint)
+                        }
+
+                        Text("With the override off, translation and tone are processed in this process against the downloaded model; nothing listens on a port and no other process has to be running.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.controlBackgroundColor).opacity(0.3))
+                .cornerRadius(12)
+
+                // Uninstall
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Uninstall")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Removes the app, your dictation history, the downloaded models and the installer receipt in one operation.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Button("Uninstall OpenSuperWhisper…") {
+                            uninstallError = nil
+                            showingUninstallSheet = true
+                        }
+                        .foregroundColor(.red)
+
+                        if let uninstallError {
+                            Text(uninstallError)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.controlBackgroundColor).opacity(0.3))
+                .cornerRadius(12)
+
                 // Debug Options
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Debug Options")
                         .font(.headline)
                         .foregroundColor(.primary)
-                    
+
                     HStack {
                         Text("Debug Mode")
                             .font(.subheadline)

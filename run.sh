@@ -5,11 +5,12 @@ if [[ "$1" == "build" ]]; then
     JUST_BUILD=true
 fi
 
-# Configure libwhisper
-echo "Configuring libwhisper..."
-cmake -G Xcode -B libwhisper/build -S libwhisper
+# Configure and build the two vendored engines. llama.cpp owns the single ggml
+# that whisper.cpp also compiles against; see Scripts/build-native.sh.
+echo "Building native engines..."
+Scripts/build-native.sh Debug
 if [[ $? -ne 0 ]]; then
-    echo "CMake configuration failed!"
+    echo "Native engine build failed!"
     exit 1
 fi
 
@@ -27,11 +28,6 @@ if [[ $? -ne 0 ]]; then
     echo "Cargo build failed!"
     exit 1
 fi
-
-echo "Copying libomp.dylib..."
-cp -f /opt/homebrew/opt/libomp/lib/libomp.dylib ./build/libomp.dylib || { echo "libomp copy failed"; exit 1; }
-install_name_tool -id "@rpath/libomp.dylib" ./build/libomp.dylib
-codesign --force --sign - ./build/libomp.dylib
 
 # Build the app
 echo "Building OpenSuperWhisper..."

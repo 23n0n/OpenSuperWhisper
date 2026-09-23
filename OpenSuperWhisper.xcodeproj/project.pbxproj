@@ -20,6 +20,8 @@
 		36EBCD57CC6B8E2D3FC51EF5 /* (null) in Sources */ = {isa = PBXBuildFile; };
 		36EBCE4EA0197EA30ECFA1F7 /* (null) in Sources */ = {isa = PBXBuildFile; };
 		840156D02D79ED9900FB5FFE /* libwhisper.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 840156CF2D79ED9900FB5FFE /* libwhisper.a */; };
+		CEAC00152D82F60000000000 /* libllama.a in Frameworks */ = {isa = PBXBuildFile; fileRef = CEAC00142D82F60000000000 /* libllama.a */; };
+		CEAC00172D82F60000000000 /* uninstall.sh in Resources */ = {isa = PBXBuildFile; fileRef = CEAC00162D82F60000000000 /* uninstall.sh */; };
 		840156D12D79EDA900FB5FFE /* libggml.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 840156C52D79ED9900FB5FFE /* libggml.a */; };
 		840156D22D79EDB500FB5FFE /* libggml-base.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 840156C72D79ED9900FB5FFE /* libggml-base.a */; };
 		840156D32D79EDBA00FB5FFE /* libggml-blas.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 840156C92D79ED9900FB5FFE /* libggml-blas.a */; };
@@ -33,7 +35,6 @@
 		CE84E17D2D56550B00C54EA6 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = CE84E17C2D56550B00C54EA6 /* KeyboardShortcuts */; };
 		CEAC00032D82F00200000000 /* libautocorrect_swift.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = CEAC00012D82F00000000000 /* libautocorrect_swift.dylib */; };
 		CEAC00042D82F10000000000 /* libautocorrect_swift.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = CEAC00012D82F00000000000 /* libautocorrect_swift.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		CEAC00082D82F50000000000 /* libomp.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = CEAC00072D82F40000000000 /* libomp.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -51,46 +52,53 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXContainerItemProxy section */
+		CEAC00112D82F60000000000 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CEAC00132D82F60000000000 /* libllama.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 063B82A6437547229B9541B5;
+			remoteInfo = llama;
+		};
 		840156C42D79ED9900FB5FFE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 840156402D79E87600FB5FFE /* libwhisper.xcodeproj */;
+			containerPortal = CEAC00132D82F60000000000 /* libllama.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = B8CFD18D1CA64DB288EF4CAB;
+			remoteGlobalIDString = 9C1CEDEE28F94B0EB8ECD409;
 			remoteInfo = ggml;
 		};
 		840156C62D79ED9900FB5FFE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 840156402D79E87600FB5FFE /* libwhisper.xcodeproj */;
+			containerPortal = CEAC00132D82F60000000000 /* libllama.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = E9432130077149BEA5672826;
+			remoteGlobalIDString = F4A8408B831A4BDD81AAE528;
 			remoteInfo = "ggml-base";
 		};
 		840156C82D79ED9900FB5FFE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 840156402D79E87600FB5FFE /* libwhisper.xcodeproj */;
+			containerPortal = CEAC00132D82F60000000000 /* libllama.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = E8BC775FB8B44B4FBAD88B47;
+			remoteGlobalIDString = AF04635BF5BF4E85918E3762;
 			remoteInfo = "ggml-blas";
 		};
 		840156CA2D79ED9900FB5FFE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 840156402D79E87600FB5FFE /* libwhisper.xcodeproj */;
+			containerPortal = CEAC00132D82F60000000000 /* libllama.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = 200441F97DEC455CBF966F1F;
+			remoteGlobalIDString = D55AE7FBFC454142AD021CFB;
 			remoteInfo = "ggml-cpu";
 		};
 		840156CC2D79ED9900FB5FFE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 840156402D79E87600FB5FFE /* libwhisper.xcodeproj */;
+			containerPortal = CEAC00132D82F60000000000 /* libllama.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = 8F906E52C874462B9841D673;
+			remoteGlobalIDString = B8EC1CF4C56C472FBAAE514A;
 			remoteInfo = "ggml-metal";
 		};
 		840156CE2D79ED9900FB5FFE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 840156402D79E87600FB5FFE /* libwhisper.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = 30B2BC75387D4C73A3820913;
+			remoteGlobalIDString = 6FD40E1C7D224B77B43662D2;
 			remoteInfo = whisper;
 		};
 		CE57B03A2D52C7BC00929AF3 /* PBXContainerItemProxy */ = {
@@ -117,13 +125,14 @@
 			dstSubfolderSpec = 10;
 			files = (
 				CEAC00042D82F10000000000 /* libautocorrect_swift.dylib in CopyFiles */,
-				CEAC00082D82F50000000000 /* libomp.dylib in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CEAC00162D82F60000000000 /* uninstall.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = packaging/uninstall.sh; sourceTree = "<group>"; };
+		CEAC00132D82F60000000000 /* libllama.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = libllama.xcodeproj; path = libllama/build/libllama.xcodeproj; sourceTree = "<group>"; };
 		840156402D79E87600FB5FFE /* libwhisper.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = libwhisper.xcodeproj; path = libwhisper/build/libwhisper.xcodeproj; sourceTree = "<group>"; };
 		840156592D79EA1A00FB5FFE /* Bridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Bridge.h; sourceTree = "<group>"; };
 		CE57B0282D52C7BB00929AF3 /* OpenSuperWhisper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenSuperWhisper.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -165,10 +174,8 @@
 		CE84DF702D55778000C54EA6 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		CE84DF732D5577A700C54EA6 /* libggml-blas.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = "libggml-blas.a"; sourceTree = "<group>"; };
 		CE84DF752D5577D200C54EA6 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
-		CE84DF772D55789800C54EA6 /* ggml-tiny.en.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "ggml-tiny.en.bin"; sourceTree = "<group>"; };
 		CE84DF792D5578BE00C54EA6 /* jfk.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = jfk.wav; sourceTree = "<group>"; };
 		CEAC00012D82F00000000000 /* libautocorrect_swift.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libautocorrect_swift.dylib; path = build/libautocorrect_swift.dylib; sourceTree = "<group>"; };
-		CEAC00072D82F40000000000 /* libomp.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libomp.dylib; path = build/libomp.dylib; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -216,6 +223,7 @@
 				CE0EAD6E2D56ACA80067FDEE /* GRDB in Frameworks */,
 				CE84DF722D55778000C54EA6 /* MetalKit.framework in Frameworks */,
 				840156D02D79ED9900FB5FFE /* libwhisper.a in Frameworks */,
+				CEAC00152D82F60000000000 /* libllama.a in Frameworks */,
 				CE84DF6E2D55777800C54EA6 /* libc++.tbd in Frameworks */,
 				840156D12D79EDA900FB5FFE /* libggml.a in Frameworks */,
 				CE84E17D2D56550B00C54EA6 /* KeyboardShortcuts in Frameworks */,
@@ -243,12 +251,20 @@
 		840156412D79E87600FB5FFE /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				840156CF2D79ED9900FB5FFE /* libwhisper.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CEAC00122D82F60000000000 /* Products */ = {
+			isa = PBXGroup;
+			children = (
 				840156C52D79ED9900FB5FFE /* libggml.a */,
 				840156C72D79ED9900FB5FFE /* libggml-base.a */,
 				840156C92D79ED9900FB5FFE /* libggml-blas.a */,
 				840156CB2D79ED9900FB5FFE /* libggml-cpu.a */,
 				840156CD2D79ED9900FB5FFE /* libggml-metal.a */,
-				840156CF2D79ED9900FB5FFE /* libwhisper.a */,
+				CEAC00142D82F60000000000 /* libllama.a */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -281,12 +297,13 @@
 			children = (
 				840156592D79EA1A00FB5FFE /* Bridge.h */,
 				840156402D79E87600FB5FFE /* libwhisper.xcodeproj */,
+				CEAC00132D82F60000000000 /* libllama.xcodeproj */,
+				CEAC00162D82F60000000000 /* uninstall.sh */,
 				CE57B02A2D52C7BB00929AF3 /* OpenSuperWhisper */,
 				CE57B03C2D52C7BC00929AF3 /* OpenSuperWhisperTests */,
 				CE57B0462D52C7BC00929AF3 /* OpenSuperWhisperUITests */,
 				CE37B60E2D54F274009D6564 /* Frameworks */,
 				CE57B0292D52C7BB00929AF3 /* Products */,
-				CE84DF772D55789800C54EA6 /* ggml-tiny.en.bin */,
 				CE84DF792D5578BE00C54EA6 /* jfk.wav */,
 				CE9DA5672EA8DA4600EB417E /* Recovered References */,
 			);
@@ -400,7 +417,6 @@
 			isa = PBXGroup;
 			children = (
 				CEAC00012D82F00000000000 /* libautocorrect_swift.dylib */,
-				CEAC00072D82F40000000000 /* libomp.dylib */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -525,6 +541,10 @@
 					ProductGroup = 840156412D79E87600FB5FFE /* Products */;
 					ProjectRef = 840156402D79E87600FB5FFE /* libwhisper.xcodeproj */;
 				},
+				{
+					ProductGroup = CEAC00122D82F60000000000 /* Products */;
+					ProjectRef = CEAC00132D82F60000000000 /* libllama.xcodeproj */;
+				},
 			);
 			projectRoot = "";
 			targets = (
@@ -536,6 +556,13 @@
 /* End PBXProject section */
 
 /* Begin PBXReferenceProxy section */
+		CEAC00142D82F60000000000 /* libllama.a */ = {
+			isa = PBXReferenceProxy;
+			fileType = archive.ar;
+			path = libllama.a;
+			remoteRef = CEAC00112D82F60000000000 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
 		840156C52D79ED9900FB5FFE /* libggml.a */ = {
 			isa = PBXReferenceProxy;
 			fileType = archive.ar;
@@ -585,6 +612,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CEAC00172D82F60000000000 /* uninstall.sh in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -805,6 +833,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/libwhisper/**",
+					"$(PROJECT_DIR)/libllama/llama.cpp/include",
 				);
 				INFOPLIST_FILE = "OpenSuperWhisper/OpenSuperWhisper-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -819,15 +848,10 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)",
 					"$(PROJECT_DIR)/build",
-					/opt/homebrew/opt/libomp/lib,
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-lomp",
-				);
 				PRODUCT_BUNDLE_IDENTIFIER = ru.starmel.OpenSuperWhisper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -870,6 +894,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/libwhisper/**",
+					"$(PROJECT_DIR)/libllama/llama.cpp/include",
 				);
 				INFOPLIST_FILE = "OpenSuperWhisper/OpenSuperWhisper-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -884,16 +909,11 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)",
 					"$(PROJECT_DIR)/build",
-					/opt/homebrew/opt/libomp/lib,
 				);
 				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-lomp",
-				);
 				PRODUCT_BUNDLE_IDENTIFIER = ru.starmel.OpenSuperWhisper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -917,6 +937,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/libwhisper/**",
+					"$(PROJECT_DIR)/libllama/llama.cpp/include",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.1;
 				MARKETING_VERSION = 0.1.0;
@@ -941,6 +962,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/libwhisper/**",
+					"$(PROJECT_DIR)/libllama/llama.cpp/include",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.1;
 				MARKETING_VERSION = 0.1.0;

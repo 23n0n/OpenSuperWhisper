@@ -197,6 +197,9 @@ class AudioRecorder: NSObject, ObservableObject {
             try session.start()
             Task { @MainActor in
                 TranscriptionService.shared.prepareForRecording()
+                // Same moment, same reason: get the transform weights warm while
+                // the user is still speaking. No-op unless the feature is on.
+                TransformRuntime.shared.warmUpIfEnabled()
             }
             if monitorConnection {
                 startConnectionMonitoring()
