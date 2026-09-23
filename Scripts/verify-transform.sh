@@ -5,13 +5,14 @@
 # Drives the running backend with the app's EXACT request shape and asserts the
 # app's parsing expectations hold:
 #
-#   * request body     -> TranslationService.buildRequestBody(text:tone:model:)
-#   * system prompt    -> TranslationService.systemPrompt(for:)  (extracted from source)
+#   * request body     -> TranslationService.buildRequestBody(text:policy:model:)
+#   * system prompts   -> TranslationService.systemPrompt(for:)  (extracted from source),
+#                         one per policy: translate-only, tone-only, translate+tone
 #   * model/endpoint   -> AppPreferences.transformModel / .transformEndpoint defaults
 #   * timeout ceiling  -> AppPreferences.transformTimeout default
 #   * response parsing -> TranslationService.parseContent(from:) / .stripReasoning(from:)
 #
-# The prompt, tone instructions and defaults are read out of the Swift sources,
+# The prompts, tone instructions and defaults are read out of the Swift sources,
 # so this script fails if the app and the backend ever drift apart.
 #
 # Usage:
@@ -68,14 +69,19 @@ pref_number() { # key
     sed -n "s/.*@UserDefault(key: \"$1\", defaultValue: \([0-9.]*\)).*/\1/p" "$PREFS" | head -1
 }
 
-# The body of systemPrompt(for:)'s multi-line literal, still carrying the
-# \(tone.instruction) interpolation.
-system_prompt_skeleton() {
-    awk '
-      /static func systemPrompt\(for tone: ToneMode\) -> String/ { in_func = 1; next }
-      in_func && /^[[:space:]]*"""$/ { quotes++; next }
-      in_func && quotes == 1 { sub(/^[[:space:]]{8}/, ""); print }
-      in_func && quotes == 2 { exit }
+# The body of one `systemPrompt(for:)` literal, selected by its policy case
+# label. Scoped to that function: `TransformPolicy.promptTone` uses the same case
+# labels earlier in the file. The translate-only literal carries no
+# interpolation; the two tone-bearing ones keep the literal \(tone.instruction)
+# placeholder.
+policy_prompt() { # translate|toneOnly|translateWithTone
+    awk -v case_label="$1" '
+      /static func systemPrompt\(for policy: TransformPolicy\) -> String/ { in_func = 1; next }
+      in_func && /^    \}/ { exit }
+      in_func && $0 ~ ("^[[:space:]]*case \\." case_label "(:|\\()") { in_case = 1; next }
+      in_case && /"""/ { quotes++; next }
+      in_case && quotes == 1 { sub(/^[[:space:]]+/, ""); print }
+      in_case && quotes == 2 { exit }
     ' "$SERVICE"
 }
 
@@ -89,7 +95,9 @@ tone_instruction() { # neutral|formal|casual
 MODEL="$(pref_string transformModel)"
 ENDPOINT="$(pref_string transformEndpoint)"
 TIMEOUT="$(pref_number transformTimeout)"
-SKELETON="$(system_prompt_skeleton)"
+SKELETON_TRANSLATE="$(policy_prompt translate)"
+SKELETON_TONE_ONLY="$(policy_prompt toneOnly)"
+SKELETON_TRANSLATE_TONE="$(policy_prompt translateWithTone)"
 INSTR_NEUTRAL="$(tone_instruction neutral)"
 INSTR_FORMAL="$(tone_instruction formal)"
 INSTR_CASUAL="$(tone_instruction casual)"
@@ -97,7 +105,9 @@ INSTR_CASUAL="$(tone_instruction casual)"
 [[ -n "$MODEL" ]] || die "could not read transformModel default from $PREFS"
 [[ -n "$ENDPOINT" ]] || die "could not read transformEndpoint default from $PREFS"
 [[ -n "$TIMEOUT" ]] || die "could not read transformTimeout default from $PREFS"
-[[ -n "$SKELETON" ]] || die "could not read systemPrompt literal from $SERVICE"
+[[ -n "$SKELETON_TRANSLATE" ]] || die "could not read the translate-only systemPrompt literal from $SERVICE"
+[[ -n "$SKELETON_TONE_ONLY" ]] || die "could not read the tone-only systemPrompt literal from $SERVICE"
+[[ -n "$SKELETON_TRANSLATE_TONE" ]] || die "could not read the translate+tone systemPrompt literal from $SERVICE"
 for instr in "$INSTR_NEUTRAL" "$INSTR_FORMAL" "$INSTR_CASUAL"; do
     [[ -n "$instr" ]] || die "could not read a ToneMode.instruction from $SERVICE"
 done
@@ -130,11 +140,62 @@ grep -q 'role: "system"' "$SERVICE"
 check "system message is first" $?
 grep -q 'case reasoningContent = "reasoning_content"' "$SERVICE"
 check "response reasoning_content is decoded" $?
-case "$SKELETON" in
-    *"$PROMPT_PLACEHOLDER"*)
-        pass "systemPrompt literal interpolates ToneMode.instruction" ;;
+grep -q 'static func buildRequestBody(text: String, policy: TransformPolicy, model: String) throws -> Data' "$SERVICE"
+check "buildRequestBody takes the policy (tone is optional)" $?
+
+# MARK: - Prompt composition per policy (report §3.6)
+
+echo ""
+echo "== prompt composition per policy =="
+
+# translate on + tone off: no tone wording whatsoever — the neutral sentence the
+# app used to append is exactly what this feature removes.
+translate_tone_free=0
+case "$SKELETON_TRANSLATE" in *"$PROMPT_PLACEHOLDER"*) translate_tone_free=1 ;; esac
+for instr in "$INSTR_NEUTRAL" "$INSTR_FORMAL" "$INSTR_CASUAL"; do
+    case "$SKELETON_TRANSLATE" in *"$instr"*) translate_tone_free=1 ;; esac
+done
+case "$SKELETON_TRANSLATE" in *[Tt]one*) translate_tone_free=1 ;; esac
+check "translate-only prompt sends no tone wording at all" "$translate_tone_free"
+case "$SKELETON_TRANSLATE" in
+    *"Translate the user's Polish text into natural English"*)
+        pass "translate-only prompt asks for Polish to English" ;;
     *)
-        fail "systemPrompt literal no longer interpolates ToneMode.instruction" ;;
+        fail "translate-only prompt no longer asks for Polish to English" ;;
+esac
+
+# translate off + tone on: same language in, same language out.
+case "$SKELETON_TONE_ONLY" in
+    *"$PROMPT_PLACEHOLDER"*)
+        pass "tone-only prompt interpolates ToneMode.instruction" ;;
+    *)
+        fail "tone-only prompt lost the ToneMode.instruction interpolation" ;;
+esac
+case "$SKELETON_TONE_ONLY" in
+    *"keeping the same language as the input"*)
+        pass "tone-only prompt asks to keep the input language" ;;
+    *)
+        fail "tone-only prompt no longer asks to keep the input language" ;;
+esac
+case "$SKELETON_TONE_ONLY" in
+    *"Translate the user's Polish text into natural English"*)
+        fail "tone-only prompt still asks for translation" ;;
+    *)
+        pass "tone-only prompt does not ask for translation" ;;
+esac
+
+# translate on + tone on: the shipped behaviour, unchanged.
+case "$SKELETON_TRANSLATE_TONE" in
+    *"$PROMPT_PLACEHOLDER"*)
+        pass "translate+tone prompt interpolates ToneMode.instruction" ;;
+    *)
+        fail "translate+tone prompt lost the ToneMode.instruction interpolation" ;;
+esac
+case "$SKELETON_TRANSLATE_TONE" in
+    *"Translate the user's Polish text into natural English"*)
+        pass "translate+tone prompt asks for Polish to English" ;;
+    *)
+        fail "translate+tone prompt no longer asks for Polish to English" ;;
 esac
 
 # MARK: - Backend reachability and served model id
@@ -160,18 +221,9 @@ fi
 # MARK: - Request/response helpers
 
 # Builds the app's exact body and issues the request. Sets RESP_CODE,
-# RESP_TIME and RESPONSE_BODY in the caller's shell.
-send() { # tone, text
-    local tone="$1" text="$2" instr prompt meta
-    case "$tone" in
-        neutral) instr="$INSTR_NEUTRAL" ;;
-        formal) instr="$INSTR_FORMAL" ;;
-        casual) instr="$INSTR_CASUAL" ;;
-        *) die "unknown tone: $tone" ;;
-    esac
-    prompt="${SKELETON//"$PROMPT_PLACEHOLDER"/$instr}"
-    [[ "$prompt" == *"$instr"* ]] || die "system prompt does not carry the $tone tone instruction"
-
+# RESP_TIME, RESPONSE_BODY and LAST_BODY in the caller's shell.
+request_with_prompt() { # prompt, text
+    local prompt="$1" text="$2" meta
     LAST_BODY="$(jq -cn --arg model "$MODEL" --arg sys "$prompt" --arg user "$text" \
         '{model: $model,
           messages: [{role: "system", content: $sys}, {role: "user", content: $user}],
@@ -184,6 +236,43 @@ send() { # tone, text
     RESP_CODE="${meta%% *}"
     RESP_TIME="${meta##* }"
     RESPONSE_BODY="$(cat "$RESPONSE_FILE")"
+}
+
+# translate on + tone on: the prompt the app shipped before this change.
+send() { # tone, text
+    local tone="$1" text="$2" instr prompt
+    case "$tone" in
+        neutral) instr="$INSTR_NEUTRAL" ;;
+        formal) instr="$INSTR_FORMAL" ;;
+        casual) instr="$INSTR_CASUAL" ;;
+        *) die "unknown tone: $tone" ;;
+    esac
+    prompt="${SKELETON_TRANSLATE_TONE//"$PROMPT_PLACEHOLDER"/$instr}"
+    [[ "$prompt" == *"$instr"* ]] || die "system prompt does not carry the $tone tone instruction"
+
+    request_with_prompt "$prompt" "$text"
+}
+
+# translate on + tone off: no tone wording in the request at all.
+send_translate_only() { # text
+    [[ "$SKELETON_TRANSLATE" != *"$PROMPT_PLACEHOLDER"* ]] \
+        || die "translate-only prompt unexpectedly interpolates a tone instruction"
+    request_with_prompt "$SKELETON_TRANSLATE" "$1"
+}
+
+# translate off + tone on: same language in, same language out.
+send_tone_only() { # tone, text
+    local tone="$1" text="$2" instr prompt
+    case "$tone" in
+        neutral) instr="$INSTR_NEUTRAL" ;;
+        formal) instr="$INSTR_FORMAL" ;;
+        casual) instr="$INSTR_CASUAL" ;;
+        *) die "unknown tone: $tone" ;;
+    esac
+    prompt="${SKELETON_TONE_ONLY//"$PROMPT_PLACEHOLDER"/$instr}"
+    [[ "$prompt" == *"$instr"* ]] || die "tone-only prompt does not carry the $tone tone instruction"
+
+    request_with_prompt "$prompt" "$text"
 }
 
 # Mirrors TranslationService.stripReasoning(from:).
@@ -370,6 +459,65 @@ done
 [[ "$OVERLAP" == "0" ]] \
     && pass "formal and casual produce disjoint outputs for the same input" \
     || fail "formal and casual produced $OVERLAP identical output pair(s)"
+
+# MARK: - Language awareness / tone switch prompt shapes (live)
+
+echo ""
+echo "== new prompt shapes on the live backend =="
+
+# translate on + tone off: the request must carry no tone wording, and the
+# Polish input must still come back as English.
+send_translate_only "$TONE_PROBE"
+echo "PL (translate-only): $TONE_PROBE"
+case "$LAST_BODY" in
+    *[Tt]one*) fail "translate-only request body mentions tone" ;;
+    *) pass "translate-only request body mentions no tone" ;;
+esac
+verify_response "translate-only" "$RESP_CODE" "$RESP_TIME" "$TONE_PROBE"
+LATENCIES+=("$RESP_TIME")
+SHORT_LATENCIES+=("$RESP_TIME")
+
+# translate off + tone on: same language in, same language out. The model is
+# asked to keep English English; anything that comes back as Polish is exactly
+# what the app's language-preservation guard discards.
+TONE_ONLY_INPUT="Please send the report to the client today."
+send_tone_only formal "$TONE_ONLY_INPUT"
+echo "EN (tone-only): $TONE_ONLY_INPUT"
+case "$LAST_BODY" in
+    *"keeping the same language as the input"*)
+        pass "tone-only request asks to keep the input language" ;;
+    *)
+        fail "tone-only request lost the same-language wording" ;;
+esac
+case "$LAST_BODY" in
+    *"Translate the user's Polish text into natural English"*)
+        fail "tone-only request asks for translation" ;;
+    *)
+        pass "tone-only request does not ask for translation" ;;
+esac
+[[ "$RESP_CODE" == "200" ]] && pass "tone-only: HTTP 200" || fail "tone-only: HTTP $RESP_CODE"
+TONE_ONLY_CONTENT="$(printf '%s' "$RESPONSE_BODY" | jq -r '.choices[0].message.content // empty')"
+TONE_ONLY_REASONING="$(printf '%s' "$RESPONSE_BODY" | jq -r '.choices[0].message.reasoning_content // empty')"
+assert_no_reasoning "tone-only" "$TONE_ONLY_CONTENT" "$TONE_ONLY_REASONING"
+TONE_ONLY_CONTENT="$(printf '%s' "$TONE_ONLY_CONTENT" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+if [[ -z "$TONE_ONLY_CONTENT" ]]; then
+    fail "tone-only: parseContent would return emptyResponse"
+else
+    pass "tone-only: parseContent yields non-empty text"
+    case "$TONE_ONLY_CONTENT" in
+        *[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]*)
+            fail "tone-only: output switched to Polish ($TONE_ONLY_CONTENT)" ;;
+        *)
+            pass "tone-only: output kept the input language" ;;
+    esac
+    echo "       content: $TONE_ONLY_CONTENT"
+fi
+too_slow="$(jq -rn --argjson l "$RESP_TIME" --argjson t "$TIMEOUT" 'if $l >= $t then 1 else 0 end')"
+[[ "$too_slow" == "0" ]] \
+    && pass "tone-only: ${RESP_TIME}s is under the app's ${TIMEOUT}s timeout" \
+    || fail "tone-only: ${RESP_TIME}s exceeds the app's ${TIMEOUT}s timeout"
+LATENCIES+=("$RESP_TIME")
+SHORT_LATENCIES+=("$RESP_TIME")
 
 # MARK: - Latency summary
 
