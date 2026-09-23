@@ -1336,26 +1336,43 @@ final class IndicatorWindowGeometryTests: XCTestCase {
 @MainActor
 final class NoMicrophoneGuardTests: XCTestCase {
 
-    /// Forces `MicrophoneService.shared` to report no active microphone for the
-    /// duration of `body`, restoring the previous state afterwards.
-    private func withNoMicrophone(_ body: () -> Void) {
+    /// Makes `MicrophoneService.shared` report `device` as the active input for
+    /// the duration of `body`, restoring the previous state afterwards. `nil`
+    /// means "no microphone".
+    private func withActiveMicrophone(_ device: MicrophoneService.AudioDevice?, _ body: () -> Void) {
         let service = MicrophoneService.shared
         let savedSelected = service.selectedMicrophone
         let savedCurrent = service.currentMicrophone
 
-        service.selectedMicrophone = nil
-        service.currentMicrophone = nil
+        service.selectedMicrophone = device
+        service.currentMicrophone = device
         defer {
             service.selectedMicrophone = savedSelected
             service.currentMicrophone = savedCurrent
         }
 
-        XCTAssertNil(service.getActiveMicrophone(), "Precondition: no active microphone")
+        XCTAssertEqual(service.getActiveMicrophone()?.id, device?.id,
+                       "Precondition: the active input device is the injected one")
         body()
     }
 
+    /// Holds a `TranscriptionService` in its loading state: the engine loader it
+    /// was built with never returns until the test resumes it, so `isLoading` -
+    /// and with it `IndicatorViewModel.isTranscriptionBusy` - is deterministic
+    /// rather than a race against a real model load.
+    private func busyService(named engine: String, gate: EngineLoadGate) -> TranscriptionService {
+        TranscriptionService(
+            selection: TranscriptionService.EngineSelection(engine: engine, modelPath: nil, modelVersion: "v3"),
+            engineLoader: { try await gate.load($0) }
+        )
+    }
+
+    private func finishBusyLoad(_ engine: String, gate: EngineLoadGate) async {
+        await gate.finish(engine, result: .failure(NSError(domain: "NoMicrophoneGuardTests", code: 0)))
+    }
+
     func testIndicatorViewModel_startRecording_withNoMicrophone_showsNoMicrophoneState() {
-        withNoMicrophone {
+        withActiveMicrophone(nil) {
             let viewModel = IndicatorViewModel()
             viewModel.startRecording()
 
@@ -1369,7 +1386,7 @@ final class NoMicrophoneGuardTests: XCTestCase {
     }
 
     func testContentViewModel_startRecording_withNoMicrophone_doesNotStartRecording() {
-        withNoMicrophone {
+        withActiveMicrophone(nil) {
             let viewModel = ContentViewModel()
             viewModel.startRecording()
 
@@ -1378,6 +1395,58 @@ final class NoMicrophoneGuardTests: XCTestCase {
             XCTAssertFalse(viewModel.recorder.isRecording,
                            "Recorder must not be recording when there is no microphone")
         }
+    }
+
+    /// `TranscriptionService` starts loading its engine inside its own
+    /// initializer, so `isTranscriptionBusy` is true from the first touch of the
+    /// service until the model is ready - the window a fresh launch first sees a
+    /// hotkey press in. Checking busy first made the microphone guard unreachable
+    /// there: the indicator answered "Processing..." and the user was never told
+    /// that nothing was being recorded because there is no input device.
+    func testIndicatorViewModel_startRecording_withNoMicrophone_whileTheEngineIsLoading_showsNoMicrophoneState() async {
+        let gate = EngineLoadGate()
+        let overloaded = busyService(named: "no-mic-busy", gate: gate)
+        XCTAssertTrue(overloaded.isLoading, "Precondition: the engine load holds the service busy")
+
+        withActiveMicrophone(nil) {
+            let viewModel = IndicatorViewModel(transcriptionService: overloaded)
+            viewModel.startRecording()
+
+            XCTAssertTrue(viewModel.state == .noMicrophone,
+                          "A loading engine must not hide the missing microphone")
+            XCTAssertFalse(viewModel.recorder.isRecording,
+                           "Recorder must not be recording when there is no microphone")
+
+            viewModel.cleanup()
+        }
+
+        await finishBusyLoad("no-mic-busy", gate: gate)
+    }
+
+    /// The other half of that precedence: with an input device present, a busy
+    /// engine still refuses with the busy message instead of starting a recording.
+    func testIndicatorViewModel_startRecording_withMicrophone_whileTheEngineIsLoading_showsBusy() async {
+        let gate = EngineLoadGate()
+        let overloaded = busyService(named: "mic-busy", gate: gate)
+        XCTAssertTrue(overloaded.isLoading, "Precondition: the engine load holds the service busy")
+
+        let device = MicrophoneService.AudioDevice(id: "no-microphone-guard-test-input",
+                                                  name: "Test Input",
+                                                  manufacturer: "Test",
+                                                  isBuiltIn: true)
+        withActiveMicrophone(device) {
+            let viewModel = IndicatorViewModel(transcriptionService: overloaded)
+            viewModel.startRecording()
+
+            XCTAssertTrue(viewModel.state == .busy,
+                          "A busy engine must still refuse to start a recording")
+            XCTAssertFalse(viewModel.recorder.isRecording,
+                           "Recorder must not be recording while the engine is busy")
+
+            viewModel.cleanup()
+        }
+
+        await finishBusyLoad("mic-busy", gate: gate)
     }
 }
 
