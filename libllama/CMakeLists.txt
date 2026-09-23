@@ -49,3 +49,47 @@ set(GGML_METAL ON CACHE BOOL "" FORCE)
 set(GGML_METAL_EMBED_LIBRARY ON CACHE BOOL "" FORCE)
 
 add_subdirectory(llama.cpp)
+
+# ---------------------------------------------------------------------------
+# Debug builds must not route whisper's Silero VAD through llamafile's sgemm.
+#
+# whisper_vad_build_lstm_layer() calls
+# `ggml_mul_mat(lstm_ih_weight, ggml_transpose(cur))`, and ggml's contiguity test
+# exempts dimensions of extent 1, so that transposed operand is classified
+# contiguous and ggml-cpu's fast path is entered with `ldb = 1` while `k` is
+# lstm_input_size (128). The kernels themselves decline this shape (n == 1 is
+# below their minimum), but the eight plain `assert()`s at the top of
+# llamafile_sgemm run first, so a Debug build aborts with SIGABRT inside
+# whisper_vad_segments_from_samples -- and WhisperEngine runs the VAD on every
+# dictation, so every dictation takes the process down.
+#
+# Release compiles those asserts out (-DNDEBUG), where the same call declines and
+# ggml's generic mul_mat computes it correctly. So only the Debug configuration
+# drops the fast path: nothing is traded in the build users install, where the
+# kernel stays available to whisper's encoder.
+#
+# This is a per-configuration define rather than a GGML_LLAMAFILE cache variable
+# on purpose. The Xcode generator is multi-config: one generated project backs
+# both Debug and Release, so a cache variable cannot differ between them -- it
+# would flip both, and a Release built after a Debug configure would silently
+# lose the kernel. Dropping just this define for Debug is the only way to encode
+# "Debug off, Release on" in the project both configurations share.
+#
+# Do not "tidy" this into a global GGML_LLAMAFILE=OFF.
+# Reproduction and analysis: the fm-20260923-11 crew report (vadprobe +
+# `Assertion failed: (ldb >= k), function llamafile_sgemm, sgemm.cpp:3813`).
+# ---------------------------------------------------------------------------
+if(TARGET ggml-cpu)
+    get_property(_osw_ggml_cpu_definitions TARGET ggml-cpu PROPERTY COMPILE_DEFINITIONS)
+    set(_osw_ggml_cpu_definitions_per_config "")
+    foreach(_osw_definition IN LISTS _osw_ggml_cpu_definitions)
+        if(_osw_definition STREQUAL "GGML_USE_LLAMAFILE")
+            list(APPEND _osw_ggml_cpu_definitions_per_config
+                 "$<$<NOT:$<CONFIG:Debug>>:GGML_USE_LLAMAFILE>")
+        else()
+            list(APPEND _osw_ggml_cpu_definitions_per_config "${_osw_definition}")
+        endif()
+    endforeach()
+    set_property(TARGET ggml-cpu PROPERTY COMPILE_DEFINITIONS
+                 "${_osw_ggml_cpu_definitions_per_config}")
+endif()
