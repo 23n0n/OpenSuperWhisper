@@ -141,6 +141,25 @@ else
     fi
 fi
 
+# The local keychain is created with `set-keychain-settings -lut 43200`, so it
+# relocks on sleep. codesign then fails with the opaque `errSecInternalComponent`
+# and points at whichever nested bundle it was on, which reads like a broken
+# certificate rather than a locked keychain. Scripts/dev-signing-identity.sh
+# already stores the password for this; use it instead of failing the build.
+if [[ -n "$SIGN_KEYCHAIN" && -e "$SIGN_KEYCHAIN" ]]; then
+    if ! security show-keychain-info "$SIGN_KEYCHAIN" >/dev/null 2>&1; then
+        SIGN_STATE_DIR="${DEV_SIGN_STATE_DIR:-$HOME/.opensuperwhisper-dev}"
+        SIGN_PASSWORD_FILE="$SIGN_STATE_DIR/keychain-password"
+        if [[ -f "$SIGN_PASSWORD_FILE" ]]; then
+            echo "Unlocking $SIGN_KEYCHAIN (it relocks when the machine sleeps)..."
+            security unlock-keychain -p "$(cat "$SIGN_PASSWORD_FILE")" "$SIGN_KEYCHAIN"
+        else
+            echo "dev-sign.sh: $SIGN_KEYCHAIN is locked and there is no saved password at" >&2
+            echo "  $SIGN_PASSWORD_FILE - unlock it once by hand, or re-run Scripts/dev-signing-identity.sh" >&2
+        fi
+    fi
+fi
+
 CODESIGN_ARGS=(--force --deep --sign "$IDENTITY" --entitlements "$ENTITLEMENTS" --timestamp=none)
 if [[ -n "$SIGN_KEYCHAIN" ]]; then
     CODESIGN_ARGS+=(--keychain "$SIGN_KEYCHAIN")
