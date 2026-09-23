@@ -132,9 +132,18 @@ The test action rebuilds the app target with signing off, so it leaves the copy 
 disk linker-signed ("`# designated => cdhash H"…"`"), and the next launch of that copy
 has the same "grant does not stick" problem described above. The script signs the
 bundle again after the suite — whether it passed or not — and asserts the identity
-requirement is what is actually on disk. It also offers the language-report cases a
-multilingual model when this machine happens to have one (`OSW_TEST_MULTILINGUAL_MODEL`);
-with none, they skip, exactly as in CI.
+requirement is what is actually on disk. xcodebuild flags are forwarded, so a single
+class still goes through that path:
+
+```shell
+Scripts/dev-run.sh test -only-testing:OpenSuperWhisperTests/TransformBackendTests
+```
+
+It also offers the language-report cases a multilingual model when this machine happens
+to have one (`OSW_TEST_MULTILINGUAL_MODEL`); with none, they skip, exactly as in CI.
+Tests read and write a scratch preference store of their own rather than the app's
+domain, so a suite cannot change — or be changed by — the app someone is running or
+another suite running in parallel.
 
 Any other copy can be signed the same way, by pointing the signing script at it:
 

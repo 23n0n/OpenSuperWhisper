@@ -24,7 +24,11 @@
 # Usage:
 #   Scripts/dev-run.sh              - build, sign, then run the app in the foreground
 #   Scripts/dev-run.sh build        - build and sign only
-#   Scripts/dev-run.sh test         - build, run the unit suite, then re-sign
+#   Scripts/dev-run.sh test [flags]
+#                                   - build, run the unit suite, then re-sign.
+#                                     xcodebuild flags are forwarded, so
+#                                     `test -only-testing:OpenSuperWhisperTests/Foo`
+#                                     runs one class and still ends signed
 #   Scripts/dev-run.sh --reset-tcc  - also drop the current Accessibility grant
 #                                     before launching (needed once when moving
 #                                     off an ad-hoc-signed build; see Readme)
@@ -69,6 +73,7 @@ DR_RECORD="$REPO_ROOT/build/.dev-sign-dr"
 JUST_BUILD=false
 RUN_TESTS=false
 RESET_TCC=false
+TEST_ARGS=()
 
 for arg in "$@"; do
     case "$arg" in
@@ -78,6 +83,10 @@ for arg in "$@"; do
         -h|--help)
             awk 'NR > 1 { if ($0 == "set -euo pipefail") exit; sub(/^# ?/, ""); print }' "$0"
             exit 0 ;;
+        # `test` forwards flag-shaped arguments to xcodebuild, so a focused run
+        # (`test -only-testing:OpenSuperWhisperTests/SomeTests`) still ends with
+        # the signing pass the mode exists for.
+        -*) TEST_ARGS+=("$arg") ;;
         *) echo "dev-run.sh: unknown argument: $arg" >&2; exit 2 ;;
     esac
 done
@@ -175,6 +184,32 @@ run_unit_tests() {
     # `<name>`, which is the form that actually arrives, so both are exported.
     local model="${OSW_TEST_MULTILINGUAL_MODEL:-}"
     local skip_calibrated=()
+
+    # A caller-supplied `-only-testing:` narrows the run; without one the whole
+    # unit bundle runs.
+    local selection=(-only-testing:OpenSuperWhisperTests)
+    local arg
+    for arg in ${TEST_ARGS[@]+"${TEST_ARGS[@]}"}; do
+        if [[ "$arg" == -only-testing:* ]]; then
+            selection=()
+            break
+        fi
+    done
+
+    # Each test process gets its own scratch preference suite (AppPreferences),
+    # which leaves one small file per process behind in ~/Library/Preferences.
+    # Sweep the ones whose process is gone; a suite running in parallel elsewhere
+    # is still alive and is therefore left alone.
+    local store pid
+    for store in "$HOME/Library/Preferences/OpenSuperWhisperTests."*.plist; do
+        [[ -e "$store" ]] || continue
+        pid="${store##*OpenSuperWhisperTests.}"
+        pid="${pid%.plist}"
+        [[ "$pid" =~ ^[0-9]+$ ]] || continue
+        if kill -0 "$pid" 2>/dev/null; then continue; fi
+        rm -f "$store"
+    done
+
     if [[ -z "$model" ]]; then
         model="$(multilingual_test_model || true)"
     fi
@@ -190,8 +225,8 @@ run_unit_tests() {
         # phrase across an adjacent 30-second boundary"). Reporting a boundary
         # artefact of a different model as a defect would be worse than skipping
         # it, so it is skipped - with the reason - unless the calibrated model is
-        # the one in play.
-        if [[ "$(basename "$model")" != "ggml-tiny.bin" ]]; then
+        # the one in play. Asking for it by name still runs it.
+        if (( ${#selection[@]} > 0 )) && [[ "$(basename "$model")" != "ggml-tiny.bin" ]]; then
             skip_calibrated=(-skip-testing:OpenSuperWhisperTests/WhisperLongFormLanguageIntegrationTests)
             echo "  (the long-form boundary fixtures are calibrated to ggml-tiny.bin, so"
             echo "   WhisperLongFormLanguageIntegrationTests stays skipped for this model;"
@@ -208,7 +243,9 @@ run_unit_tests() {
         CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
         ENABLE_DEBUG_DYLIB=NO \
         OSW_BUNDLE_ID_SUFFIX="$BUNDLE_ID_SUFFIX" \
-        -only-testing:OpenSuperWhisperTests ${skip_calibrated[@]+"${skip_calibrated[@]}"}
+        ${selection[@]+"${selection[@]}"} \
+        ${skip_calibrated[@]+"${skip_calibrated[@]}"} \
+        ${TEST_ARGS[@]+"${TEST_ARGS[@]}"}
 }
 
 # The engines come first, in the one order that works: build-native.sh configures

@@ -113,9 +113,11 @@ final class TranslationServiceTests: XCTestCase {
     private let closeReasoningTag = "\u{3C}/reasoning\u{3E}"
     private let endThinkToken = "<\u{FF5C}end\u{2581}of\u{2581}thinking\u{FF5C}>"
 
-    // AppPreferences reads/writes `UserDefaults.standard` internally, so the
-    // suite snapshots and restores every preference it touches in
-    // setUp/tearDown (crash-mid-test is the only case this cannot repair).
+    // Every preference here lives in this test process's own scratch store
+    // (`AppPreferences.defaults`), never in the app domain, so the suite cannot
+    // disturb a running app or another suite running in parallel. The snapshot
+    // and restore below is only about ordering *within* the process: another
+    // test in this same run may already have changed a switch.
     private var savedTranslateEnabled = false
     private var savedToneEnabled = false
     private var savedToneMode: ToneMode = .neutral
@@ -988,24 +990,24 @@ final class TranslationServiceTests: XCTestCase {
     func testAppPreferences_toneEnabledRoundTrip() {
         AppPreferences.shared.toneEnabled = true
         XCTAssertTrue(AppPreferences.shared.toneEnabled)
-        XCTAssertTrue(UserDefaults.standard.bool(forKey: "toneEnabled"))
+        XCTAssertTrue(AppPreferences.defaults.bool(forKey: "toneEnabled"))
 
         AppPreferences.shared.toneEnabled = false
         XCTAssertFalse(AppPreferences.shared.toneEnabled)
-        XCTAssertFalse(UserDefaults.standard.bool(forKey: "toneEnabled"))
+        XCTAssertFalse(AppPreferences.defaults.bool(forKey: "toneEnabled"))
     }
 
     /// A fresh install (and every install that never touched the switch) must
     /// stay bit-identical: no tone rewrite may start on its own.
     func testAppPreferences_toneEnabledDefaultsToFalse() {
         let key = "toneEnabled"
-        let original = UserDefaults.standard.object(forKey: key)
-        UserDefaults.standard.removeObject(forKey: key)
+        let original = AppPreferences.defaults.object(forKey: key)
+        AppPreferences.defaults.removeObject(forKey: key)
         defer {
             if let original {
-                UserDefaults.standard.set(original, forKey: key)
+                AppPreferences.defaults.set(original, forKey: key)
             } else {
-                UserDefaults.standard.removeObject(forKey: key)
+                AppPreferences.defaults.removeObject(forKey: key)
             }
         }
 
