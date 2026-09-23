@@ -30,6 +30,20 @@ cd "$REPO_ROOT"
 
 JOBS="${JOBS:-$(sysctl -n hw.ncpu)}"
 
+# A fresh clone or worktree has empty submodules, and cmake's own complaint about
+# a missing llama.cpp/CMakeLists.txt is easy to misread. Say what to run instead.
+# (In a linked worktree the submodule URLs are rewritten to local paths, which
+# git refuses unless the file transport is allowed: hence the -c below.)
+missing=""
+for submodule in libllama/llama.cpp libwhisper/whisper.cpp; do
+    [ -f "$submodule/CMakeLists.txt" ] || missing="$missing $submodule"
+done
+if [ -n "$missing" ]; then
+    echo "build-native.sh: these submodules are not checked out:$missing" >&2
+    echo "  git -c protocol.file.allow=always submodule update --init --recursive" >&2
+    exit 1
+fi
+
 echo "Configuring libllama (vendored llama.cpp, owns the single ggml)..."
 cmake -G Xcode -B libllama/build -S libllama
 
