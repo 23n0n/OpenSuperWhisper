@@ -3,7 +3,7 @@
 # Builds and launches a Debug OpenSuperWhisper that keeps its permission grants
 # across rebuilds.
 #
-# This is run.sh with the two things that broke the permission screen changed:
+# This is run.sh with the three things that broke the permission screen changed:
 #
 #   1. ENABLE_DEBUG_DYLIB=NO - Xcode's Debug default puts the target's code into
 #      OpenSuperWhisper.debug.dylib behind a stub executable. That is not the
@@ -12,6 +12,10 @@
 #   2. The bundle is signed with a real (self-signed) identity afterwards, via
 #      Scripts/dev-sign.sh, instead of being left unsigned/linker-signed. That
 #      gives it the identity-based designated requirement TCC grants survive.
+#   3. A build from a linked git worktree gets bundle id
+#      ru.starmel.OpenSuperWhisper.dev through OSW_BUNDLE_ID_SUFFIX, so a crew
+#      build can never take over the bundle id whose grant is being tested.
+#      In the checkout whose app is tested the suffix is empty, as shipped.
 #
 # Like run.sh, the two vendored engines are built through Scripts/build-native.sh:
 # llama.cpp owns the single ggml and whisper.cpp only configures against the
@@ -38,7 +42,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$REPO_ROOT"
 
-BUNDLE_ID="ru.starmel.OpenSuperWhisper"
+# Crew worktrees must not build the shipped bundle id: several bundles sharing
+# ru.starmel.OpenSuperWhisper is one of the reasons macOS kept re-prompting for
+# Accessibility. A linked git worktree has .git as a file; the checkout whose app
+# is being tested has it as a directory. The project turns OSW_BUNDLE_ID_SUFFIX
+# into PRODUCT_BUNDLE_IDENTIFIER, so the tested checkout keeps the shipped id.
+BUNDLE_ID_SUFFIX=""
+if [[ -f .git ]]; then
+    BUNDLE_ID_SUFFIX=".dev"
+fi
+BUNDLE_ID="ru.starmel.OpenSuperWhisper${BUNDLE_ID_SUFFIX}"
+
 APP="$REPO_ROOT/build/Build/Products/Debug/OpenSuperWhisper.app"
 APP_BINARY="$APP/Contents/MacOS/OpenSuperWhisper"
 DR_RECORD="$REPO_ROOT/build/.dev-sign-dr"
@@ -105,12 +119,16 @@ fi
 # identity from the project (TEAM 8LLDD7HWZK), which does not exist on this
 # machine. Scripts/dev-sign.sh signs the finished bundle instead.
 echo "Building OpenSuperWhisper..."
+if [[ -n "$BUNDLE_ID_SUFFIX" ]]; then
+    echo "  worktree build: bundle id ${BUNDLE_ID}"
+fi
 BUILD_OUTPUT=$(xcodebuild -scheme OpenSuperWhisper -configuration Debug -jobs 8 \
     -derivedDataPath build -quiet -destination 'platform=macOS,arch=arm64' \
     -skipPackagePluginValidation -skipMacroValidation -UseModernBuildSystem=YES \
     -clonedSourcePackagesDirPath SourcePackages -skipUnavailableActions \
     CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
     ENABLE_DEBUG_DYLIB=NO \
+    OSW_BUNDLE_ID_SUFFIX="$BUNDLE_ID_SUFFIX" \
     build 2>&1)
 BUILD_STATUS=$?
 
