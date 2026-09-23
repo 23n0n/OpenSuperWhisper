@@ -245,15 +245,19 @@ final class LlamaModel {
     /// markers become their single control tokens like they do in llama-server.
     static func tokenize(vocab: OpaquePointer?, text: String) -> [llama_token] {
         let utf8 = Array(text.utf8).map { CChar(bitPattern: $0) }
-        // llama_tokenize reports the required size as a negative count when the
-        // buffer is too small (a NULL buffer of length 0), like llama.cpp's own
-        // examples do: `-llama_tokenize(...)`.
-        let needed = llama_tokenize(vocab, utf8, Int32(utf8.count), nil, 0, true, true)
-        guard needed < 0, needed != Int32.min else { return [] }
+        // A NULL buffer of length 0 asks for the required capacity, which
+        // llama_tokenize reports as the NEGATIVE of the token count
+        // (`llama.h`: "Returns a negative number on failure - the number of
+        // tokens that would have been returned"), so the capacity is its
+        // magnitude, never the value itself. INT32_MIN is the overflow
+        // sentinel and must not be negated.
+        let probe = llama_tokenize(vocab, utf8, Int32(utf8.count), nil, 0, true, true)
+        guard probe != Int32.min, probe != 0 else { return [] }
+        let capacity = probe > 0 ? probe : -probe
 
-        var tokens = [llama_token](repeating: 0, count: Int(needed))
-        let written = llama_tokenize(vocab, utf8, Int32(utf8.count), &tokens, needed, true, true)
-        guard written > 0 else { return [] }
+        var tokens = [llama_token](repeating: 0, count: Int(capacity))
+        let written = llama_tokenize(vocab, utf8, Int32(utf8.count), &tokens, capacity, true, true)
+        guard written > 0, written <= capacity else { return [] }
         return Array(tokens.prefix(Int(written)))
     }
 
