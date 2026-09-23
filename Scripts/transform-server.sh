@@ -120,6 +120,13 @@ EOF
     exit 1
 fi
 
+# Refuse to start when something already answers on the port: llama-server would
+# fail to bind and a health probe against the incumbent would look like success.
+if (exec 3<>"/dev/tcp/${HOST}/${PORT}") 2>/dev/null; then
+    echo "ERROR: ${HOST}:${PORT} is already in use; stop what is serving it and retry." >&2
+    exit 1
+fi
+
 echo "Starting llama-server with ${MODEL_ALIAS} on ${HOST}:${PORT}..."
 
 llama-server \
