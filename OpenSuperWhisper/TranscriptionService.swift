@@ -12,12 +12,23 @@ class TranscriptionService: ObservableObject {
     @Published private(set) var isConverting = false
     @Published private(set) var conversionProgress: Float = 0.0
     
+    /// The result of one transcription: the text, plus the language the engine
+    /// saw. The language decides whether the transform gate translates, tones or
+    /// pastes the transcript as-is, so it travels with the text instead of
+    /// living in ambient state that concurrent operations could overwrite.
+    struct TranscriptionOutput {
+        let text: String
+        /// Engine-reported language, or `nil` when the engine has no signal
+        /// (Parakeet/FluidAudio, or a whisper model that is not multilingual).
+        let language: String?
+    }
+
     private final class TranscriptionTaskBox {
         let id: UUID
         let engine: TranscriptionEngine
-        let task: Task<String, Error>
+        let task: Task<TranscriptionOutput, Error>
 
-        init(id: UUID, engine: TranscriptionEngine, task: Task<String, Error>) {
+        init(id: UUID, engine: TranscriptionEngine, task: Task<TranscriptionOutput, Error>) {
             self.id = id
             self.engine = engine
             self.task = task
@@ -225,13 +236,15 @@ class TranscriptionService: ObservableObject {
         }
     }
     
+    /// Convenience overload for callers that only need the text; the language is
+    /// still computed and simply dropped here.
     func transcribeAudio(url: URL, settings: Settings, pcmSamples: [Float]? = nil) async throws -> String {
         try await transcribeAudio(
             url: url,
             settings: settings,
             operationID: UUID(),
             pcmSamples: pcmSamples
-        )
+        ).text
     }
 
     func transcribeAudio(
@@ -239,7 +252,7 @@ class TranscriptionService: ObservableObject {
         settings: Settings,
         operationID: UUID,
         pcmSamples: [Float]? = nil
-    ) async throws -> String {
+    ) async throws -> TranscriptionOutput {
         try Task.checkCancellation()
 
         // Serialize access to the engine: a whisper context must not process
@@ -311,12 +324,24 @@ class TranscriptionService: ObservableObject {
                 throw CancellationError()
             }
             
-            let result: String
+            let output: TranscriptionOutput
             do {
-                if let pcmSamples, let whisper = engine as? WhisperEngine {
-                    result = try await whisper.transcribeSamples(pcmSamples, settings: settings)
+                if let whisper = engine as? WhisperEngine {
+                    // Whisper reports the language of the utterance it just
+                    // decoded; the other engines cannot, so they fall back to the
+                    // transcript text at the gate.
+                    let detailed: WhisperEngine.DetailedTranscription
+                    if let pcmSamples {
+                        detailed = try await whisper.transcribeSamplesDetailed(pcmSamples, settings: settings)
+                    } else {
+                        detailed = try await whisper.transcribeAudioDetailed(url: url, settings: settings)
+                    }
+                    output = TranscriptionOutput(text: detailed.text, language: detailed.language)
                 } else {
-                    result = try await engine.transcribeAudio(url: url, settings: settings)
+                    output = TranscriptionOutput(
+                        text: try await engine.transcribeAudio(url: url, settings: settings),
+                        language: nil
+                    )
                 }
             } catch {
                 // Native engines may surface their own generic error after an
@@ -349,7 +374,7 @@ class TranscriptionService: ObservableObject {
                 guard let self,
                       self.transcriptionTask?.id == operationID,
                       self.cancellationRequestedFor != operationID else { return false }
-                self.transcribedText = result
+                self.transcribedText = output.text
                 self.progress = 1.0
                 return true
             }
@@ -357,7 +382,7 @@ class TranscriptionService: ObservableObject {
             guard didPublish else { throw CancellationError() }
             try Task.checkCancellation()
             
-            return result
+            return output
         }
         
         let taskBox = TranscriptionTaskBox(

@@ -278,7 +278,7 @@ final class TranscriptionCancellationTests: XCTestCase {
             engine.complete(url: audioURL, with: .success("expected result"))
         )
         let result = try await transcription.value
-        XCTAssertEqual(result, "expected result")
+        XCTAssertEqual(result.text, "expected result")
     }
 
     func testCancelledNativeRunBlocksNextDecodeUntilItReturns() async throws {
@@ -343,7 +343,7 @@ final class TranscriptionCancellationTests: XCTestCase {
             engine.complete(url: secondURL, with: .success("second result"))
         )
         let secondResult = try await second.value
-        XCTAssertEqual(secondResult, "second result")
+        XCTAssertEqual(secondResult.text, "second result")
     }
 
     func testLateViewModelCompletionCannotHideCurrentSession() {

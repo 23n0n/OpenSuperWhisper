@@ -54,6 +54,9 @@ class WhisperEngine: TranscriptionEngine {
     struct DetailedTranscription {
         let text: String
         let segments: [DecodedSegment]
+        /// The language of this utterance, as reported by the engine for this
+        /// very `whisper_full` call. `nil` when the engine has no signal.
+        let language: String?
     }
 
     var engineName: String { "Whisper" }
@@ -131,8 +134,14 @@ class WhisperEngine: TranscriptionEngine {
         try await transcribe(input: .file(url), settings: settings)
     }
 
-    func transcribeSamples(_ samples: [Float], settings: Settings) async throws -> String {
-        try await transcribe(input: .pcm(samples), settings: settings).text
+    /// Detailed result for the PCM path, which is the hotkey dictation path:
+    /// alongside the text it carries the language the decoder saw, which decides
+    /// whether the transcript is translated, toned or pasted as-is.
+    func transcribeSamplesDetailed(
+        _ samples: [Float],
+        settings: Settings
+    ) async throws -> DetailedTranscription {
+        try await transcribe(input: .pcm(samples), settings: settings)
     }
 
     private func transcribe(input: AudioInput, settings: Settings) async throws -> DetailedTranscription {
@@ -197,7 +206,7 @@ class WhisperEngine: TranscriptionEngine {
         try Task.checkCancellation()
         if abortFlag.isSet { throw CancellationError() }
         if speechSegments.isEmpty {
-            return DetailedTranscription(text: "", segments: [])
+            return DetailedTranscription(text: "", segments: [], language: nil)
         }
         // Timestamps of the trimmed audio would not match the original file,
         // so trimming is applied only when timestamps are not requested.
@@ -264,6 +273,11 @@ class WhisperEngine: TranscriptionEngine {
             }
             throw TranscriptionError.processingFailed
         }
+
+        // Read the language immediately: it lives in the decoding state, which
+        // `defer` frees when this function returns, and no later step may touch
+        // that state first.
+        let language = Self.reportedLanguage(settings: settings, context: context)
         
         try Task.checkCancellation()
         
@@ -313,8 +327,38 @@ class WhisperEngine: TranscriptionEngine {
         
         return DetailedTranscription(
             text: processedText,
-            segments: decodedSegments
+            segments: decodedSegments,
+            language: language
         )
+    }
+
+    /// The language of the utterance that was just decoded.
+    ///
+    /// A fixed `whisperLanguage` setting is what the decoder was conditioned on,
+    /// so it is authoritative — and on an English-only model it is the *only*
+    /// meaningful answer, which is why this branch comes before the
+    /// multilingual check: `ggml-tiny.en` reports nonsense ids (`fa`/`ur` at
+    /// p = 0.01) when asked to detect.
+    ///
+    /// Only the `auto` setting measures the language, inside the `whisper_full`
+    /// call above, at no extra cost (a multilingual model detects as part of the
+    /// encoder pass it already runs). A model that is not multilingual cannot
+    /// measure anything, so the answer is `nil` and the transcript text is used
+    /// as the fallback signal instead.
+    ///
+    /// `params.detectLanguage` must stay `false`: setting it makes whisper.cpp
+    /// return right after detection, without transcribing anything.
+    private static func reportedLanguage(
+        settings: Settings,
+        context: MyWhisperContext
+    ) -> String? {
+        if settings.selectedLanguage != "auto" {
+            return settings.selectedLanguage
+        }
+        guard context.isMultilingual else { return nil }
+        let languageId = context.fullLangId
+        guard languageId >= 0 else { return nil }
+        return MyWhisperContext.langStr(id: languageId)
     }
 
     /// Whisper segments are decoder boundaries, not paragraph boundaries.

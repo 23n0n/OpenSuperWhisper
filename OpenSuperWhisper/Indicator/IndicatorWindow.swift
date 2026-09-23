@@ -241,12 +241,13 @@ class IndicatorViewModel: ObservableObject {
                     throw CancellationError()
                 }
 
-                let text = try await transcriptionService.transcribeAudio(
+                let output = try await transcriptionService.transcribeAudio(
                     url: tempURL,
                     settings: Settings(),
                     operationID: sessionID,
                     pcmSamples: audio.samples
                 )
+                let text = output.text
                 try Task.checkCancellation()
                 guard self.decodingSessionID == sessionID else {
                     throw CancellationError()
@@ -277,7 +278,10 @@ class IndicatorViewModel: ObservableObject {
 
                     try Task.checkCancellation()
                     guard self.decodingSessionID == sessionID else { throw CancellationError() }
-                    let finalText = await TranslationService.shared.transformIfEnabled(text)
+                    let finalText = await TranslationService.shared.transformIfEnabled(
+                        text,
+                        sourceLanguage: output.language
+                    )
                     try Task.checkCancellation()
                     guard self.decodingSessionID == sessionID else { throw CancellationError() }
                     insertText(finalText)
