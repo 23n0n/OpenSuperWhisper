@@ -838,46 +838,38 @@ struct SettingsView: View {
     @State private var showingUninstallSheet = false
     @State private var resetPermissionsOnUninstall = false
     @State private var uninstallError: String?
-    
+
+    /// Lets the offscreen snapshot harness (SettingsLayoutSnapshotTests) open a
+    /// tab other than the first; the app keeps using `SettingsView()`.
+    init(selectedTab: Int = 0) {
+        _selectedTab = State(initialValue: selectedTab)
+    }
+
+    // The four tab bodies below are internal rather than private so the offscreen
+    // layout snapshot harness (SettingsLayoutSnapshotTests) can render one tab at
+    // a time; nothing outside this file uses them.
+
+    /// The sheet's natural size. The width fits the 450 pt main window that
+    /// presents the sheet: at 550 pt the sheet was wider than its own window.
     private var sheetSize: CGSize {
         let visibleFrame = NSScreen.main?.visibleFrame.size ?? CGSize(width: 1280, height: 800)
-        let width = min(550, visibleFrame.width - 40)
+        let width = min(450, visibleFrame.width - 40)
         let height = min(500, visibleFrame.height - 60)
         return CGSize(width: width, height: height)
     }
-    
-    var body: some View {
-        TabView(selection: $selectedTab) {
 
-             // Shortcut Settings
-            shortcutSettings
-                .tabItem {
-                    Label("Shortcuts", systemImage: "command")
-                }
-                .tag(0)
-            // Model Settings
-            modelSettings
-                .tabItem {
-                    Label("Model", systemImage: "cpu")
-                }
-                .tag(1)
-            
-            // Transcription Settings
-            transcriptionSettings
-                .tabItem {
-                    Label("Transcription", systemImage: "text.bubble")
-                }
-                .tag(2)
-            
-            // Advanced Settings
-            advancedSettings
-                .tabItem {
-                    Label("Advanced", systemImage: "gear")
-                }
-                .tag(3)
-            }
+    var body: some View {
+        VStack(spacing: 0) {
+            settingsTabStrip
+            settingsTabContent
+        }
         .padding()
-        .frame(width: sheetSize.width, height: sheetSize.height)
+        // Flexible on purpose: whatever room the sheet window ends up with — a
+        // 400 pt tall window on a small screen, a taller one on a big screen —
+        // the cards lay out in it and the tab scrolls instead of hanging off the
+        // panel edge.
+        .frame(minWidth: 380, idealWidth: sheetSize.width, maxWidth: .infinity,
+               minHeight: 300, idealHeight: sheetSize.height, maxHeight: .infinity)
         .background(Color(.windowBackgroundColor))
         .safeAreaInset(edge: .bottom) {
             HStack {
@@ -933,6 +925,43 @@ struct SettingsView: View {
         }
     }
 
+    /// The tab strip.
+    ///
+    /// This is a plain segmented control rather than the `TabView` strip it
+    /// replaced, because inside a sheet a `TabView`'s strip never gets a size on
+    /// this macOS: `NSTabViewSegmentedControl` stays 0x0, so the four labels are
+    /// drawn on top of each other and there is nothing to click — which is how
+    /// the Transcription tab, and with it the tone controls, became unreachable.
+    /// The same four tabs, the same `selectedTab`, nothing else moved.
+    private var settingsTabStrip: some View {
+        Picker("", selection: $selectedTab) {
+            Text("Shortcuts").tag(0)
+            Text("Model").tag(1)
+            Text("Transcription").tag(2)
+            Text("Advanced").tag(3)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 12)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+    }
+
+    @ViewBuilder
+    private var settingsTabContent: some View {
+        switch selectedTab {
+        case 1:
+            modelSettings
+        case 2:
+            transcriptionSettings
+        case 3:
+            advancedSettings
+        default:
+            shortcutSettings
+        }
+    }
+
     /// Starts the uninstaller and quits. The script waits for this process to
     /// exit before it removes anything, which is the only way an app can delete
     /// the bundle it is running from.
@@ -946,7 +975,7 @@ struct SettingsView: View {
         NSApplication.shared.terminate(nil)
     }
     
-    private var modelSettings: some View {
+    var modelSettings: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Speech Recognition Engine")
@@ -1056,7 +1085,7 @@ struct SettingsView: View {
         .padding()
     }
     
-    private var transcriptionSettings: some View {
+    var transcriptionSettings: some View {
         ScrollView {
             VStack(spacing: 20) {
                 // Language Settings
@@ -1380,7 +1409,7 @@ struct SettingsView: View {
         }
     }
     
-    private var advancedSettings: some View {
+    var advancedSettings: some View {
         ScrollView {
             VStack(spacing: 20) {
                 // Decoding Strategy
@@ -1605,7 +1634,7 @@ struct SettingsView: View {
         return .keyCombo
     }
     
-    private var shortcutSettings: some View {
+    var shortcutSettings: some View {
         ScrollView {
             VStack(spacing: 20) {
                 // Recording Trigger
