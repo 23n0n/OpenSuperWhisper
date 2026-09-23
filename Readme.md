@@ -52,6 +52,28 @@ To build locally, you'll need:
 In case of problems, consult `.github/workflows/build.yml` which is our CI workflow
 where the app gets built automatically on GitHub's CI.
 
+## Local translation backend (Polish → English + tone)
+
+When "Translate Polish to English" is enabled in Settings, the transcript is sent to an
+OpenAI-compatible endpoint on this machine; no cloud service is involved. Serve that endpoint with a
+small instruction-tuned model:
+
+```shell
+brew install llama.cpp                  # provides llama-server
+Scripts/transform-server.sh --fetch     # downloads ~986 MB of weights once, then serves
+```
+
+Later runs only need `Scripts/transform-server.sh`; the weights stay in `$HOME/models` (override with
+`TRANSFORM_MODEL_DIR`). The script serves `http://127.0.0.1:1919/v1/chat/completions` reporting the
+model `qwen2.5-1.5b-instruct-q4_k_m` — the endpoint and model the app's defaults point at.
+
+To check that the running backend still matches the app's request/response contract (and that
+translation, tone control and latency behave), run:
+
+```shell
+Scripts/verify-transform.sh
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit pull requests or create issues for bugs and feature requests.
