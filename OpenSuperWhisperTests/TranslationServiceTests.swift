@@ -528,10 +528,13 @@ final class TranslationServiceTests: XCTestCase {
             StubURLProtocol.reset()
             try stubContent("Please send the report.")
 
+            // The gate classifies the transcript itself only when the engine
+            // reported nothing, so the pure function is asserted on the language
+            // the gate will actually use.
             let resolved = TransformPolicy.resolve(
                 translate: row.translate,
                 tone: row.tone,
-                language: row.language,
+                language: row.language ?? LanguageDetector.languageCode(for: row.text),
                 toneMode: .formal
             )
             XCTAssertEqual(resolved, row.expectedPolicy, row.name)
@@ -615,11 +618,23 @@ final class TranslationServiceTests: XCTestCase {
                 sourceLanguage: "en"
             )
         )
-        XCTAssertTrue(
+        // The guard is deliberately strict: an output the heuristic cannot call
+        // is a change too, so it is discarded rather than risk pasting a
+        // translated rewrite. For a two-word utterance that means the raw
+        // transcript wins, which is the safe outcome.
+        XCTAssertFalse(
             TranslationService.toneOnlyPreservesLanguage(
                 input: "Do it",
                 output: "Do it.",
                 sourceLanguage: "en"
+            )
+        )
+        // With no engine language, the input side is classified too.
+        XCTAssertFalse(
+            TranslationService.toneOnlyPreservesLanguage(
+                input: "Please send the report.",
+                output: "Proszę wysłać raport.",
+                sourceLanguage: nil
             )
         )
     }

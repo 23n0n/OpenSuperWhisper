@@ -21,9 +21,12 @@ private final class PreparingWhisperEngine: WhisperEngine {
         if let preparationError { throw preparationError }
     }
 
-    override func transcribeAudio(url: URL, settings: Settings) async throws -> String {
+    override func transcribeAudioDetailed(
+        url: URL,
+        settings: Settings
+    ) async throws -> WhisperEngine.DetailedTranscription {
         decodeCount += 1
-        return "prepared text"
+        return DetailedTranscription(text: "prepared text", segments: [], language: nil)
     }
 }
 
