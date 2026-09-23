@@ -163,12 +163,13 @@ Scripts/dev-run.sh
 From then on ordinary rebuilds keep the grant; `Scripts/dev-run.sh --reset-tcc` does that
 reset for you if you ever need it again.
 
-## Translation and tone (Polish → English + tone)
+## Translation and tone (towards a target language)
 
 Two independent switches in Settings drive the transform, and both are off by default: **Translate
-Polish to English** and **Apply tone**. When either is on, the app runs a small instruction-tuned
-model **inside itself** — llama.cpp is linked into the app exactly like whisper.cpp, no server, no
-port, no cloud service. Turn on a switch and press **Download model** next to it in
+into …** and **Apply tone**. The switch carries a **Target language** picker (English by default,
+Polish for the demanded reverse direction). When either switch is on, the app runs a small
+instruction-tuned model **inside itself** — llama.cpp is linked into the app exactly like whisper.cpp,
+no server, no port, no cloud service. Turn on a switch and press **Download model** next to it in
 Settings → Transcription: the app fetches `Qwen2.5-1.5B-Instruct-Q4_K_M` (~986 MB, Apache-2.0) into
 its own Application Support folder, verifies the published checksum and keeps it there. Until it is
 downloaded, dictation is pasted unchanged.
@@ -183,26 +184,39 @@ The language of each utterance decides what happens to it. The app takes the lan
 engine reports for that same transcription — whisper's own detection when the language setting is
 **Auto-detect** and a multilingual model is loaded, or your fixed language setting exactly as chosen —
 and falls back to a small text heuristic (Polish diacritics, function words, bigrams) for engines that
-cannot report one, such as Parakeet. When it cannot tell, the raw transcript is pasted:
+cannot report one, such as Parakeet. When it cannot tell, the raw transcript is pasted. The action is
+then decided against the **target language**; with the default target (English) the table reads:
 
 | Translation | Tone | Spoken language | Pasted text |
 |---|---|---|---|
 | off | off | any | raw transcript, nothing is even detected |
-| on | off | Polish | translated English, with no tone sentence in the prompt |
-| on | off | English or any other | raw transcript — English never reaches the Polish→English transform |
-| off | on | English | rewritten in the selected tone |
-| off | on | Polish | raw transcript — a tone-only rewrite translates Polish anyway |
-| on | on | Polish | translated and toned |
-| on | on | English or any other | rewritten in the selected tone (nothing is translated) |
+| on | off | Polish (English target) | translated English, with no tone sentence in the prompt |
+| on | off | English (English target) | raw transcript — speech already in the target is never translated |
+| off | on | any | raw transcript — a tone rides on a translation, and none is asked for |
+| on | on | Polish (English target) | translated into English and toned |
+| on | on | English (English target) | raw transcript — nothing to translate, so nothing to tone |
 | any | any | unknown | raw transcript |
 
-The translation switch never vetoes a tone rewrite: for English it has nothing to do. Turn tone off to
-keep your English untouched.
+With **Polish** as the target the two directions swap: spoken **English** is translated into Polish
+(tone riding along when the tone switch is on), and spoken **Polish** is pasted unchanged — it is
+already in the target, so no model call is made at all.
+
+Speech already in the target language is never sent to the model, tone switch or not. The tone belongs
+to a translation: it describes the output of a direction change, so it needs the translation switch on
+to have anything to rewrite.
+
+**Honest note on Polish output.** The bundled 1.5B model was measured on English→Polish dictation
+before this control was wired (task `fm-20260923-13`, full outputs in its report). It writes Polish,
+and short simple sentences come back clean, but on realistic longer dictation it drops content,
+invents details, inverts polarity and occasionally leaves English tokens or a whole wrong language in
+the output, and it is unstable between identical runs. Treat Polish output as best-effort; English
+output is the reliable direction.
 
 Dictation history always keeps the raw transcript, and recordings transcribed from the list (queued or
 re-run files) are never transformed. To get language awareness on the dictation hotkey, set the
 language picker to **Auto-detect** with a multilingual model (e.g. Turbo V3); a fixed setting is
-trusted as-is.
+trusted as-is. An English-only model in Auto-detect (e.g. `ggml-tiny.en.bin`) will turn Polish speech
+into English hallucination before the transform ever runs — use a multilingual model.
 
 To check that an external endpoint still matches the app's request/response contract (and that
 translation, tone control and latency behave), start one and run:

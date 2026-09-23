@@ -6,26 +6,12 @@ import XCTest
 /// transform, so no test here loads real weights.
 final class TransformBackendTests: XCTestCase {
 
-    private var savedTranslateEnabled = false
-    private var savedToneEnabled = false
-    private var savedToneMode = ToneMode.neutral
-
     override func setUp() {
         super.setUp()
-        let prefs = AppPreferences.shared
-        savedTranslateEnabled = prefs.translateEnabled
-        savedToneEnabled = prefs.toneEnabled
-        savedToneMode = prefs.transformToneMode
-        prefs.translateEnabled = false
-        prefs.toneEnabled = false
         StubURLProtocol.reset()
     }
 
     override func tearDown() {
-        let prefs = AppPreferences.shared
-        prefs.translateEnabled = savedTranslateEnabled
-        prefs.toneEnabled = savedToneEnabled
-        prefs.transformToneMode = savedToneMode
         StubURLProtocol.reset()
         super.tearDown()
     }
@@ -41,7 +27,13 @@ final class TransformBackendTests: XCTestCase {
     private func service(
         local: LocalRecorder,
         externalEndpoint: Bool,
-        stubContent: String? = nil
+        stubContent: String? = nil,
+        settings: GateSettings = GateSettings(
+            translate: true,
+            tone: false,
+            toneMode: .neutral,
+            target: .english
+        )
     ) -> TranslationService {
         if let stubContent {
             StubURLProtocol.outcome = .success(
@@ -63,31 +55,26 @@ final class TransformBackendTests: XCTestCase {
                 local.userTexts.append(userText)
                 return try local.result.get()
             },
-            usesExternalEndpoint: { externalEndpoint }
+            usesExternalEndpoint: { externalEndpoint },
+            gateSettings: { settings }
         )
-    }
-
-    private func enableTranslation() {
-        AppPreferences.shared.translateEnabled = true
     }
 
     // MARK: - Dispatch
 
     func testBuiltInRuntimeIsTheDefault_andNeverTouchesTheNetwork() async {
-        enableTranslation()
         let local = LocalRecorder()
         let service = service(local: local, externalEndpoint: false, stubContent: "from the endpoint")
 
         let result = await service.transformIfEnabled("Cześć, jak się masz?", sourceLanguage: "pl")
 
         XCTAssertEqual(result, "Hello from the app.")
-        XCTAssertEqual(local.systemPrompts, [TranslationService.systemPrompt(for: .translate)])
+        XCTAssertEqual(local.systemPrompts, [TranslationService.systemPrompt(for: .translate(from: .polish, to: .english))])
         XCTAssertEqual(local.userTexts, ["Cześć, jak się masz?"])
         XCTAssertEqual(StubURLProtocol.requestCount, 0, "the default backend is in process")
     }
 
     func testExternalEndpointOverride_usesHTTP() async {
-        enableTranslation()
         let local = LocalRecorder()
         let service = service(local: local, externalEndpoint: true, stubContent: "from the endpoint")
 
@@ -101,7 +88,6 @@ final class TransformBackendTests: XCTestCase {
     /// The stored switch is what production reads; this is the only test that
     /// writes it, and nothing else in the suite depends on its value.
     func testStoredSwitchChoosesTheBackend() async {
-        enableTranslation()
         let prefs = AppPreferences.shared
         let saved = prefs.transformUseExternalEndpoint
         defer { prefs.transformUseExternalEndpoint = saved }
@@ -117,10 +103,14 @@ final class TransformBackendTests: XCTestCase {
             )
         )
 
-        // Production construction: no injected selector.
+        // Production backend selection (no injected selector), with only the
+        // gate inputs pinned so the test does not depend on the shared switches.
         let service = TranslationService(
             urlSession: URLSession(configuration: configuration),
-            localTransform: { _, _ in local.systemPrompts.append("called"); return "in process" }
+            localTransform: { _, _ in local.systemPrompts.append("called"); return "in process" },
+            gateSettings: {
+                GateSettings(translate: true, tone: false, toneMode: .neutral, target: .english)
+            }
         )
 
         prefs.transformUseExternalEndpoint = true
@@ -137,7 +127,6 @@ final class TransformBackendTests: XCTestCase {
     // MARK: - Built-in response handling
 
     func testBuiltInRuntime_failureReturnsTheRawTranscript() async {
-        enableTranslation()
         let local = LocalRecorder()
         local.result = .failure(TransformModelError.notInstalled)
         let service = service(local: local, externalEndpoint: false)
@@ -148,7 +137,6 @@ final class TransformBackendTests: XCTestCase {
     }
 
     func testBuiltInRuntime_cancellationReturnsTheRawTranscript() async {
-        enableTranslation()
         let local = LocalRecorder()
         local.result = .failure(CancellationError())
         let service = service(local: local, externalEndpoint: false)
@@ -159,7 +147,6 @@ final class TransformBackendTests: XCTestCase {
     }
 
     func testBuiltInRuntime_stripsReasoningTraces() async {
-        enableTranslation()
         let local = LocalRecorder()
         local.result = .success("<think>let me think</think>Hello there.")
         let service = service(local: local, externalEndpoint: false)
@@ -170,7 +157,6 @@ final class TransformBackendTests: XCTestCase {
     }
 
     func testBuiltInRuntime_rejectsAnEmptyAnswer() async {
-        enableTranslation()
         let local = LocalRecorder()
         local.result = .success("<think>nothing useful</think>")
         let service = service(local: local, externalEndpoint: false)
@@ -180,22 +166,50 @@ final class TransformBackendTests: XCTestCase {
         XCTAssertEqual(result, "Cześć")
     }
 
-    func testToneOnlyLanguageGuardAppliesInProcessToo() async {
-        AppPreferences.shared.toneEnabled = true
-        AppPreferences.shared.transformToneMode = .formal
+    /// The target rule holds for the built-in runtime too: a dictation already
+    /// in the target language never reaches the model, even with tone on.
+    func testSameLanguageNeverReachesTheBuiltInRuntime() async {
         let local = LocalRecorder()
-        local.result = .success("Proszę wysłać raport.")
-        let service = service(local: local, externalEndpoint: false)
+        local.result = .success("should never be produced")
+        let service = service(
+            local: local,
+            externalEndpoint: false,
+            settings: GateSettings(translate: true, tone: true, toneMode: .formal, target: .english)
+        )
 
         let result = await service.transformIfEnabled(
             "Please send the report.",
             sourceLanguage: "en"
         )
 
-        XCTAssertEqual(
-            result,
+        XCTAssertEqual(result, "Please send the report.")
+        XCTAssertTrue(
+            local.systemPrompts.isEmpty,
+            "speech already in the target language must not reach the model"
+        )
+        XCTAssertEqual(StubURLProtocol.requestCount, 0)
+    }
+
+    /// The demanded reverse direction reaches the built-in runtime with the
+    /// English→Polish prompt.
+    func testBuiltInRuntime_translatesIntoTheTargetLanguage() async {
+        let local = LocalRecorder()
+        local.result = .success("Proszę wysłać raport.")
+        let service = service(
+            local: local,
+            externalEndpoint: false,
+            settings: GateSettings(translate: true, tone: false, toneMode: .neutral, target: .polish)
+        )
+
+        let result = await service.transformIfEnabled(
             "Please send the report.",
-            "a tone-only rewrite that switched language is discarded whichever backend produced it"
+            sourceLanguage: "en"
+        )
+
+        XCTAssertEqual(result, "Proszę wysłać raport.")
+        XCTAssertEqual(
+            local.systemPrompts,
+            [TranslationService.systemPrompt(for: .translate(from: .english, to: .polish))]
         )
     }
 }

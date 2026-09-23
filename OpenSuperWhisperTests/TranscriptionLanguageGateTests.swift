@@ -52,23 +52,12 @@ final class TranscriptionLanguageGateTests: XCTestCase {
     private let englishText = "Please send the report."
     private let translatedText = "Hello, how are you?"
 
-    private var savedTranslateEnabled = false
-    private var savedToneEnabled = false
-
     override func setUp() {
         super.setUp()
-        let prefs = AppPreferences.shared
-        savedTranslateEnabled = prefs.translateEnabled
-        savedToneEnabled = prefs.toneEnabled
-        prefs.translateEnabled = false
-        prefs.toneEnabled = false
         StubURLProtocol.reset()
     }
 
     override func tearDown() {
-        let prefs = AppPreferences.shared
-        prefs.translateEnabled = savedTranslateEnabled
-        prefs.toneEnabled = savedToneEnabled
         StubURLProtocol.reset()
         super.tearDown()
     }
@@ -95,7 +84,10 @@ final class TranscriptionLanguageGateTests: XCTestCase {
         // preference file).
         return TranslationService(
             urlSession: URLSession(configuration: configuration),
-            usesExternalEndpoint: { true }
+            usesExternalEndpoint: { true },
+            gateSettings: {
+                GateSettings(translate: true, tone: false, toneMode: .neutral, target: .english)
+            }
         )
     }
 
@@ -135,7 +127,6 @@ final class TranscriptionLanguageGateTests: XCTestCase {
     // MARK: - Output language drives the gate
 
     func testEnglishDictation_isNeverSentToThePolishToEnglishTransform() async throws {
-        AppPreferences.shared.translateEnabled = true
         StubURLProtocol.reset()
         try stubContent(translatedText)
 
@@ -153,7 +144,6 @@ final class TranscriptionLanguageGateTests: XCTestCase {
     }
 
     func testPolishDictation_isTranslated() async throws {
-        AppPreferences.shared.translateEnabled = true
         StubURLProtocol.reset()
         try stubContent(translatedText)
 
@@ -171,7 +161,6 @@ final class TranscriptionLanguageGateTests: XCTestCase {
     }
 
     func testEngineWithNoLanguageSignal_fallsBackToTheTranscriptText() async throws {
-        AppPreferences.shared.translateEnabled = true
         StubURLProtocol.reset()
         try stubContent(translatedText)
 
