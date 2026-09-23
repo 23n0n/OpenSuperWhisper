@@ -1,3 +1,4 @@
+import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -32,6 +33,12 @@ enum KeyboardSimulator {
     ///     event tap; tests inject a capture closure.
     static func typeText(_ text: String, post: (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) }) {
         guard !text.isEmpty else { return }
+
+        if !AXIsProcessTrusted() {
+            print("KeyboardSimulator: process is not trusted for Accessibility; "
+                + "synthetic keystrokes will be silently ignored by the system. "
+                + "Grant Accessibility permission to deliver transcriptions.")
+        }
 
         // Normalize CRLF and CR to a single newline so no line break is lost.
         let normalized = text
@@ -72,29 +79,44 @@ enum KeyboardSimulator {
 
     /// Splits `text` into chunks of at most `maxUTF16` UTF-16 code units.
     ///
-    /// Splitting happens on `Character` boundaries, so a surrogate pair (or any
-    /// other multi-scalar grapheme) is never broken across chunks.
+    /// The walk is over UTF-16 code units, packing up to `maxUTF16` units per
+    /// chunk. A high surrogate is always kept together with the low surrogate
+    /// that follows it, so no returned chunk contains a lone surrogate. A
+    /// grapheme cluster longer than the cap may therefore be spread across
+    /// chunks, but no code unit is dropped.
+    ///
+    /// - Returns: An empty array when `text` is empty or `maxUTF16 <= 0`.
     static func chunks(of text: String, maxUTF16: Int = 20) -> [String] {
-        guard !text.isEmpty else { return [] }
-        guard maxUTF16 > 0 else { return [text] }
+        guard !text.isEmpty, maxUTF16 > 0 else { return [] }
 
+        let units = Array(text.utf16)
         var result: [String] = []
-        var current = ""
-        var currentUTF16 = 0
+        var current: [UInt16] = []
+        current.reserveCapacity(maxUTF16)
 
-        for character in text {
-            let characterUTF16 = character.utf16.count
-            if currentUTF16 + characterUTF16 > maxUTF16 && !current.isEmpty {
-                result.append(current)
-                current = ""
-                currentUTF16 = 0
+        var index = 0
+        while index < units.count {
+            let unit = units[index]
+            let isHighSurrogate = (0xD800...0xDBFF).contains(unit)
+            let hasPairedLow = isHighSurrogate
+                && index + 1 < units.count
+                && (0xDC00...0xDFFF).contains(units[index + 1])
+            let width = hasPairedLow ? 2 : 1
+
+            if !current.isEmpty && current.count + width > maxUTF16 {
+                result.append(String(decoding: current, as: UTF16.self))
+                current.removeAll(keepingCapacity: true)
             }
-            current.append(character)
-            currentUTF16 += characterUTF16
+
+            current.append(unit)
+            if hasPairedLow {
+                current.append(units[index + 1])
+            }
+            index += width
         }
 
         if !current.isEmpty {
-            result.append(current)
+            result.append(String(decoding: current, as: UTF16.self))
         }
         return result
     }
@@ -111,6 +133,11 @@ enum KeyboardSimulator {
               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
         else { return [] }
 
+        // Clear inherited modifier flags so a still-held hotkey cannot turn
+        // this chunk into a shortcut (e.g. Command+A) instead of plain text.
+        keyDown.flags = []
+        keyUp.flags = []
+
         keyDown.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
         keyUp.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
         return [keyDown, keyUp]
@@ -122,6 +149,11 @@ enum KeyboardSimulator {
               let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         else { return [] }
+
+        // Clear inherited modifier flags so a still-held hotkey cannot turn
+        // Return/Tab into a modified key.
+        keyDown.flags = []
+        keyUp.flags = []
         return [keyDown, keyUp]
     }
 }

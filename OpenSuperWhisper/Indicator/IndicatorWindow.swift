@@ -325,8 +325,13 @@ class IndicatorViewModel: ObservableObject {
         let prefs = AppPreferences.shared
 
         if prefs.autoPasteTranscription {
-            // Deliver the transcription as synthetic keystrokes so the
-            // clipboard is never touched on the injection path.
+            // Deliver the transcription as synthetic keystrokes. When the user
+            // also asked to keep it on the clipboard, copy first so the
+            // "keep in clipboard" toggle still holds; otherwise leave the
+            // clipboard untouched on this path.
+            if prefs.autoCopyToClipboard {
+                ClipboardUtil.copyToClipboard(finalText)
+            }
             KeyboardSimulator.typeText(finalText)
         } else if prefs.autoCopyToClipboard {
             // Only copy to clipboard, don't paste

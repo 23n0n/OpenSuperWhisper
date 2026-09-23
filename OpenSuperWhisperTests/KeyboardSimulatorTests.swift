@@ -24,14 +24,35 @@ final class KeyboardSimulatorTests: XCTestCase {
         let text = "a😀bé😀café🇵🇱d😀é"
         let chunks = KeyboardSimulator.chunks(of: text)
 
-        // If a surrogate pair were split, String round-tripping would corrupt it
-        // and the joined result would no longer equal the input.
         XCTAssertEqual(chunks.joined(), text)
         for chunk in chunks {
             XCTAssertLessThanOrEqual(chunk.utf16.count, 20, "chunk exceeds 20 UTF-16 units")
-            // Every chunk must be a valid string (no lone surrogates).
-            XCTAssertEqual(String(decoding: Array(chunk.utf16), as: UTF16.self), chunk)
+            XCTAssertTrue(Self.decodesCleanly(chunk), "chunk's UTF-16 does not decode cleanly: \(chunk)")
         }
+    }
+
+    func testChunksNeverExceedCapForGraphemeLongerThanCap() {
+        // A single grapheme cluster: "e" plus 30 combining acutes == 31 UTF-16 units.
+        let text = "e" + String(repeating: "\u{0301}", count: 30)
+        XCTAssertEqual(text.count, 1, "expected a single grapheme cluster")
+        XCTAssertEqual(text.utf16.count, 31)
+
+        let cap = 20
+        let chunks = KeyboardSimulator.chunks(of: text, maxUTF16: cap)
+
+        XCTAssertFalse(chunks.isEmpty)
+        for chunk in chunks {
+            XCTAssertLessThanOrEqual(chunk.utf16.count, cap, "chunk exceeds cap: \(chunk)")
+            XCTAssertTrue(Self.decodesCleanly(chunk), "chunk's UTF-16 does not decode cleanly")
+        }
+        // No code unit may be lost even though the grapheme was split.
+        XCTAssertEqual(chunks.flatMap { Array($0.utf16) }, Array(text.utf16))
+    }
+
+    func testChunksWithNonPositiveMaximumReturnEmpty() {
+        XCTAssertTrue(KeyboardSimulator.chunks(of: "abc", maxUTF16: 0).isEmpty)
+        XCTAssertTrue(KeyboardSimulator.chunks(of: "abc", maxUTF16: -5).isEmpty)
+        XCTAssertTrue(KeyboardSimulator.chunks(of: "😀", maxUTF16: 0).isEmpty)
     }
 
     func testChunksWithTinyMaximumKeepCharactersIntact() {
@@ -143,6 +164,15 @@ final class KeyboardSimulatorTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// True when a chunk's UTF-16 round-trips losslessly and contains no
+    /// replacement character (which would signal a lone/unpaired surrogate).
+    private static func decodesCleanly(_ chunk: String) -> Bool {
+        let units = Array(chunk.utf16)
+        let decoded = String(decoding: units, as: UTF16.self)
+        return Array(decoded.utf16) == units
+            && !decoded.unicodeScalars.contains { $0.value == 0xFFFD }
+    }
 
     /// Reads the Unicode string stored on a synthetic keyboard event.
     private static func unicodeString(of event: CGEvent) -> String? {

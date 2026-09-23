@@ -29,7 +29,7 @@ if [[ $? -ne 0 ]]; then
 fi
 
 echo "Copying libomp.dylib..."
-cp -f /opt/homebrew/opt/libomp/lib/libomp.dylib ./build/libomp.dylib
+cp -f /opt/homebrew/opt/libomp/lib/libomp.dylib ./build/libomp.dylib || { echo "libomp copy failed"; exit 1; }
 install_name_tool -id "@rpath/libomp.dylib" ./build/libomp.dylib
 codesign --force --sign - ./build/libomp.dylib
 
