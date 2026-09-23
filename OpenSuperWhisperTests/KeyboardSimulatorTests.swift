@@ -185,6 +185,17 @@ final class KeyboardSimulatorTests: XCTestCase {
         XCTAssertFalse(result.injected)
     }
 
+    /// The trust answer is injectable, so a test can pin it instead of depending
+    /// on whether the host process happens to hold the Accessibility grant.
+    func testTypeTextHonoursAnInjectedTrustValue() {
+        var events: [CGEvent] = []
+        let result = KeyboardSimulator.typeText("pinned", trusted: false) { events.append($0) }
+
+        XCTAssertFalse(result.trusted)
+        XCTAssertEqual(result.eventsPosted, events.count)
+        XCTAssertEqual(result.eventsPosted, 2)
+    }
+
     // MARK: - Helpers
 
     /// True when a chunk's UTF-16 round-trips losslessly and contains no

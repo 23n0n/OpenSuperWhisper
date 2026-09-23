@@ -45,6 +45,7 @@ class IndicatorViewModel: ObservableObject {
     private let stopRecordingOperation: () async -> RecordedAudio?
     private let cancelAudioRecordingOperation: () -> Void
     private let injectTextOperation: (String) -> KeyboardSimulator.InjectionResult
+    private let transformTextOperation: (String, String?) async -> String
     
     init(
         transcriptionService: TranscriptionService = .shared,
@@ -57,6 +58,9 @@ class IndicatorViewModel: ObservableObject {
         },
         injectText: @escaping (String) -> KeyboardSimulator.InjectionResult = {
             KeyboardSimulator.typeText($0)
+        },
+        transformText: @escaping (String, String?) async -> String = {
+            await TranslationService.shared.transformIfEnabled($0, sourceLanguage: $1)
         }
     ) {
         self.recordingStore = recordingStore
@@ -65,6 +69,7 @@ class IndicatorViewModel: ObservableObject {
         self.stopRecordingOperation = stopRecording
         self.cancelAudioRecordingOperation = cancelAudioRecording
         self.injectTextOperation = injectText
+        self.transformTextOperation = transformText
         
         recorder.$startFailure
             .compactMap { $0 }
@@ -283,10 +288,7 @@ class IndicatorViewModel: ObservableObject {
 
                     try Task.checkCancellation()
                     guard self.decodingSessionID == sessionID else { throw CancellationError() }
-                    let finalText = await TranslationService.shared.transformIfEnabled(
-                        text,
-                        sourceLanguage: output.language
-                    )
+                    let finalText = await transformTextOperation(text, output.language)
                     try Task.checkCancellation()
                     guard self.decodingSessionID == sessionID else { throw CancellationError() }
                     insertText(finalText)

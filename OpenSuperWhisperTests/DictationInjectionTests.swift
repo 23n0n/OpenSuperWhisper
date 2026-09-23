@@ -85,6 +85,23 @@ final class DictationInjectionTests: XCTestCase {
         try RecordingStore(databaseQueue: DatabaseQueue())
     }
 
+    /// These tests are about the injection hook, not about the transform gate.
+    /// An identity transform keeps them independent of the user's
+    /// translate/tone switches and of whether a local model endpoint happens to
+    /// be running — the real gate reaches the network.
+    private static let passthroughTransform: (String, String?) async -> String = { text, _ in text }
+
+    /// Auto-paste must be on for the injection path to run. Pin it, but write
+    /// nothing when the domain already holds what the test needs: a test host
+    /// without a distinct bundle id would otherwise write the preferences of the
+    /// app someone is using.
+    private func pinAutoPasteOn() -> () -> Void {
+        let preferences = AppPreferences.shared
+        guard !preferences.autoPasteTranscription else { return {} }
+        preferences.autoPasteTranscription = true
+        return { preferences.autoPasteTranscription = false }
+    }
+
     private func makeSourceFiles(count: Int) -> RecordingURLQueue {
         let queue = RecordingURLQueue(count: count)
         for url in queue.createdURLs {
@@ -115,13 +132,9 @@ final class DictationInjectionTests: XCTestCase {
         let sources = makeSourceFiles(count: transcripts.count)
         var injected: [String] = []
 
-        // The injection path is only taken when auto-paste is on; pin it so the
-        // test does not depend on the preferences of the domain the test host
-        // happens to run under.
-        let preferences = AppPreferences.shared
-        let previousAutoPaste = preferences.autoPasteTranscription
-        preferences.autoPasteTranscription = true
-        defer { preferences.autoPasteTranscription = previousAutoPaste }
+        // The injection path is only taken when auto-paste is on.
+        let restoreAutoPaste = pinAutoPasteOn()
+        defer { restoreAutoPaste() }
 
         let viewModel = IndicatorViewModel(
             transcriptionService: TranscriptionService(
@@ -136,7 +149,8 @@ final class DictationInjectionTests: XCTestCase {
             injectText: { text in
                 injected.append(text)
                 return KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 4)
-            }
+            },
+            transformText: Self.passthroughTransform
         )
         defer { viewModel.cleanup() }
 
@@ -166,10 +180,8 @@ final class DictationInjectionTests: XCTestCase {
         let sources = makeSourceFiles(count: 1)
         var injected: [String] = []
 
-        let preferences = AppPreferences.shared
-        let previousAutoPaste = preferences.autoPasteTranscription
-        preferences.autoPasteTranscription = true
-        defer { preferences.autoPasteTranscription = previousAutoPaste }
+        let restoreAutoPaste = pinAutoPasteOn()
+        defer { restoreAutoPaste() }
 
         let viewModel = IndicatorViewModel(
             transcriptionService: TranscriptionService(
@@ -184,7 +196,8 @@ final class DictationInjectionTests: XCTestCase {
             injectText: { text in
                 injected.append(text)
                 return KeyboardSimulator.InjectionResult(trusted: false, eventsPosted: 0)
-            }
+            },
+            transformText: Self.passthroughTransform
         )
         defer { viewModel.cleanup() }
         AppErrorCenter.shared.issue = nil

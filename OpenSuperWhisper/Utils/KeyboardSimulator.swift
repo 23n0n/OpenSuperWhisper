@@ -74,6 +74,10 @@ enum KeyboardSimulator {
     ///
     /// - Parameters:
     ///   - text: The text to type.
+    ///   - trusted: Whether this process may post synthetic events. Defaults to
+    ///     the live `AXIsProcessTrusted()` answer, which is what production
+    ///     uses; injectable so a test can pin the answer instead of depending on
+    ///     whether the machine happens to hold the grant.
     ///   - post: Sink for the generated events. Defaults to posting to the HID
     ///     event tap; tests inject a capture closure.
     /// - Returns: What was observed and posted. When `trusted` is false the
@@ -83,9 +87,9 @@ enum KeyboardSimulator {
     @discardableResult
     static func typeText(
         _ text: String,
+        trusted: Bool = isTrustedForInjection,
         post: (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) }
     ) -> InjectionResult {
-        let trusted = isTrustedForInjection
         var eventsPosted = 0
 
         guard !text.isEmpty else {
