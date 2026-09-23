@@ -13,8 +13,9 @@
 #      Scripts/dev-sign.sh, instead of being left unsigned/linker-signed. That
 #      gives it the identity-based designated requirement TCC grants survive.
 #
-# run.sh itself is left untouched: it is the shared developer entry point and a
-# sibling change to the build scripts is in flight elsewhere.
+# Like run.sh, the two vendored engines are built through Scripts/build-native.sh:
+# llama.cpp owns the single ggml and whisper.cpp only configures against the
+# package that script installs, so that order is not reproduced here.
 #
 # Usage:
 #   Scripts/dev-run.sh              - build, sign, then run the app in the foreground
@@ -63,17 +64,13 @@ for tool in cmake cargo xcodebuild codesign; do
     fi
 done
 
-echo "Configuring libwhisper..."
-# Branches that build whisper's ggml dependency through Scripts/build-native.sh
-# (it installs libllama's ggml package first) need that script run instead, and
-# their whisper CMakeLists fails loudly when the package is missing.
-if ! cmake -G Xcode -B libwhisper/build -S libwhisper >/dev/null; then
-    echo "libwhisper configuration failed." >&2
-    if [[ -x "$SCRIPT_DIR/build-native.sh" ]]; then
-        echo "This branch configures whisper through Scripts/build-native.sh; run it first." >&2
-    fi
-    exit 1
-fi
+# The engines come first, in the one order that works: build-native.sh configures
+# and builds libllama (which owns the single ggml), installs that ggml package and
+# only then configures libwhisper against it with WHISPER_USE_SYSTEM_GGML=ON.
+# Configuring libwhisper directly here fails with "the vendored ggml package is
+# missing"; the xcodebuild below builds the two projects this generates.
+echo "Building native engines..."
+"$SCRIPT_DIR/build-native.sh" Debug
 
 echo "Building autocorrect-swift..."
 mkdir -p build
