@@ -277,7 +277,10 @@ class IndicatorViewModel: ObservableObject {
 
                     try Task.checkCancellation()
                     guard self.decodingSessionID == sessionID else { throw CancellationError() }
-                    insertText(text)
+                    let finalText = await TranslationService.shared.transformIfEnabled(text)
+                    try Task.checkCancellation()
+                    guard self.decodingSessionID == sessionID else { throw CancellationError() }
+                    insertText(finalText)
                     print("Transcription result: \(text)")
                 }
             } catch is CancellationError {
