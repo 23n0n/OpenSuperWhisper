@@ -97,6 +97,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
     
     private var terminationTask: Task<Void, Never>?
 
+    /// Set when Settings is asked for while the main window is not on screen.
+    /// ContentView is what presents the sheet, and it does not exist until the
+    /// window does, so the request is held until the window is key again.
+    private var hasPendingSettingsRequest = false
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard terminationTask == nil else { return .terminateLater }
         terminationTask = Task { @MainActor in
@@ -331,6 +336,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
         
         menu.addItem(NSMenuItem.separator())
 
+        // The status menu is the only way into Settings for a window that is
+        // hidden or closed, so it needs the counterpart of the app menu's
+        // Settings… item (see `openSettings(_:)`).
+        let settingsItem = NSMenuItem(
+            title: "Settings…",
+            action: #selector(openSettings(_:)),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
         let uninstallItem = NSMenuItem(
             title: "Uninstall OpenSuperWhisper…",
             action: #selector(uninstallApp(_:)),
@@ -384,6 +400,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
     
     @objc private func openApp() {
         showMainWindow()
+    }
+
+    /// The status menu's counterpart of the app menu's Settings… item. Unlike
+    /// that one it cannot assume a window is on screen: ContentView is what
+    /// presents the sheet, so the window is brought forward first and the
+    /// notification is posted as soon as there is something to receive it.
+    @objc private func openSettings(_ sender: Any?) {
+        let windowWasOnScreen = mainWindow?.isVisible == true
+        showMainWindow()
+
+        if windowWasOnScreen {
+            NotificationCenter.default.post(name: .openSettings, object: nil)
+        } else {
+            // Posted from anyWindowDidBecomeKey once the window is back.
+            hasPendingSettingsRequest = true
+        }
+    }
+
+    private func presentPendingSettingsRequest() {
+        guard hasPendingSettingsRequest else { return }
+        hasPendingSettingsRequest = false
+        NotificationCenter.default.post(name: .openSettings, object: nil)
     }
     
     @objc private func quitApp() {
@@ -481,10 +519,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
     /// main-type window becomes key.
     @objc private func anyWindowDidBecomeKey(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
-              Self.isMainAppWindow(window),
-              window !== mainWindow
+              Self.isMainAppWindow(window)
         else { return }
-        adoptMainWindow(window)
+
+        if window !== mainWindow {
+            adoptMainWindow(window)
+        }
+
+        presentPendingSettingsRequest()
     }
 
     private func adoptMainWindow(_ window: NSWindow) {
