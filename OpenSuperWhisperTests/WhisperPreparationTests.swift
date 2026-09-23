@@ -53,9 +53,7 @@ final class WhisperPreparationTests: XCTestCase {
 
     @MainActor
     func testShutdownReleasesLoadedMetalModelAndPreparedState() async throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let model = root.appendingPathComponent("ggml-tiny.en.bin")
-        try XCTSkipUnless(FileManager.default.fileExists(atPath: model.path))
+        let model = try TestFixtures.tinyEnglishModel()
         let engine = WhisperEngine(modelPath: model.path)
         try await engine.initialize()
         try engine.prepareForRecording()
@@ -109,9 +107,7 @@ final class WhisperPreparationTests: XCTestCase {
     }
 
     func testPreparedStatePreservesTextAndIsReleasedAfterUse() async throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let model = root.appendingPathComponent("ggml-tiny.en.bin")
-        try XCTSkipUnless(FileManager.default.fileExists(atPath: model.path))
+        let model = try TestFixtures.tinyEnglishModel()
         let original = AppPreferences.shared.selectedWhisperModelPath
         AppPreferences.shared.selectedWhisperModelPath = model.path
         defer { AppPreferences.shared.selectedWhisperModelPath = original }
@@ -122,7 +118,7 @@ final class WhisperPreparationTests: XCTestCase {
         settings.initialPrompt = ""
         settings.useBeamSearch = false
         settings.temperature = 0
-        let audio = root.appendingPathComponent("jfk.wav")
+        let audio = try TestFixtures.speechSample()
         let cold = try await engine.transcribeAudio(url: audio, settings: settings)
         XCTAssertFalse(engine.hasPreparedState)
         let silenceURL = FileManager.default.temporaryDirectory.appendingPathComponent("vad-silence-\(UUID()).wav")

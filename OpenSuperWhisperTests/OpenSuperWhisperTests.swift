@@ -192,21 +192,12 @@ final class WhisperEngineConversionTests: XCTestCase {
 
 final class WhisperStateIsolationTests: XCTestCase {
 
-    private static let repoRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-
     // Each transcription runs whisper_full_with_state on a fresh whisper_state,
     // so noContext = false keeps context between 30s windows of one recording
     // but a silent/hallucinated recording can never poison the next one.
     func testFreshStatePerCallKeepsRecordingsIsolated() async throws {
-        let modelURL = Self.repoRoot.appendingPathComponent("ggml-tiny.en.bin")
-        let audioURL = Self.repoRoot.appendingPathComponent("jfk.wav")
-        try XCTSkipUnless(
-            FileManager.default.fileExists(atPath: modelURL.path)
-                && FileManager.default.fileExists(atPath: audioURL.path),
-            "tiny model / jfk sample not present in repo root"
-        )
+        let modelURL = try TestFixtures.tinyEnglishModel()
+        let audioURL = try TestFixtures.speechSample()
 
         let context = try XCTUnwrap(
             MyWhisperContext.initFromFileNoState(path: modelURL.path, params: WhisperContextParams())
@@ -253,13 +244,8 @@ final class WhisperStateIsolationTests: XCTestCase {
     // speech segments (no hallucinations), while trimmed speech still
     // transcribes correctly.
     func testBundledVadDropsSilenceAndKeepsSpeech() async throws {
-        let modelURL = Self.repoRoot.appendingPathComponent("ggml-tiny.en.bin")
-        let audioURL = Self.repoRoot.appendingPathComponent("jfk.wav")
-        try XCTSkipUnless(
-            FileManager.default.fileExists(atPath: modelURL.path)
-                && FileManager.default.fileExists(atPath: audioURL.path),
-            "tiny model / jfk sample not present in repo root"
-        )
+        let modelURL = try TestFixtures.tinyEnglishModel()
+        let audioURL = try TestFixtures.speechSample()
 
         let vadModelPath = try XCTUnwrap(
             WhisperEngine.vadModelPath,

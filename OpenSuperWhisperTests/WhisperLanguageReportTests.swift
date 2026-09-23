@@ -4,11 +4,11 @@ import XCTest
 /// The language whisper reports for one utterance — the signal the transform
 /// gate turns into "translate, tone, or paste as-is".
 ///
-/// Needs a real model, so this is opt-in like the long-form tests: the repo's
-/// English-only `ggml-tiny.en.bin` covers the fixed-setting cases, and a
-/// multilingual model (`OSW_TEST_MULTILINGUAL_MODEL`,
-/// `.build/test-models/ggml-tiny.bin` or `./ggml-tiny.bin`) covers Auto-detect,
-/// which is the only setting that measures a language at all.
+/// Needs a real model: the English-only `ggml-tiny.en.bin` the app bundles
+/// covers the fixed-setting cases, and a multilingual model
+/// (`OSW_TEST_MULTILINGUAL_MODEL`, `.build/test-models/ggml-tiny.bin` or
+/// `./ggml-tiny.bin`) covers Auto-detect, which is the only setting that
+/// measures a language at all.
 final class WhisperLanguageReportTests: XCTestCase {
 
     private static let repoRoot = URL(fileURLWithPath: #filePath)
@@ -16,15 +16,6 @@ final class WhisperLanguageReportTests: XCTestCase {
         .deletingLastPathComponent()
 
     // MARK: - Fixtures
-
-    private func englishOnlyModelURL() throws -> URL {
-        let model = Self.repoRoot.appendingPathComponent("ggml-tiny.en.bin")
-        try XCTSkipUnless(
-            FileManager.default.fileExists(atPath: model.path),
-            "Missing ggml-tiny.en.bin in the repository root"
-        )
-        return model
-    }
 
     private func multilingualModelURL() throws -> URL {
         let candidates = [
@@ -80,7 +71,7 @@ final class WhisperLanguageReportTests: XCTestCase {
     /// decoder was conditioned on, so the gate must see English and never send
     /// the transcript to the Polish→English transform.
     func testEnglishOnlyModelReportsItsFixedSetting() async throws {
-        let result = try await transcribeFixture(language: "en", model: try englishOnlyModelURL())
+        let result = try await transcribeFixture(language: "en", model: try TestFixtures.tinyEnglishModel())
 
         XCTAssertEqual(result.language, "en")
         XCTAssertFalse(result.text.isEmpty)
@@ -113,7 +104,7 @@ final class WhisperLanguageReportTests: XCTestCase {
     /// meaningless id for English-only models (`fa`/`ur` at p = 0.01, measured),
     /// so the engine must refuse it and let the transcript heuristic decide.
     func testEnglishOnlyModelOnAutoReportsNothing() async throws {
-        let result = try await transcribeFixture(language: "auto", model: try englishOnlyModelURL())
+        let result = try await transcribeFixture(language: "auto", model: try TestFixtures.tinyEnglishModel())
 
         XCTAssertNil(result.language, "A non-multilingual model cannot measure a language")
     }

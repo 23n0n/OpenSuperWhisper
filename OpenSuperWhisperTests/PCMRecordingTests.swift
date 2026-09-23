@@ -74,12 +74,10 @@ final class PCMRecordingTests: XCTestCase {
 
     @MainActor
     func testServiceDecodesPreparedAudioWithoutReadingTheFile() async throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let model = root.appendingPathComponent("ggml-tiny.en.bin")
-        try XCTSkipUnless(FileManager.default.fileExists(atPath: model.path))
+        let model = try TestFixtures.tinyEnglishModel()
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("pcm-speech-\(UUID()).wav")
         defer { try? FileManager.default.removeItem(at: output) }
-        let audio = try Self.prepare(file: root.appendingPathComponent("jfk.wav"), output: output)
+        let audio = try Self.prepare(file: try TestFixtures.speechSample(), output: output)
         let original = AppPreferences.shared.selectedWhisperModelPath
         AppPreferences.shared.selectedWhisperModelPath = model.path
         defer { AppPreferences.shared.selectedWhisperModelPath = original }
