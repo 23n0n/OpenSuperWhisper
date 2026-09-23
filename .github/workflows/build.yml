@@ -33,6 +33,14 @@ jobs:
           [ -f "$BINARY" ] || BINARY="$APP/OpenSuperWhisper"
           nm -a "$BINARY" | grep -q "_llama_model_load_from_file"    # the transform engine is linked in
           nm -a "$BINARY" | grep -q "_whisper_init_from_file_with_params"   # so is the speech engine
-          __omp_shell("nm -u "$BINARY" | grep -q "_omp_"                        # nothing calls OpenMP")
-          __omp_shell("otool -L "$BINARY" | grep -q "libomp"                    # and nothing links it")
+          # `set -e` ignores a pipeline beginning with `!`, so the absence
+          # assertions are written as explicit failures instead.
+          if nm -u "$BINARY" | grep -q "_omp_"; then
+            echo "OpenMP symbols in $BINARY" >&2   # nothing calls OpenMP
+            exit 1
+          fi
+          if otool -L "$BINARY" | grep -q "libomp"; then
+            echo "libomp is linked into $BINARY" >&2   # and nothing links it
+            exit 1
+          fi
 
