@@ -22,8 +22,10 @@ SHA-256:
 - `long_en.m4a`: `34c051c05fd076777903aae3694aef7386e9ad92126996cc3839655df1adf691`
 - `long_ru.m4a`: `6af9e64b6fc78ee90860da0576632644bb804a5cbedb876c026f54f0e9448326`
 
-The language integration test is opt-in when no multilingual model is present.
-Point it at any real multilingual whisper.cpp model:
+The language integration test is opt-in when no multilingual model is present, and
+resolves its own model — as do the language-report cases — through `TestFixtures`,
+never through the app's selected model. Point it at any real multilingual
+whisper.cpp model:
 
 ```sh
 TEST_RUNNER_OSW_TEST_MULTILINGUAL_MODEL=/path/to/ggml-tiny.bin \
@@ -44,7 +46,8 @@ one is there (`.build/test-models`, then the app's own `whisper-models` folder).
 none it leaves the cases skipped, as CI does.
 
 For a local smoke test, the official multilingual tiny model can be cached in
-the path that the test discovers automatically:
+the path that the test discovers automatically — a symlink to a model elsewhere
+is fine, the size check resolves it:
 
 ```sh
 mkdir -p .build/test-models

@@ -78,10 +78,7 @@ final class PCMRecordingTests: XCTestCase {
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("pcm-speech-\(UUID()).wav")
         defer { try? FileManager.default.removeItem(at: output) }
         let audio = try Self.prepare(file: try TestFixtures.speechSample(), output: output)
-        let original = AppPreferences.shared.selectedWhisperModelPath
-        AppPreferences.shared.selectedWhisperModelPath = model.path
-        defer { AppPreferences.shared.selectedWhisperModelPath = original }
-        let engine = WhisperEngine()
+        let engine = WhisperEngine(modelPath: model.path)
         try await engine.initialize()
         var settings = Settings()
         settings.selectedLanguage = "en"

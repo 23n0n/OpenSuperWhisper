@@ -10,10 +10,7 @@ final class WhisperTurboRegressionTests: XCTestCase {
         guard let modelPath = ProcessInfo.processInfo.environment["OSW_TEST_TURBO_MODEL"] else {
             throw XCTSkip("Set OSW_TEST_TURBO_MODEL to large-v3-turbo")
         }
-        let originalPath = AppPreferences.shared.selectedWhisperModelPath
-        AppPreferences.shared.selectedWhisperModelPath = modelPath
-        defer { AppPreferences.shared.selectedWhisperModelPath = originalPath }
-        let engine = WhisperEngine()
+        let engine = WhisperEngine(modelPath: modelPath)
         try await engine.initialize()
 
         for language in ["en", "ru"] {
@@ -57,10 +54,7 @@ final class WhisperTurboRegressionTests: XCTestCase {
         guard let modelPath = ProcessInfo.processInfo.environment["OSW_TEST_TURBO_MODEL"] else {
             throw XCTSkip("Set OSW_TEST_TURBO_MODEL to large-v3-turbo")
         }
-        let originalPath = AppPreferences.shared.selectedWhisperModelPath
-        AppPreferences.shared.selectedWhisperModelPath = modelPath
-        defer { AppPreferences.shared.selectedWhisperModelPath = originalPath }
-        let engine = WhisperEngine()
+        let engine = WhisperEngine(modelPath: modelPath)
         try await engine.initialize()
         let output = FileManager.default.temporaryDirectory.appendingPathComponent("turbo-pcm-\(UUID()).wav")
         defer { try? FileManager.default.removeItem(at: output) }

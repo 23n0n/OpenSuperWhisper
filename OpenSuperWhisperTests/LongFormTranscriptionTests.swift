@@ -117,14 +117,11 @@ final class WhisperLongFormLanguageIntegrationTests: XCTestCase {
         .deletingLastPathComponent()
 
     func testLongEnglishAndRussianAudioKeepsLanguageContextAndTail() async throws {
-        let modelURL = try multilingualModelURL()
-        let originalModelPath = AppPreferences.shared.selectedWhisperModelPath
-        AppPreferences.shared.selectedWhisperModelPath = modelURL.path
-        defer {
-            AppPreferences.shared.selectedWhisperModelPath = originalModelPath
-        }
+        let modelURL = try TestFixtures.multilingualModel()
 
-        let engine = WhisperEngine()
+        // The engine is handed the model: this test must not read, or write, the
+        // machine's selected model to get one.
+        let engine = WhisperEngine(modelPath: modelURL.path)
         try await engine.initialize()
 
         for fixture in [
@@ -344,14 +341,9 @@ final class WhisperLongFormLanguageIntegrationTests: XCTestCase {
 
     @MainActor
     func testCancellingLongWhisperDecodeStopsNativeOperation() async throws {
-        let modelURL = try multilingualModelURL()
-        let originalModelPath = AppPreferences.shared.selectedWhisperModelPath
-        AppPreferences.shared.selectedWhisperModelPath = modelURL.path
-        defer {
-            AppPreferences.shared.selectedWhisperModelPath = originalModelPath
-        }
+        let modelURL = try TestFixtures.multilingualModel()
 
-        let engine = WhisperEngine()
+        let engine = WhisperEngine(modelPath: modelURL.path)
         try await engine.initialize()
         let service = TranscriptionService(engine: engine)
         let operationID = UUID()
@@ -399,30 +391,6 @@ final class WhisperLongFormLanguageIntegrationTests: XCTestCase {
         }
         XCTAssertFalse(service.isTranscribing)
         XCTAssertEqual(service.progress, 0.0)
-    }
-
-    private func multilingualModelURL() throws -> URL {
-        let candidates = [
-            ProcessInfo.processInfo.environment["OSW_TEST_MULTILINGUAL_MODEL"]
-                .map(URL.init(fileURLWithPath:)),
-            Self.repoRoot
-                .appendingPathComponent(".build/test-models/ggml-tiny.bin"),
-            Self.repoRoot.appendingPathComponent("ggml-tiny.bin"),
-        ].compactMap { $0 }
-
-        guard let modelURL = candidates.first(where: {
-            guard let size = try? $0.resourceValues(
-                forKeys: [.fileSizeKey]
-            ).fileSize else {
-                return false
-            }
-            return size > 10_000_000
-        }) else {
-            throw XCTSkip(
-                "Set OSW_TEST_MULTILINGUAL_MODEL to a real multilingual ggml model"
-            )
-        }
-        return modelURL
     }
 
     private func fixtureURL(

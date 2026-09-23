@@ -1,16 +1,21 @@
 import XCTest
 @testable import OpenSuperWhisper
 
-/// The suite must not be able to change — or be changed by — the preferences of
-/// the app the developer is running, or of another suite running in parallel.
+/// The suite must not be able to change — or be changed by — the state of the
+/// machine it runs on: the preferences of the app the developer is running, those
+/// of another suite running in parallel, or the whisper model that app has
+/// selected.
 ///
-/// That is a property of *where* `AppPreferences` reads and writes, so it is
-/// asserted here instead of being re-checked in every test that touches a switch.
-/// With the app's own domain behind it, `TransformBackendTests` and
-/// `TranslationServiceTests` disagree about `translateEnabled` depending on which
-/// process wrote last — which is how `testStoredSwitchChoosesTheBackend` came to
-/// fail intermittently, returning the input "Cześć" instead of the stub's "from
-/// the endpoint" because another process had left the transform switched off.
+/// Both are the same defect one level apart. For preferences it is a property of
+/// *where* `AppPreferences` reads and writes, so it is asserted here instead of
+/// being re-checked in every test that touches a switch: with the app's own
+/// domain behind it, `TransformBackendTests` and `TranslationServiceTests`
+/// disagree about `translateEnabled` depending on which process wrote last, which
+/// is how `testStoredSwitchChoosesTheBackend` came to fail intermittently,
+/// returning the input "Cześć" instead of the stub's "from the endpoint". For the
+/// model it is a property of how a test gets one: the tests hand their fixture to
+/// `WhisperEngine(modelPath:)`, because `selectedWhisperModelPath` describes the
+/// machine, not the test.
 final class PreferenceIsolationTests: XCTestCase {
     func testTheSuiteDoesNotRunAgainstTheApplicationsOwnPreferences() {
         XCTAssertFalse(
@@ -26,5 +31,52 @@ final class PreferenceIsolationTests: XCTestCase {
         XCTAssertNil(
             UserDefaults.standard.object(forKey: key),
             "a preference written by the suite must never reach the app's own domain")
+    }
+
+    /// The model a test transcribes with is an argument, never a preference.
+    ///
+    /// `selectedWhisperModelPath` belongs to whoever last ran the app (the
+    /// captain's is a multilingual model, chosen because the English-only one
+    /// hallucinated English from his Polish speech). A test that resolved its
+    /// model from it would measure that machine instead of the fixture — and an
+    /// engine handed an explicit model must ignore it even when it is set to
+    /// something unusable.
+    func testAnEngineWithAnExplicitModelIgnoresTheSelectedModelPreference() async throws {
+        let key = "selectedWhisperModelPath"
+        let planted = AppPreferences.defaults.string(forKey: key)
+        AppPreferences.defaults.set("/nonexistent/model-from-the-machine.bin", forKey: key)
+        defer {
+            if let planted {
+                AppPreferences.defaults.set(planted, forKey: key)
+            } else {
+                AppPreferences.defaults.removeObject(forKey: key)
+            }
+        }
+
+        let engine = WhisperEngine(modelPath: try TestFixtures.tinyEnglishModel().path)
+        // Would throw contextInitializationFailed if the engine had used the
+        // preference instead of the model it was given.
+        try await engine.initialize()
+        XCTAssertTrue(engine.isModelLoaded)
+        engine.unload()
+    }
+
+    /// The fixtures resolve from the test's own opt-in and the checkout, so a
+    /// machine whose selection is unusable still runs the same tests.
+    func testTheFixturesResolveWithoutAnyPreference() throws {
+        let key = "selectedWhisperModelPath"
+        let planted = AppPreferences.defaults.string(forKey: key)
+        AppPreferences.defaults.set("/nonexistent/model-from-the-machine.bin", forKey: key)
+        defer {
+            if let planted {
+                AppPreferences.defaults.set(planted, forKey: key)
+            } else {
+                AppPreferences.defaults.removeObject(forKey: key)
+            }
+        }
+
+        let english = try TestFixtures.tinyEnglishModel()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: english.path))
+        XCTAssertTrue(english.lastPathComponent.hasPrefix("ggml-tiny.en"))
     }
 }
