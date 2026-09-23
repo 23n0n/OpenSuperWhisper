@@ -33,9 +33,11 @@ class ShortcutManager {
         setupRecordingTrigger()
         let permissions = PermissionsManager()
         triggerPermissions = permissions
+        // Reconfigure the trigger when Accessibility changes: the modifier-only
+        // hotkey is gated by it (the mouse button and the global key monitor
+        // both are), so a fresh grant must rebuild the trigger.
         observeTriggerPermissions(permissions.$isAccessibilityPermissionGranted
-            .combineLatest(permissions.$isInputMonitoringPermissionGranted)
-            .map { ($0 ? 1 : 0) | ($1 ? 2 : 0) }
+            .map { $0 ? 1 : 0 }
             .eraseToAnyPublisher()) { [weak self] in self?.setupRecordingTrigger() }
         
         NotificationCenter.default.addObserver(

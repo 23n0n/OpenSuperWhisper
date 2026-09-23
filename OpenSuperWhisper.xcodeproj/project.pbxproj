@@ -828,7 +828,8 @@
 					"$(inherited)",
 					"-lomp",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ru.starmel.OpenSuperWhisper;
+				OSW_BUNDLE_ID_SUFFIX = "";
+				PRODUCT_BUNDLE_IDENTIFIER = "ru.starmel.OpenSuperWhisper$(OSW_BUNDLE_ID_SUFFIX)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
@@ -894,7 +895,8 @@
 					"$(inherited)",
 					"-lomp",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = ru.starmel.OpenSuperWhisper;
+				OSW_BUNDLE_ID_SUFFIX = "";
+				PRODUCT_BUNDLE_IDENTIFIER = "ru.starmel.OpenSuperWhisper$(OSW_BUNDLE_ID_SUFFIX)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
