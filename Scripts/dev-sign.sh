@@ -185,7 +185,11 @@ codesign --verify --deep --strict --verbose=2 "$APP"
 
 # The whole point of this script: fail loudly if the bundle ended up with a
 # cdhash-only requirement, because that is what breaks TCC on every rebuild.
-DESIGNATED="$(codesign -d -r- "$APP" 2>&1 | grep '^designated =>' || true)"
+# codesign prefixes an ad-hoc requirement with `#`, so it has to be read too -
+# otherwise the check below cannot tell ad-hoc from unsigned.
+DESIGNATED="$(codesign -d -r- "$APP" 2>&1 \
+    | grep -E '^#?[[:space:]]*designated =>' \
+    | sed -E 's/^#?[[:space:]]*designated => //' || true)"
 if [[ -z "$DESIGNATED" ]]; then
     echo "dev-sign.sh: the bundle has no designated requirement; it is not properly signed" >&2
     codesign -dvvv "$APP" >&2 || true

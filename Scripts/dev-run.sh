@@ -115,6 +115,29 @@ else
     echo "libomp is not part of this project; skipping its dylib."
 fi
 
+# A product left in Xcode's split debug-dylib layout cannot be built over. With
+# ENABLE_DEBUG_DYLIB=NO the linker writes the real code to
+# Contents/MacOS/OpenSuperWhisper, but the previous build's
+# OpenSuperWhisper.debug.dylib and __preview.dylib can stay behind, and with
+# them the ~40 KB stub executable that loads them - the binary TCC attributes
+# and refuses:
+#
+#   matchesCodeRequirement:]: SecStaticCodeCheckValidity() static code ... from
+#   ru.starmel.OpenSuperWhisper : identifier "ru.starmel.OpenSuperWhisper" and
+#   certificate leaf = H"32266bcc..."; status: -67050
+#
+# So the split product is dropped before the build rather than signed as-is.
+if [[ -d "$APP" ]]; then
+    STALE_SPLIT="$(find "$APP/Contents/MacOS" -maxdepth 1 \
+        \( -name "*.debug.dylib" -o -name "__preview.dylib" \) 2>/dev/null)"
+    EXEC_BYTES="$(stat -f %z "$APP_BINARY" 2>/dev/null || echo 0)"
+    if [[ -n "$STALE_SPLIT" ]] || (( EXEC_BYTES > 0 && EXEC_BYTES < 1000000 )); then
+        echo "Removing the split debug-dylib product left by an earlier run.sh build:"
+        echo "  $APP"
+        rm -rf "$APP"
+    fi
+fi
+
 # Signing is off during the build: Xcode would try to use the Apple Development
 # identity from the project (TEAM 8LLDD7HWZK), which does not exist on this
 # machine. Scripts/dev-sign.sh signs the finished bundle instead.
@@ -148,18 +171,39 @@ if [[ ! -d "$APP" ]]; then
     exit 1
 fi
 
-# Any Xcode debug dylib left in the bundle means this build is not the layout
-# the app is tested as; report it rather than silently signing a stub.
-if compgen -G "$APP/Contents/MacOS/*.debug.dylib" >/dev/null; then
-    echo "Unexpected: the bundle still contains a Xcode debug dylib." >&2
+# Whatever the build did, the stale split layout must not reach the signing
+# step or a launch: the leftovers are removed, and the build fails loudly if
+# they survive the removal, or if the executable is still the debug stub.
+for leftover in "$APP/Contents/MacOS"/*.debug.dylib "$APP/Contents/MacOS/__preview.dylib"; do
+    [[ -e "$leftover" ]] && rm -f "$leftover"
+done
+
+SPLIT_LEFT="$(find "$APP/Contents/MacOS" -maxdepth 1 \
+    \( -name "*.debug.dylib" -o -name "__preview.dylib" \) 2>/dev/null)"
+if [[ -n "$SPLIT_LEFT" ]]; then
+    echo "dev-run.sh: the bundle still contains Xcode's debug dylib layout:" >&2
+    echo "$SPLIT_LEFT" >&2
+    echo "  a split bundle cannot hold a TCC grant; investigate the build first" >&2
+    exit 1
+fi
+
+EXEC_BYTES="$(stat -f %z "$APP_BINARY" 2>/dev/null || echo 0)"
+if (( EXEC_BYTES < 1000000 )); then
+    echo "dev-run.sh: $APP_BINARY is ${EXEC_BYTES} bytes - Xcode's debug stub, not the app." >&2
+    echo "  Remove the product and build again:" >&2
+    echo "    rm -rf \"$APP\"" >&2
     exit 1
 fi
 
 "$SCRIPT_DIR/dev-sign.sh" "$APP"
 
 # A designated requirement that changes between rebuilds is the exact failure
-# this whole path exists to avoid, so remember it and compare.
-DESIGNATED="$(codesign -d -r- "$APP" 2>&1 | grep '^designated =>' | sed 's/^designated => //')"
+# this whole path exists to avoid, so remember it and compare. codesign marks
+# an ad-hoc requirement with a leading `#` (`# designated => cdhash H"..."`),
+# which is exactly the shape worth catching, so both forms are read.
+DESIGNATED="$(codesign -d -r- "$APP" 2>&1 \
+    | grep -E '^#?[[:space:]]*designated =>' \
+    | sed -E 's/^#?[[:space:]]*designated => //')"
 mkdir -p "$(dirname "$DR_RECORD")"
 if [[ -f "$DR_RECORD" ]]; then
     PREVIOUS="$(cat "$DR_RECORD")"

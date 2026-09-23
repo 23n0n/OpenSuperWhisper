@@ -354,13 +354,13 @@ struct ContentView: View {
 
     var body: some View {
         VStack {
-            if permissionsManager.hasCompletedInitialCheck,
-               !permissionsManager.isMicrophonePermissionGranted
-                || !permissionsManager.isAccessibilityPermissionGranted
-            {
-                PermissionsView(permissionsManager: permissionsManager)
-            } else {
-                VStack(spacing: 0) {
+            // Nothing in this window is gated on a permission. A missing grant
+            // is the inline notice above the content, and the notice removes
+            // itself the moment the grant lands because PermissionsManager
+            // re-reads both values live.
+            PermissionNoticeStack(permissionsManager: permissionsManager)
+
+            VStack(spacing: 0) {
                     // Search bar
                     HStack {
                         Image(systemName: "magnifyingglass")
@@ -618,7 +618,6 @@ struct ContentView: View {
                         }
                     }
                     .padding()
-                }
             }
         }
         .frame(minWidth: 400, idealWidth: 400)
@@ -647,10 +646,9 @@ struct ContentView: View {
             viewModel.loadInitialData()
         }
         .overlay {
-            let isPermissionsGranted = permissionsManager.isMicrophonePermissionGranted
-                && permissionsManager.isAccessibilityPermissionGranted
-
-            if viewModel.transcriptionService.isLoading && isPermissionsGranted {
+            // No permission term here: this reports a model load, and a
+            // missing grant must not change what the window shows.
+            if viewModel.transcriptionService.isLoading {
                 ZStack {
                     Color.black.opacity(0.3)
                     VStack(spacing: 16) {
@@ -694,70 +692,107 @@ struct ContentView: View {
     }
 }
 
-struct PermissionsView: View {
+/// Inline permission state for a window that is never gated on one.
+///
+/// The app is meant to be usable the moment it starts: history, settings, the
+/// menu bar and every dictation whose permission is present all work while one
+/// of these is on screen. `PermissionsManager` re-reads TCC live, so a notice
+/// disappears on its own as soon as the switch in System Settings is flipped -
+/// there is no "check again" to press and no screen to get stuck on.
+struct PermissionNoticeStack: View {
     @ObservedObject var permissionsManager: PermissionsManager
 
-    var body: some View {
-        VStack(spacing: 20) {
-            Text("Required Permissions")
-                .font(.title)
-                .padding()
+    private var notices: [Permission] {
+        PermissionsManager.notices(
+            hasChecked: permissionsManager.hasCompletedInitialCheck,
+            microphoneGranted: permissionsManager.isMicrophonePermissionGranted,
+            accessibilityGranted: permissionsManager.isAccessibilityPermissionGranted
+        )
+    }
 
-            PermissionRow(
-                isGranted: permissionsManager.isMicrophonePermissionGranted,
-                title: "Microphone Access",
-                description: "Required for audio recording",
+    var body: some View {
+        if !notices.isEmpty {
+            VStack(spacing: 1) {
+                ForEach(notices, id: \.self) { notice in
+                    noticeView(for: notice)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func noticeView(for notice: Permission) -> some View {
+        switch notice {
+        case .accessibility:
+            PermissionNotice(
+                title: "Keystrokes are off — grant Accessibility",
+                message: "Transcriptions are still saved to the History tab, but macOS "
+                    + "will not let this copy type them into other apps until it is "
+                    + "switched on in System Settings › Privacy & Security › "
+                    + "Accessibility. If OpenSuperWhisper already looks enabled there, "
+                    + "switch it off and on again — a grant made for another copy of "
+                    + "the app does not apply to this one.",
+                buttonTitle: "Open Accessibility Settings",
+                action: {
+                    permissionsManager.requestAccessibilityPermissionOrOpenSystemPreferences()
+                }
+            )
+
+        case .microphone:
+            PermissionNotice(
+                title: "Recording is off — grant Microphone",
+                message: "Dictation cannot start until this copy may use the microphone. "
+                    + "Switch it on in System Settings › Privacy & Security › "
+                    + "Microphone.",
+                buttonTitle: "Open Microphone Settings",
                 action: {
                     permissionsManager.requestMicrophonePermissionOrOpenSystemPreferences()
                 }
             )
-
-            PermissionRow(
-                isGranted: permissionsManager.isAccessibilityPermissionGranted,
-                title: "Accessibility Access",
-                description: "Required for global keyboard shortcuts",
-                action: { permissionsManager.openSystemPreferences(for: .accessibility) }
-            )
-
-            Spacer()
         }
-        .padding()
     }
 }
 
-struct PermissionRow: View {
-    let isGranted: Bool
+struct PermissionNotice: View {
     let title: String
-    let description: String
+    let message: String
+    let buttonTitle: String
     let action: () -> Void
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: isGranted ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .foregroundColor(isGranted ? .green : .red)
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.orange)
 
+            VStack(alignment: .leading, spacing: 6) {
                 Text(title)
-                    .font(.headline)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
 
-                Spacer()
+                Text(message)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                if !isGranted {
-                    Button("Grant Access") {
-                        action()
-                    }
-                    .buttonStyle(.borderedProminent)
+                Button(buttonTitle) {
+                    action()
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
 
-            Text(description)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+            Spacer(minLength: 0)
         }
-        .padding()
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(ThemePalette.panelSurface(colorScheme))
-        .cornerRadius(10)
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(ThemePalette.panelBorder(colorScheme)),
+            alignment: .bottom
+        )
     }
 }
 
