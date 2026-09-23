@@ -142,7 +142,7 @@ final class AppPreferences {
     @UserDefault(key: "transformEndpoint", defaultValue: "http://127.0.0.1:1919/v1/chat/completions")
     var transformEndpoint: String
 
-    @UserDefault(key: "transformModel", defaultValue: "Qwen/Qwen3-14B-MLX-6bit")
+    @UserDefault(key: "transformModel", defaultValue: "qwen2.5-1.5b-instruct-q4_k_m")
     var transformModel: String
 
     @UserDefault(key: "transformTimeout", defaultValue: 8.0)

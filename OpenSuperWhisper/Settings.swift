@@ -1087,7 +1087,7 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Model")
                                 .font(.subheadline)
-                            TextField("Qwen/Qwen3-14B-MLX-6bit", text: $viewModel.transformModel)
+                            TextField("qwen2.5-1.5b-instruct-q4_k_m", text: $viewModel.transformModel)
                                 .textFieldStyle(.roundedBorder)
                                 .disabled(!viewModel.translateEnabled)
                         }
