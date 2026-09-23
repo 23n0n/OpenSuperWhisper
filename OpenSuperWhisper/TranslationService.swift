@@ -75,7 +75,10 @@ enum TransformPolicy: Equatable {
     /// * Only English is ever toned. A tone-only prompt on Polish translates it
     ///   anyway — measured 6/6, with and without an explicit "do not
     ///   translate" — which would silently defeat "Polish without translation",
-    ///   so Polish with the tone switch alone passes through.
+    ///   so Polish with the tone switch alone passes through. For English the
+    ///   tone switch decides on its own: there is nothing to translate, so the
+    ///   translation switch must not silently veto a tone rewrite the user
+    ///   asked for. The two switches stay independent.
     /// * `unknown`, and any third language, always pass through. The design
     ///   report ranked a single unified "translate if Polish, otherwise return
     ///   unchanged" call for this case (measured 19/22, English identity only
@@ -97,7 +100,8 @@ enum TransformPolicy: Equatable {
             guard translate else { return nil }
             return tone ? .translateWithTone(toneMode) : .translate
         case .english:
-            guard tone, !translate else { return nil }
+            // Nothing to translate, so the translation switch has no say here.
+            guard tone else { return nil }
             return .toneOnly(toneMode)
         case .unknown, .none:
             return nil

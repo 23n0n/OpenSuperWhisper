@@ -480,7 +480,7 @@ final class TranslationServiceTests: XCTestCase {
             PolicyRow(name: "translate on, engine says English", translate: true, tone: false,
                       language: "en", text: polish, expectedPolicy: nil),
             PolicyRow(name: "translate+tone on, engine says English", translate: true, tone: true,
-                      language: "en", text: english, expectedPolicy: nil),
+                      language: "en", text: english, expectedPolicy: .toneOnly(.formal)),
 
             // Tone only, English only: a tone-only prompt on Polish translates it
             // (measured 6/6), so Polish passes through.

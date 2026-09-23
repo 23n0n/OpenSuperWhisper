@@ -82,7 +82,11 @@ cannot report one, such as Parakeet. When it cannot tell, the raw transcript is 
 | off | on | English | rewritten in the selected tone |
 | off | on | Polish | raw transcript — a tone-only rewrite translates Polish anyway |
 | on | on | Polish | translated and toned |
+| on | on | English or any other | rewritten in the selected tone (nothing is translated) |
 | any | any | unknown | raw transcript |
+
+The translation switch never vetoes a tone rewrite: for English it has nothing to do. Turn tone off to
+keep your English untouched.
 
 Dictation history always keeps the raw transcript, and recordings transcribed from the list (queued or
 re-run files) are never transformed. To get language awareness on the dictation hotkey, set the
