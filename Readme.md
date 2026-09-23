@@ -54,7 +54,8 @@ where the app gets built automatically on GitHub's CI.
 
 ## Local translation backend (Polish → English + tone)
 
-When "Translate Polish to English" is enabled in Settings, the transcript is sent to an
+Two independent switches in Settings drive the transform, and both are off by default: **Translate
+Polish to English** and **Apply tone**. When either is on, the app sends the transcript to an
 OpenAI-compatible endpoint on this machine; no cloud service is involved. Serve that endpoint with a
 small instruction-tuned model:
 
@@ -66,6 +67,27 @@ Scripts/transform-server.sh --fetch     # downloads ~986 MB of weights once, the
 Later runs only need `Scripts/transform-server.sh`; the weights stay in `$HOME/models` (override with
 `TRANSFORM_MODEL_DIR`). The script serves `http://127.0.0.1:1919/v1/chat/completions` reporting the
 model `qwen2.5-1.5b-instruct-q4_k_m` — the endpoint and model the app's defaults point at.
+
+The language of each utterance decides what happens to it. The app takes the language the speech
+engine reports for that same transcription — whisper's own detection when the language setting is
+**Auto-detect** and a multilingual model is loaded, or your fixed language setting exactly as chosen —
+and falls back to a small text heuristic (Polish diacritics, function words, bigrams) for engines that
+cannot report one, such as Parakeet. When it cannot tell, the raw transcript is pasted:
+
+| Translation | Tone | Spoken language | Pasted text |
+|---|---|---|---|
+| off | off | any | raw transcript, nothing is even detected |
+| on | off | Polish | translated English, with no tone sentence in the prompt |
+| on | off | English or any other | raw transcript — English never reaches the Polish→English transform |
+| off | on | English | rewritten in the selected tone |
+| off | on | Polish | raw transcript — a tone-only rewrite translates Polish anyway |
+| on | on | Polish | translated and toned |
+| any | any | unknown | raw transcript |
+
+Dictation history always keeps the raw transcript, and recordings transcribed from the list (queued or
+re-run files) are never transformed. To get language awareness on the dictation hotkey, set the
+language picker to **Auto-detect** with a multilingual model (e.g. Turbo V3); a fixed setting is
+trusted as-is.
 
 To check that the running backend still matches the app's request/response contract (and that
 translation, tone control and latency behave), run:
