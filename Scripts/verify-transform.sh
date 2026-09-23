@@ -7,7 +7,8 @@
 #
 #   * request body     -> TranslationService.buildRequestBody(text:policy:model:)
 #   * system prompts   -> TranslationService.systemPrompt(for:)  (extracted from source),
-#                         one per policy: translate-only, tone-only, translate+tone
+#                         one per policy: translate-only and translate+tone,
+#                         resolved in both directions the target picker offers
 #   * model/endpoint   -> AppPreferences.transformModel / .transformEndpoint defaults
 #   * timeout ceiling  -> AppPreferences.transformTimeout default
 #   * response parsing -> TranslationService.parseContent(from:) / .stripReasoning(from:)
@@ -74,7 +75,7 @@ pref_number() { # key
 # labels earlier in the file. The translate-only literal carries no
 # interpolation; the two tone-bearing ones keep the literal \(tone.instruction)
 # placeholder.
-policy_prompt() { # translate|toneOnly|translateWithTone
+policy_prompt() { # translate|translateWithTone
     awk -v case_label="$1" '
       /static func systemPrompt\(for policy: TransformPolicy\) -> String/ { in_func = 1; next }
       in_func && /^    \}/ { exit }
@@ -96,7 +97,6 @@ MODEL="$(pref_string transformModel)"
 ENDPOINT="$(pref_string transformEndpoint)"
 TIMEOUT="$(pref_number transformTimeout)"
 SKELETON_TRANSLATE="$(policy_prompt translate)"
-SKELETON_TONE_ONLY="$(policy_prompt toneOnly)"
 SKELETON_TRANSLATE_TONE="$(policy_prompt translateWithTone)"
 INSTR_NEUTRAL="$(tone_instruction neutral)"
 INSTR_FORMAL="$(tone_instruction formal)"
@@ -106,7 +106,6 @@ INSTR_CASUAL="$(tone_instruction casual)"
 [[ -n "$ENDPOINT" ]] || die "could not read transformEndpoint default from $PREFS"
 [[ -n "$TIMEOUT" ]] || die "could not read transformTimeout default from $PREFS"
 [[ -n "$SKELETON_TRANSLATE" ]] || die "could not read the translate-only systemPrompt literal from $SERVICE"
-[[ -n "$SKELETON_TONE_ONLY" ]] || die "could not read the tone-only systemPrompt literal from $SERVICE"
 [[ -n "$SKELETON_TRANSLATE_TONE" ]] || die "could not read the translate+tone systemPrompt literal from $SERVICE"
 for instr in "$INSTR_NEUTRAL" "$INSTR_FORMAL" "$INSTR_CASUAL"; do
     [[ -n "$instr" ]] || die "could not read a ToneMode.instruction from $SERVICE"
@@ -118,6 +117,26 @@ END_THINK_TOKEN="$(printf '<%bend%bof%bthinking%b>' '\357\275\234' '\342\226\201
 ASCII_REASONING_MARKER='|end_of_thinking|'
 FULLWIDTH_BAR="$(printf '%b' '\357\275\234')"
 PROMPT_PLACEHOLDER='\(tone.instruction)'
+SOURCE_PLACEHOLDER='\(source.displayName)'
+TARGET_PLACEHOLDER='\(target.displayName)'
+
+# Fills a prompt skeleton's direction placeholders. `policy_prompt` reads the
+# literal out of the Swift source, so the two interpolations arrive unresolved:
+# `\(source.displayName)` is the spoken language, `\(target.displayName)` the
+# language the user picked in Settings.
+fill_direction() { # skeleton, source-language, target-language
+    local out="$1"
+    out="${out//"$SOURCE_PLACEHOLDER"/$2}"
+    out="${out//"$TARGET_PLACEHOLDER"/$3}"
+    printf '%s' "$out"
+}
+
+# The two directions the picker offers, resolved from the same literals:
+# English (the app's default target) and the demanded Polish output.
+SKELETON_PL_EN="$(fill_direction "$SKELETON_TRANSLATE" Polish English)"
+SKELETON_TT_PL_EN="$(fill_direction "$SKELETON_TRANSLATE_TONE" Polish English)"
+SKELETON_EN_PL="$(fill_direction "$SKELETON_TRANSLATE" English Polish)"
+SKELETON_TT_EN_PL="$(fill_direction "$SKELETON_TRANSLATE_TONE" English Polish)"
 
 echo "Transform backend contract verification"
 echo "  endpoint: $ENDPOINT"
@@ -157,45 +176,74 @@ for instr in "$INSTR_NEUTRAL" "$INSTR_FORMAL" "$INSTR_CASUAL"; do
 done
 case "$SKELETON_TRANSLATE" in *[Tt]one*) translate_tone_free=1 ;; esac
 check "translate-only prompt sends no tone wording at all" "$translate_tone_free"
+
+# The direction is interpolated, not hard-wired: both literals must carry the
+# source and target placeholders, so the picker can demand either way round.
 case "$SKELETON_TRANSLATE" in
+    *"$SOURCE_PLACEHOLDER"*"$TARGET_PLACEHOLDER"*)
+        pass "translate-only prompt interpolates source and target language" ;;
+    *)
+        fail "translate-only prompt no longer interpolates the direction" ;;
+esac
+case "$SKELETON_TRANSLATE_TONE" in
+    *"$SOURCE_PLACEHOLDER"*"$TARGET_PLACEHOLDER"*)
+        pass "translate+tone prompt interpolates source and target language" ;;
+    *)
+        fail "translate+tone prompt no longer interpolates the direction" ;;
+esac
+
+case "$SKELETON_PL_EN" in
     *"Translate the user's Polish text into natural English"*)
-        pass "translate-only prompt asks for Polish to English" ;;
+        pass "translate-only prompt asks for Polish to English when English is the target" ;;
     *)
         fail "translate-only prompt no longer asks for Polish to English" ;;
 esac
-
-# translate off + tone on: same language in, same language out.
-case "$SKELETON_TONE_ONLY" in
-    *"$PROMPT_PLACEHOLDER"*)
-        pass "tone-only prompt interpolates ToneMode.instruction" ;;
+case "$SKELETON_EN_PL" in
+    *"Translate the user's English text into natural Polish"*)
+        pass "translate-only prompt asks for English to Polish when Polish is the target" ;;
     *)
-        fail "tone-only prompt lost the ToneMode.instruction interpolation" ;;
+        fail "translate-only prompt does not follow a Polish target" ;;
 esac
-case "$SKELETON_TONE_ONLY" in
-    *"keeping the same language as the input"*)
-        pass "tone-only prompt asks to keep the input language" ;;
+case "$SKELETON_EN_PL" in
+    *"Output ONLY the final Polish text"*)
+        pass "translate-only prompt asks for Polish output only" ;;
     *)
-        fail "tone-only prompt no longer asks to keep the input language" ;;
+        fail "translate-only prompt does not demand Polish output" ;;
 esac
-case "$SKELETON_TONE_ONLY" in
-    *"Translate the user's Polish text into natural English"*)
-        fail "tone-only prompt still asks for translation" ;;
+case "$SKELETON_EN_PL" in
+    *"into natural English"*)
+        fail "a Polish target still asks for English output" ;;
     *)
-        pass "tone-only prompt does not ask for translation" ;;
+        pass "a Polish target never asks for English output" ;;
 esac
 
-# translate on + tone on: the shipped behaviour, unchanged.
-case "$SKELETON_TRANSLATE_TONE" in
+# No prompt asks for a same-language rewrite: a dictation already in the target
+# language is pasted untouched, so the tone-only wording must not exist at all.
+same_language_wording=0
+for instruction in "$SKELETON_TRANSLATE" "$SKELETON_TRANSLATE_TONE"; do
+    case "$instruction" in *"keeping the same language as the input"*) same_language_wording=1 ;; esac
+    case "$instruction" in *"Do not translate."*) same_language_wording=1 ;; esac
+done
+check "no shipped prompt asks for a same-language rewrite" "$same_language_wording"
+
+# translate on + tone on: the shipped behaviour, unchanged, both ways round.
+case "$SKELETON_TT_PL_EN" in
     *"$PROMPT_PLACEHOLDER"*)
         pass "translate+tone prompt interpolates ToneMode.instruction" ;;
     *)
         fail "translate+tone prompt lost the ToneMode.instruction interpolation" ;;
 esac
-case "$SKELETON_TRANSLATE_TONE" in
+case "$SKELETON_TT_PL_EN" in
     *"Translate the user's Polish text into natural English"*)
         pass "translate+tone prompt asks for Polish to English" ;;
     *)
         fail "translate+tone prompt no longer asks for Polish to English" ;;
+esac
+case "$SKELETON_TT_EN_PL" in
+    *"Translate the user's English text into natural Polish"*)
+        pass "translate+tone prompt asks for English to Polish when Polish is the target" ;;
+    *)
+        fail "translate+tone prompt does not follow a Polish target" ;;
 esac
 
 # MARK: - Backend reachability and served model id
@@ -238,7 +286,8 @@ request_with_prompt() { # prompt, text
     RESPONSE_BODY="$(cat "$RESPONSE_FILE")"
 }
 
-# translate on + tone on: the prompt the app shipped before this change.
+# translate on + tone on: the prompt the app shipped before this change
+# (English target, Polish speech).
 send() { # tone, text
     local tone="$1" text="$2" instr prompt
     case "$tone" in
@@ -247,21 +296,14 @@ send() { # tone, text
         casual) instr="$INSTR_CASUAL" ;;
         *) die "unknown tone: $tone" ;;
     esac
-    prompt="${SKELETON_TRANSLATE_TONE//"$PROMPT_PLACEHOLDER"/$instr}"
+    prompt="${SKELETON_TT_PL_EN//"$PROMPT_PLACEHOLDER"/$instr}"
     [[ "$prompt" == *"$instr"* ]] || die "system prompt does not carry the $tone tone instruction"
 
     request_with_prompt "$prompt" "$text"
 }
 
-# translate on + tone off: no tone wording in the request at all.
-send_translate_only() { # text
-    [[ "$SKELETON_TRANSLATE" != *"$PROMPT_PLACEHOLDER"* ]] \
-        || die "translate-only prompt unexpectedly interpolates a tone instruction"
-    request_with_prompt "$SKELETON_TRANSLATE" "$1"
-}
-
-# translate off + tone on: same language in, same language out.
-send_tone_only() { # tone, text
+# translate on + tone on, Polish target: English speech into toned Polish.
+send_en_pl_with_tone() { # tone, text
     local tone="$1" text="$2" instr prompt
     case "$tone" in
         neutral) instr="$INSTR_NEUTRAL" ;;
@@ -269,10 +311,24 @@ send_tone_only() { # tone, text
         casual) instr="$INSTR_CASUAL" ;;
         *) die "unknown tone: $tone" ;;
     esac
-    prompt="${SKELETON_TONE_ONLY//"$PROMPT_PLACEHOLDER"/$instr}"
-    [[ "$prompt" == *"$instr"* ]] || die "tone-only prompt does not carry the $tone tone instruction"
+    prompt="${SKELETON_TT_EN_PL//"$PROMPT_PLACEHOLDER"/$instr}"
+    [[ "$prompt" == *"$instr"* ]] || die "EN->PL prompt does not carry the $tone tone instruction"
 
     request_with_prompt "$prompt" "$text"
+}
+
+# translate on + tone off: no tone wording in the request at all.
+send_translate_only() { # text
+    [[ "$SKELETON_PL_EN" != *"$PROMPT_PLACEHOLDER"* ]] \
+        || die "translate-only prompt unexpectedly interpolates a tone instruction"
+    request_with_prompt "$SKELETON_PL_EN" "$1"
+}
+
+# translate on + tone off, Polish target: English speech into Polish.
+send_translate_only_en_pl() { # text
+    [[ "$SKELETON_EN_PL" != *"$PROMPT_PLACEHOLDER"* ]] \
+        || die "EN->PL translate-only prompt unexpectedly interpolates a tone instruction"
+    request_with_prompt "$SKELETON_EN_PL" "$1"
 }
 
 # Mirrors TranslationService.stripReasoning(from:).
@@ -325,8 +381,8 @@ assert_no_reasoning() { # label, content, reasoning_content
 }
 
 # Asserts one response satisfies the app's expectations.
-verify_response() { # label, http_code, latency, pl_text
-    local label="$1" code="$2" latency="$3" pl="$4"
+verify_response() { # label, http_code, latency, input_text
+    local label="$1" code="$2" latency="$3" input="$4"
     local content reasoning stripped too_slow
 
     [[ "$code" == "200" ]] && pass "$label: HTTP 200" || fail "$label: HTTP $code"
@@ -347,8 +403,8 @@ verify_response() { # label, http_code, latency, pl_text
         pass "$label: parseContent yields non-empty text"
     fi
 
-    [[ "$stripped" == "$pl" ]] && fail "$label: output is the untranslated input" \
-                                || pass "$label: output differs from the Polish input"
+    [[ "$stripped" == "$input" ]] && fail "$label: output is the untranslated input" \
+                                   || pass "$label: output differs from the input"
 
     too_slow="$(jq -rn --argjson l "$latency" --argjson t "$TIMEOUT" 'if $l >= $t then 1 else 0 end')"
     [[ "$too_slow" == "0" ]] && pass "$label: ${latency}s is under the app's ${TIMEOUT}s timeout" \
@@ -477,47 +533,89 @@ verify_response "translate-only" "$RESP_CODE" "$RESP_TIME" "$TONE_PROBE"
 LATENCIES+=("$RESP_TIME")
 SHORT_LATENCIES+=("$RESP_TIME")
 
-# translate off + tone on: same language in, same language out. The model is
-# asked to keep English English; anything that comes back as Polish is exactly
-# what the app's language-preservation guard discards.
-TONE_ONLY_INPUT="Please send the report to the client today."
-send_tone_only formal "$TONE_ONLY_INPUT"
-echo "EN (tone-only): $TONE_ONLY_INPUT"
-case "$LAST_BODY" in
-    *"keeping the same language as the input"*)
-        pass "tone-only request asks to keep the input language" ;;
-    *)
-        fail "tone-only request lost the same-language wording" ;;
-esac
-case "$LAST_BODY" in
-    *"Translate the user's Polish text into natural English"*)
-        fail "tone-only request asks for translation" ;;
-    *)
-        pass "tone-only request does not ask for translation" ;;
-esac
-[[ "$RESP_CODE" == "200" ]] && pass "tone-only: HTTP 200" || fail "tone-only: HTTP $RESP_CODE"
-TONE_ONLY_CONTENT="$(printf '%s' "$RESPONSE_BODY" | jq -r '.choices[0].message.content // empty')"
-TONE_ONLY_REASONING="$(printf '%s' "$RESPONSE_BODY" | jq -r '.choices[0].message.reasoning_content // empty')"
-assert_no_reasoning "tone-only" "$TONE_ONLY_CONTENT" "$TONE_ONLY_REASONING"
-TONE_ONLY_CONTENT="$(printf '%s' "$TONE_ONLY_CONTENT" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-if [[ -z "$TONE_ONLY_CONTENT" ]]; then
-    fail "tone-only: parseContent would return emptyResponse"
-else
-    pass "tone-only: parseContent yields non-empty text"
-    case "$TONE_ONLY_CONTENT" in
-        *[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]*)
-            fail "tone-only: output switched to Polish ($TONE_ONLY_CONTENT)" ;;
+# There is no same-language request shape left to probe: a dictation already in
+# the target language never leaves the app, so the retired "keep the input
+# language" prompt is asserted absent statically above instead.
+
+# MARK: - Reverse direction (English speech, Polish target)
+
+echo ""
+echo "== reverse direction on the live backend (English -> Polish) =="
+echo "The picker's non-default target, on genuine English sentences. The request"
+echo "and response shape are asserted here; the Polish text itself is printed but"
+echo "NOT graded — how well the 1.5B weights hold Polish is a property of the"
+echo "model, measured in the task report, and a language assertion in this script"
+echo "would either be vacuous or flake on legitimate diacritic-free Polish."
+echo ""
+
+EN_SENTENCES=(
+    "Hello, how are you?"
+    "We need to discuss the budget for next quarter."
+    "I'm sorry, I can't come to the meeting today."
+    "Please send the report to the client tomorrow."
+    "The deployment failed because the database migration timed out."
+)
+
+index=0
+for en in "${EN_SENTENCES[@]}"; do
+    index=$((index + 1))
+    send_translate_only_en_pl "$en"
+    echo "[$index] EN: $en"
+    case "$LAST_BODY" in
+        *"Translate the user's English text into natural Polish"*)
+            pass "EN->PL sentence $index: request asks for English to Polish" ;;
         *)
-            pass "tone-only: output kept the input language" ;;
+            fail "EN->PL sentence $index: request does not ask for English to Polish" ;;
     esac
-    echo "       content: $TONE_ONLY_CONTENT"
-fi
-too_slow="$(jq -rn --argjson l "$RESP_TIME" --argjson t "$TIMEOUT" 'if $l >= $t then 1 else 0 end')"
-[[ "$too_slow" == "0" ]] \
-    && pass "tone-only: ${RESP_TIME}s is under the app's ${TIMEOUT}s timeout" \
-    || fail "tone-only: ${RESP_TIME}s exceeds the app's ${TIMEOUT}s timeout"
-LATENCIES+=("$RESP_TIME")
-SHORT_LATENCIES+=("$RESP_TIME")
+    case "$LAST_BODY" in
+        *[Tt]one*) fail "EN->PL sentence $index: request body mentions tone" ;;
+        *) pass "EN->PL sentence $index: request body mentions no tone" ;;
+    esac
+    verify_response "EN->PL sentence $index" "$RESP_CODE" "$RESP_TIME" "$en"
+    echo "       latency: ${RESP_TIME}s"
+    LATENCIES+=("$RESP_TIME")
+    SHORT_LATENCIES+=("$RESP_TIME")
+    echo ""
+done
+
+# The tone rides into the target language: the same English sentence comes back
+# in Polish, with the selected tone in the prompt.
+EN_TONE_PROBE="I'm sorry, I can't come to the meeting today."
+for tone in formal casual; do
+    send_en_pl_with_tone "$tone" "$EN_TONE_PROBE"
+    echo "EN->PL ($tone): $EN_TONE_PROBE"
+    case "$LAST_BODY" in
+        *"Translate the user's English text into natural Polish"*)
+            pass "EN->PL $tone: request asks for English to Polish" ;;
+        *)
+            fail "EN->PL $tone: request does not ask for English to Polish" ;;
+    esac
+    case "$LAST_BODY" in
+        *"$INSTR_FORMAL"*|*"$INSTR_CASUAL"*)
+            pass "EN->PL $tone: request carries a tone instruction" ;;
+        *)
+            fail "EN->PL $tone: request lost the tone instruction" ;;
+    esac
+    [[ "$RESP_CODE" == "200" ]] && pass "EN->PL $tone: HTTP 200" || fail "EN->PL $tone: HTTP $RESP_CODE"
+    EN_TONE_CONTENT="$(printf '%s' "$RESPONSE_BODY" | jq -r '.choices[0].message.content // empty')"
+    assert_no_reasoning "EN->PL $tone" \
+        "$EN_TONE_CONTENT" \
+        "$(printf '%s' "$RESPONSE_BODY" | jq -r '.choices[0].message.reasoning_content // empty')"
+    EN_TONE_TRIMMED="$(printf '%s' "$EN_TONE_CONTENT" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    if [[ -z "$EN_TONE_TRIMMED" ]]; then
+        fail "EN->PL $tone: parseContent would return emptyResponse"
+    else
+        pass "EN->PL $tone: parseContent yields non-empty text"
+    fi
+    echo "       content: $EN_TONE_TRIMMED"
+    too_slow="$(jq -rn --argjson l "$RESP_TIME" --argjson t "$TIMEOUT" 'if $l >= $t then 1 else 0 end')"
+    [[ "$too_slow" == "0" ]] \
+        && pass "EN->PL $tone: ${RESP_TIME}s is under the app's ${TIMEOUT}s timeout" \
+        || fail "EN->PL $tone: ${RESP_TIME}s exceeds the app's ${TIMEOUT}s timeout"
+    LATENCIES+=("$RESP_TIME")
+    SHORT_LATENCIES+=("$RESP_TIME")
+    echo ""
+done
 
 # MARK: - Latency summary
 

@@ -215,6 +215,12 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
+    @Published var transformTargetLanguage: TransformLanguage {
+        didSet {
+            AppPreferences.shared.transformTargetLanguage = transformTargetLanguage
+        }
+    }
+
     @Published var transformEndpoint: String {
         didSet {
             AppPreferences.shared.transformEndpoint = transformEndpoint
@@ -378,6 +384,7 @@ class SettingsViewModel: ObservableObject {
         self.translateEnabled = prefs.translateEnabled
         self.toneEnabled = prefs.toneEnabled
         self.transformToneMode = prefs.transformToneMode
+        self.transformTargetLanguage = prefs.transformTargetLanguage
         self.transformEndpoint = prefs.transformEndpoint
         self.transformModel = prefs.transformModel
         self.transformTimeout = prefs.transformTimeout
@@ -1195,9 +1202,9 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Translate Polish to English")
+                                Text("Translate into \(viewModel.transformTargetLanguage.displayName)")
                                     .font(.subheadline)
-                                Text("Translate Polish dictation into English; English is pasted unchanged")
+                                Text("Translate dictation into the target language below; speech already in it is pasted unchanged")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -1207,11 +1214,24 @@ struct SettingsView: View {
                                 .labelsHidden()
                         }
 
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Target language")
+                                .font(.subheadline)
+                            Picker("Target language", selection: $viewModel.transformTargetLanguage) {
+                                ForEach(TransformLanguage.allCases) { language in
+                                    Text(language.displayName).tag(language)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .disabled(!viewModel.translateEnabled)
+                        }
+
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Apply tone")
                                     .font(.subheadline)
-                                Text("Rewrite the result in the selected tone — Polish is toned through translation; with translation off only English is rewritten")
+                                Text("Rewrite the translated text in the selected tone — a tone rides on a translation, so it needs the translation switch on")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -1297,7 +1317,7 @@ struct SettingsView: View {
                                 .foregroundColor(.secondary)
                         }
 
-                        Text("The pasted text depends on the language and the two switches: raw by default, translated when Polish meets the translation switch, tone-adjusted when English meets the tone switch. Dictation history always keeps the raw transcript, and recordings transcribed from the list are never transformed. Language awareness needs a multilingual whisper model in Auto-detect; with a fixed language the app trusts your setting.")
+                        Text("The pasted text depends on the spoken language, the target language and the two switches: raw by default, translated into the target when the spoken language differs from it and the translation switch is on, and toned with the tone switch on. Speech already in the target language is always pasted untouched — it never reaches the model. Dictation history always keeps the raw transcript, and recordings transcribed from the list are never transformed. Language awareness needs a multilingual whisper model in Auto-detect; with a fixed language the app trusts your setting. Polish output is best-effort with the bundled model — English output is the reliable direction.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

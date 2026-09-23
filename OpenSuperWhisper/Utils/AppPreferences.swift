@@ -247,6 +247,20 @@ final class AppPreferences {
         set { transformToneModeRaw = newValue.rawValue }
     }
 
+    /// The language the transform writes. Speech already in this language is
+    /// pasted untouched and never reaches the model; speech in the other
+    /// language is translated into it. Defaults to English — the direction the
+    /// app shipped and the one the staged model holds — so an install that
+    /// never touches the picker behaves exactly as before. Polish output is
+    /// best-effort with that model.
+    @UserDefault(key: "transformTargetLanguage", defaultValue: TransformLanguage.english.rawValue)
+    private var transformTargetLanguageRaw: String
+
+    var transformTargetLanguage: TransformLanguage {
+        get { TransformLanguage(rawValue: transformTargetLanguageRaw) ?? .english }
+        set { transformTargetLanguageRaw = newValue.rawValue }
+    }
+
     /// Advanced override. Off by default: the app carries its own llama.cpp
     /// runtime, and the transform runs in this process against app-owned
     /// weights. Turn this on to send the transform to an OpenAI-compatible
