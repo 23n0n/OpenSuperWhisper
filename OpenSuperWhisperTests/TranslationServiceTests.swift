@@ -82,6 +82,10 @@ final class TranslationServiceTests: XCTestCase {
     // literal was corrupted and the tests silently proved nothing.
     private let openThinkTag = "\u{3C}think\u{3E}"
     private let closeThinkTag = "\u{3C}/think\u{3E}"
+    private let openMarkupTag = "\u{3C}thinking\u{3E}"
+    private let closeMarkupTag = "\u{3C}/thinking\u{3E}"
+    private let openReasoningTag = "\u{3C}reasoning\u{3E}"
+    private let closeReasoningTag = "\u{3C}/reasoning\u{3E}"
     private let endThinkToken = "<\u{FF5C}end\u{2581}of\u{2581}thinking\u{FF5C}>"
 
     // AppPreferences reads/writes `UserDefaults.standard` internally, so the
@@ -94,6 +98,11 @@ final class TranslationServiceTests: XCTestCase {
     private var savedTimeout: Double = 8
     private var savedAddSpaceAfterSentence = true
 
+    // Every test drives an instance whose session points at the stub. The
+    // default stub outcome is an always-failing transport, so a test that
+    // forgets to set an outcome still cannot reach the real network.
+    private var service: TranslationService!
+
     override func setUp() {
         super.setUp()
         let prefs = AppPreferences.shared
@@ -105,8 +114,8 @@ final class TranslationServiceTests: XCTestCase {
         savedAddSpaceAfterSentence = prefs.addSpaceAfterSentence
         prefs.translateEnabled = false
 
-        TranslationService.urlSession = .shared
         StubURLProtocol.reset()
+        service = TranslationService(urlSession: makeStubbedSession())
     }
 
     override func tearDown() {
@@ -118,7 +127,6 @@ final class TranslationServiceTests: XCTestCase {
         prefs.transformTimeout = savedTimeout
         prefs.addSpaceAfterSentence = savedAddSpaceAfterSentence
 
-        TranslationService.urlSession = .shared
         StubURLProtocol.reset()
         super.tearDown()
     }
@@ -219,6 +227,50 @@ final class TranslationServiceTests: XCTestCase {
         XCTAssertEqual(try TranslationService.parseContent(from: data), "Visible first.")
     }
 
+    func testParseContent_stripsThinkingTagBlock() throws {
+        let content = openMarkupTag + "hidden reasoning" + closeMarkupTag + "Visible English."
+        let data = try makeResponse(content: content)
+        XCTAssertEqual(try TranslationService.parseContent(from: data), "Visible English.")
+    }
+
+    func testParseContent_stripsReasoningTagBlock() throws {
+        let content = openReasoningTag + "hidden reasoning" + closeReasoningTag + "Visible English."
+        let data = try makeResponse(content: content)
+        XCTAssertEqual(try TranslationService.parseContent(from: data), "Visible English.")
+    }
+
+    func testStripReasoning_removesBareEndTokenAnywhere() {
+        XCTAssertEqual(
+            TranslationService.stripReasoning(from: "Before " + endThinkToken + " after"),
+            "Before  after",
+            "An end token with no opener must be removed wherever it appears"
+        )
+        XCTAssertEqual(
+            TranslationService.stripReasoning(from: endThinkToken + "Visible English."),
+            "Visible English."
+        )
+    }
+
+    func testStripReasoning_removesOrphanClosingTags() {
+        for tag in [closeThinkTag, closeMarkupTag, closeReasoningTag] {
+            XCTAssertEqual(
+                TranslationService.stripReasoning(from: tag + "Visible English."),
+                "Visible English.",
+                "A leading \(tag) with no opener must be removed"
+            )
+            XCTAssertEqual(
+                TranslationService.stripReasoning(from: "Visible " + tag + " English."),
+                "Visible  English.",
+                "A standalone \(tag) with no opener must be removed"
+            )
+        }
+    }
+
+    func testStripReasoning_bareWordThinkingAndReasoningSurvive() {
+        let content = "I keep thinking and reasoning about the translation."
+        XCTAssertEqual(TranslationService.stripReasoning(from: content), content)
+    }
+
     func testParseContent_wordThinkingWithoutTags_isUnchanged() throws {
         // Guards against over-truncation: a bare word `thinking` must survive.
         let content = "I keep thinking about the translation."
@@ -263,10 +315,9 @@ final class TranslationServiceTests: XCTestCase {
 
     func testTransformIfEnabled_disabled_returnsRawInputWithoutNetwork() async {
         AppPreferences.shared.translateEnabled = false
-        TranslationService.urlSession = makeStubbedSession()
         StubURLProtocol.reset()
 
-        let result = await TranslationService.shared.transformIfEnabled("Cześć")
+        let result = await service.transformIfEnabled("Cześć")
 
         XCTAssertEqual(result, "Cześć")
         XCTAssertEqual(StubURLProtocol.requestCount, 0, "Disabled translation must not hit the network")
@@ -274,10 +325,9 @@ final class TranslationServiceTests: XCTestCase {
 
     func testTransformIfEnabled_emptyText_returnsEmptyWithoutNetwork() async {
         enableTranslation()
-        TranslationService.urlSession = makeStubbedSession()
         StubURLProtocol.reset()
 
-        let result = await TranslationService.shared.transformIfEnabled("")
+        let result = await service.transformIfEnabled("")
 
         XCTAssertEqual(result, "")
         XCTAssertEqual(StubURLProtocol.requestCount, 0, "Empty input must not hit the network")
@@ -285,10 +335,9 @@ final class TranslationServiceTests: XCTestCase {
 
     func testTransformIfEnabled_requestFailure_returnsRawInputAndAttemptsRequest() async {
         enableTranslation()
-        TranslationService.urlSession = makeStubbedSession()
         StubURLProtocol.outcome = .failure(URLError(.cannotConnectToHost))
 
-        let result = await TranslationService.shared.transformIfEnabled("Cześć")
+        let result = await service.transformIfEnabled("Cześć")
 
         XCTAssertEqual(result, "Cześć")
         XCTAssertEqual(StubURLProtocol.requestCount, 1, "The request was never attempted")
@@ -298,11 +347,10 @@ final class TranslationServiceTests: XCTestCase {
 
     func testTransform_successfulResponse_returnsParsedContent() async throws {
         enableTranslation()
-        TranslationService.urlSession = makeStubbedSession()
         let body = try makeResponse(content: "Hello world.")
         StubURLProtocol.outcome = .success(statusCode: 200, body: body)
 
-        let result = try await TranslationService.shared.transform("Cześć")
+        let result = try await service.transform("Cześć")
 
         XCTAssertEqual(result, "Hello world.")
         XCTAssertEqual(StubURLProtocol.requestCount, 1)
@@ -315,11 +363,10 @@ final class TranslationServiceTests: XCTestCase {
 
     func testTransform_non2xxResponse_throwsHTTPError() async {
         enableTranslation()
-        TranslationService.urlSession = makeStubbedSession()
         StubURLProtocol.outcome = .success(statusCode: 500, body: Data())
 
         do {
-            _ = try await TranslationService.shared.transform("Cześć")
+            _ = try await service.transform("Cześć")
             XCTFail("Expected an httpError")
         } catch let error as TranslationError {
             guard case .httpError(let statusCode) = error else {
@@ -333,10 +380,9 @@ final class TranslationServiceTests: XCTestCase {
 
     func testTransform_invalidEndpoint_throwsInvalidEndpoint() async {
         enableTranslation(endpoint: "")
-        TranslationService.urlSession = makeStubbedSession()
 
         do {
-            _ = try await TranslationService.shared.transform("Cześć")
+            _ = try await service.transform("Cześć")
             XCTFail("Expected an invalidEndpoint error")
         } catch TranslationError.invalidEndpoint {
             // expected
@@ -347,13 +393,12 @@ final class TranslationServiceTests: XCTestCase {
 
     func testTransform_trimsEndpointWhitespaceBeforeParsing() async throws {
         enableTranslation(endpoint: "  http://127.0.0.1:1919/v1/chat/completions  ")
-        TranslationService.urlSession = makeStubbedSession()
         StubURLProtocol.outcome = .success(
             statusCode: 200,
             body: try makeResponse(content: "Hello.")
         )
 
-        _ = try await TranslationService.shared.transform("Cześć")
+        _ = try await service.transform("Cześć")
 
         XCTAssertEqual(
             StubURLProtocol.lastRequest?.url?.absoluteString,
@@ -363,24 +408,39 @@ final class TranslationServiceTests: XCTestCase {
 
     func testTransform_clampsTimeoutToValidRange() async throws {
         enableTranslation(timeout: 0)
-        TranslationService.urlSession = makeStubbedSession()
         StubURLProtocol.outcome = .success(
             statusCode: 200,
             body: try makeResponse(content: "Hello.")
         )
 
-        _ = try await TranslationService.shared.transform("Cześć")
+        _ = try await service.transform("Cześć")
 
         let timeout = try XCTUnwrap(StubURLProtocol.lastRequest?.timeoutInterval)
         XCTAssertEqual(timeout, 1, accuracy: 0.001, "A 0s timeout must be clamped up to 1s")
     }
 
+    func testTransform_clampsTimeoutUpperBoundAndPassesThroughInRange() async throws {
+        StubURLProtocol.outcome = .success(
+            statusCode: 200,
+            body: try makeResponse(content: "Hello.")
+        )
+
+        enableTranslation(timeout: 999)
+        _ = try await service.transform("Cześć")
+        let upper = try XCTUnwrap(StubURLProtocol.lastRequest?.timeoutInterval)
+        XCTAssertEqual(upper, 120, accuracy: 0.001, "A 999s timeout must be clamped down to 120s")
+
+        enableTranslation(timeout: 8)
+        _ = try await service.transform("Cześć")
+        let inRange = try XCTUnwrap(StubURLProtocol.lastRequest?.timeoutInterval)
+        XCTAssertEqual(inRange, 8, accuracy: 0.001, "An in-range timeout must pass through unchanged")
+    }
+
     func testTransform_taskCancellation_failsPromptly() async throws {
         enableTranslation(timeout: 5)
-        TranslationService.urlSession = makeStubbedSession()
         StubURLProtocol.outcome = .hang
 
-        let task = Task { try await TranslationService.shared.transform("Cześć") }
+        let task = Task { try await service.transform("Cześć") }
 
         // Wait until the in-flight request reaches the stub.
         let deadline = Date().addingTimeInterval(5)
@@ -395,14 +455,31 @@ final class TranslationServiceTests: XCTestCase {
         do {
             _ = try await task.value
             XCTFail("Expected the cancelled transform to fail")
+        } catch is CancellationError {
+            // expected
+        } catch let error as URLError where error.code == .cancelled {
+            // expected
         } catch {
-            // Expected: cancellation or a URL loading cancellation error.
+            XCTFail("Expected CancellationError or URLError(.cancelled), got: \(error)")
         }
 
         XCTAssertLessThan(
             Date().timeIntervalSince(cancelStart),
             3.0,
             "Cancellation should not wait for the request timeout"
+        )
+    }
+
+    // MARK: - Production default session
+
+    func testProductionDefaultUsesSharedSession() {
+        XCTAssertTrue(
+            TranslationService.shared.urlSession === URLSession.shared,
+            "The shared service must default to URLSession.shared"
+        )
+        XCTAssertTrue(
+            TranslationService().urlSession === URLSession.shared,
+            "A default-constructed service must use URLSession.shared"
         )
     }
 

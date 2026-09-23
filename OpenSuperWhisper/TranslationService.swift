@@ -47,13 +47,14 @@ enum TranslationError: Error, LocalizedError {
 final class TranslationService {
     static let shared = TranslationService()
 
-    /// Session used for translation requests.
-    ///
-    /// Kept as a mutable static so tests can inject a `URLProtocol`-stubbed
-    /// session. Production always uses `URLSession.shared`.
-    static var urlSession: URLSession = .shared
+    /// Session used for translation requests. Injected at construction so
+    /// tests can supply a `URLProtocol`-stubbed session without mutable global
+    /// state; production uses `URLSession.shared`.
+    let urlSession: URLSession
 
-    private init() {}
+    init(urlSession: URLSession = .shared) {
+        self.urlSession = urlSession
+    }
 
     // MARK: - Public API
 
@@ -99,7 +100,7 @@ final class TranslationService {
         request.timeoutInterval = max(1, min(prefs.transformTimeout, 120))
 
         try Task.checkCancellation()
-        let (data, response) = try await Self.urlSession.data(for: request)
+        let (data, response) = try await urlSession.data(for: request)
         try Task.checkCancellation()
 
         if let httpResponse = response as? HTTPURLResponse,
@@ -203,6 +204,23 @@ final class TranslationService {
                 options: .regularExpression
             )
         }
+
+        // A Qwen3 response can carry the end token without any preceding opener
+        // (the `enable_thinking:false` template can prefill it), so remove it
+        // anywhere it survives the paired-block patterns above.
+        result = result.replacingOccurrences(of: endThinkToken, with: "")
+
+        // A lone closing tag can lead the text (or stand alone) when no opener
+        // precedes it. Paired openers were already consumed above, so any
+        // remaining closing tag is orphaned. Only the tags are removed; a bare
+        // mention of the word "thinking" is preserved.
+        let orphanCloseTags = [escapedCloseThink, escapedCloseMarkup, escapedCloseReasoning]
+            .joined(separator: "|")
+        result = result.replacingOccurrences(
+            of: "(?is)\(orphanCloseTags)",
+            with: "",
+            options: .regularExpression
+        )
         return result
     }
 }
