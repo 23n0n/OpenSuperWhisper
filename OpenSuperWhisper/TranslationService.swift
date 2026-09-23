@@ -42,6 +42,69 @@ enum TranslationError: Error, LocalizedError {
     }
 }
 
+/// What the transform gate decided to do with one dictation.
+///
+/// The absence of a value is the passthrough case: the raw transcript goes
+/// straight to the keypress path, with no request, no tone text and no language
+/// detection work. `TranslationService.transformIfEnabled` returns before it
+/// builds any request for that case.
+enum TransformPolicy: Equatable {
+    /// Polish → English, with no tone wording in the prompt at all.
+    case translate
+    /// Same language in, same language out, in the given tone.
+    case toneOnly(ToneMode)
+    /// Polish → English, then that tone.
+    case translateWithTone(ToneMode)
+
+    /// The tone embedded in the prompt, if this policy sends any tone text.
+    var promptTone: ToneMode? {
+        switch self {
+        case .translate: return nil
+        case .toneOnly(let tone), .translateWithTone(let tone): return tone
+        }
+    }
+
+    /// The decision table for one dictation.
+    ///
+    /// * Both switches off ⇒ `nil`, and the caller never even looks up the
+    ///   language.
+    /// * Only Polish is ever translated. English must never reach the
+    ///   Polish→English transform: every model call rewrites it (measured
+    ///   `"Do it tomorrow."` → `"I'll do it tomorrow."`), which is exactly the
+    ///   behaviour language awareness is meant to stop.
+    /// * Only English is ever toned. A tone-only prompt on Polish translates it
+    ///   anyway — measured 6/6, with and without an explicit "do not
+    ///   translate" — which would silently defeat "Polish without translation",
+    ///   so Polish with the tone switch alone passes through.
+    /// * `unknown`, and any third language, always pass through. The design
+    ///   report ranked a single unified "translate if Polish, otherwise return
+    ///   unchanged" call for this case (measured 19/22, English identity only
+    ///   7/10); it is deliberately not implemented. The case is rare — the
+    ///   heuristic agreed with the engine on 16/16 real engine transcripts —
+    ///   and pasting what was actually said is the safest outcome. This also
+    ///   subsumes the report's "≤ 3 words" row: it only ever guarded transforms
+    ///   of unknown-language text, and there are none left.
+    static func resolve(
+        translate: Bool,
+        tone: Bool,
+        language: String?,
+        toneMode: ToneMode
+    ) -> TransformPolicy? {
+        guard translate || tone else { return nil }
+
+        switch language.flatMap(LanguageDetector.Verdict.init(languageCode:)) {
+        case .polish:
+            guard translate else { return nil }
+            return tone ? .translateWithTone(toneMode) : .translate
+        case .english:
+            guard tone, !translate else { return nil }
+            return .toneOnly(toneMode)
+        case .unknown, .none:
+            return nil
+        }
+    }
+}
+
 /// Translates Polish dictation into English and applies a tone, using an
 /// OpenAI-compatible local chat completions endpoint.
 final class TranslationService {
@@ -60,15 +123,39 @@ final class TranslationService {
 
     /// The only entry point used by the UI.
     ///
-    /// Returns `text` unchanged when translation is disabled, when `text` is
+    /// Returns `text` unchanged when no transform applies, when `text` is
     /// empty, or on ANY failure. The app must always be able to paste
     /// something, so this method never throws.
-    func transformIfEnabled(_ text: String) async -> String {
-        guard AppPreferences.shared.translateEnabled, !text.isEmpty else {
+    ///
+    /// `sourceLanguage` is the language the transcription engine reported for
+    /// this utterance (`TranscriptionOutput.language`). A fixed whisper
+    /// language setting and a multilingual model's own detection are both
+    /// authoritative; only when the engine had no signal is the transcript
+    /// classified with `LanguageDetector`.
+    func transformIfEnabled(_ text: String, sourceLanguage: String? = nil) async -> String {
+        let prefs = AppPreferences.shared
+        guard !text.isEmpty else { return text }
+        // Nothing is switched on: skip the language work entirely.
+        guard prefs.translateEnabled || prefs.toneEnabled else { return text }
+
+        let language = sourceLanguage ?? LanguageDetector.languageCode(for: text)
+        guard let policy = TransformPolicy.resolve(
+            translate: prefs.translateEnabled,
+            tone: prefs.toneEnabled,
+            language: language,
+            toneMode: prefs.transformToneMode
+        ) else {
             return text
         }
+
         do {
-            return try await transform(text)
+            let result = try await transform(text, policy: policy)
+            if case .toneOnly = policy,
+               !Self.toneOnlyPreservesLanguage(input: text, output: result, sourceLanguage: sourceLanguage) {
+                print("[TranslationService] tone-only rewrite changed the language, returning raw text")
+                return text
+            }
+            return result
         } catch {
             // Surface the failure so a down/misconfigured endpoint is
             // distinguishable from translation simply being disabled.
@@ -77,9 +164,21 @@ final class TranslationService {
         }
     }
 
+    /// Tone-only means "same language in, same language out". The local model
+    /// translates Polish even when the prompt forbids it, so a tone-only result
+    /// whose language changed is a failure and the raw transcript is used
+    /// instead. The engine's language is authoritative when it has one;
+    /// otherwise the input is classified from its text, like the input side of
+    /// the gate.
+    static func toneOnlyPreservesLanguage(input: String, output: String, sourceLanguage: String?) -> Bool {
+        let inputVerdict = sourceLanguage.flatMap(LanguageDetector.Verdict.init(languageCode:))
+            ?? LanguageDetector.detect(input)
+        return LanguageDetector.detect(output) == inputVerdict
+    }
+
     /// Performs the HTTP request and parsing. Throws on any failure so the
     /// caller can fall back to the raw transcript.
-    func transform(_ text: String) async throws -> String {
+    func transform(_ text: String, policy: TransformPolicy) async throws -> String {
         let prefs = AppPreferences.shared
         let endpoint = prefs.transformEndpoint
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -89,7 +188,7 @@ final class TranslationService {
 
         let body = try Self.buildRequestBody(
             text: text,
-            tone: prefs.transformToneMode,
+            policy: policy,
             model: prefs.transformModel
         )
 
@@ -115,11 +214,11 @@ final class TranslationService {
 
     /// Builds the OpenAI-compatible chat completions request body. Pure and
     /// testable without a network.
-    static func buildRequestBody(text: String, tone: ToneMode, model: String) throws -> Data {
+    static func buildRequestBody(text: String, policy: TransformPolicy, model: String) throws -> Data {
         let request = ChatRequest(
             model: model,
             messages: [
-                ChatRequest.Message(role: "system", content: systemPrompt(for: tone)),
+                ChatRequest.Message(role: "system", content: systemPrompt(for: policy)),
                 ChatRequest.Message(role: "user", content: text)
             ],
             temperature: 0.2,
@@ -129,11 +228,28 @@ final class TranslationService {
         return try JSONEncoder().encode(request)
     }
 
-    static func systemPrompt(for tone: ToneMode) -> String {
-        """
-        You are a translation assistant. Translate the user's Polish text into natural English, then rewrite the result in a tone matching the instruction below. \(tone.instruction) Output ONLY the final English text, with no quotes, labels, or explanation.
-        /no_think
-        """
+    /// The system prompt for `policy`, embedding tone text only where the
+    /// policy asks for it: translation with the tone switch off sends no tone
+    /// wording at all — not even the neutral instruction, which is the text that
+    /// used to make every translation carry a tone sentence.
+    static func systemPrompt(for policy: TransformPolicy) -> String {
+        switch policy {
+        case .translate:
+            return """
+            You are a translation assistant. Translate the user's Polish text into natural English. Output ONLY the final English text, with no quotes, labels, or explanation.
+            /no_think
+            """
+        case .toneOnly(let tone):
+            return """
+            You are a rewriting assistant. Rewrite the user's text in the requested tone, keeping the same language as the input. Do not translate. \(tone.instruction) Output ONLY the final text, with no quotes, labels, or explanation.
+            /no_think
+            """
+        case .translateWithTone(let tone):
+            return """
+            You are a translation assistant. Translate the user's Polish text into natural English, then rewrite the result in a tone matching the instruction below. \(tone.instruction) Output ONLY the final English text, with no quotes, labels, or explanation.
+            /no_think
+            """
+        }
     }
 
     // MARK: - Response parsing

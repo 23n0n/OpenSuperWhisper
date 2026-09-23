@@ -203,6 +203,12 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
+    @Published var toneEnabled: Bool {
+        didSet {
+            AppPreferences.shared.toneEnabled = toneEnabled
+        }
+    }
+
     @Published var transformToneMode: ToneMode {
         didSet {
             AppPreferences.shared.transformToneMode = transformToneMode
@@ -261,6 +267,7 @@ class SettingsViewModel: ObservableObject {
         self.autoCopyToClipboard = prefs.autoCopyToClipboard
         self.autoPasteTranscription = prefs.autoPasteTranscription
         self.translateEnabled = prefs.translateEnabled
+        self.toneEnabled = prefs.toneEnabled
         self.transformToneMode = prefs.transformToneMode
         self.transformEndpoint = prefs.transformEndpoint
         self.transformModel = prefs.transformModel
@@ -1053,12 +1060,26 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Translate Polish to English")
                                     .font(.subheadline)
-                                Text("Send the transcript to a local OpenAI-compatible endpoint before pasting")
+                                Text("Translate Polish dictation into English; English is pasted unchanged")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
                             Spacer()
                             Toggle("", isOn: $viewModel.translateEnabled)
+                                .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
+                                .labelsHidden()
+                        }
+
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Apply tone")
+                                    .font(.subheadline)
+                                Text("Rewrite English dictation in the selected tone; Polish is never toned")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $viewModel.toneEnabled)
                                 .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
                                 .labelsHidden()
                         }
@@ -1073,7 +1094,7 @@ struct SettingsView: View {
                             }
                             .pickerStyle(.menu)
                             .labelsHidden()
-                            .disabled(!viewModel.translateEnabled)
+                            .disabled(!viewModel.toneEnabled)
                         }
 
                         VStack(alignment: .leading, spacing: 6) {
@@ -1081,7 +1102,7 @@ struct SettingsView: View {
                                 .font(.subheadline)
                             TextField("http://127.0.0.1:1919/v1/chat/completions", text: $viewModel.transformEndpoint)
                                 .textFieldStyle(.roundedBorder)
-                                .disabled(!viewModel.translateEnabled)
+                                .disabled(!(viewModel.translateEnabled || viewModel.toneEnabled))
                         }
 
                         VStack(alignment: .leading, spacing: 6) {
@@ -1089,7 +1110,7 @@ struct SettingsView: View {
                                 .font(.subheadline)
                             TextField("qwen2.5-1.5b-instruct-q4_k_m", text: $viewModel.transformModel)
                                 .textFieldStyle(.roundedBorder)
-                                .disabled(!viewModel.translateEnabled)
+                                .disabled(!(viewModel.translateEnabled || viewModel.toneEnabled))
                         }
 
                         HStack {
@@ -1100,10 +1121,10 @@ struct SettingsView: View {
                                 .textFieldStyle(.roundedBorder)
                                 .multilineTextAlignment(.trailing)
                                 .frame(width: 70)
-                                .disabled(!viewModel.translateEnabled)
+                                .disabled(!(viewModel.translateEnabled || viewModel.toneEnabled))
                         }
 
-                        Text("Dictation history keeps the raw Polish transcript; the pasted text is the translated, tone-adjusted English.")
+                        Text("The pasted text depends on the language and the two switches: raw by default, translated when Polish meets the translation switch, tone-adjusted when English meets the tone switch. Dictation history always keeps the raw transcript, and recordings transcribed from the list are never transformed. Language awareness needs a multilingual whisper model in Auto-detect; with a fixed language the app trusts your setting.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

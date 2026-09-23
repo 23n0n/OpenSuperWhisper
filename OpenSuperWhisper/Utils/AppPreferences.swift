@@ -131,6 +131,14 @@ final class AppPreferences {
     @UserDefault(key: "translateEnabled", defaultValue: false)
     var translateEnabled: Bool
 
+    /// Gates every piece of tone text sent to the endpoint. Defaults to `false`
+    /// on purpose: a `true` default would start rewriting the dictation of
+    /// installs that never enabled anything. There is deliberately no migration
+    /// for it — existing installs stay bit-identical until the switch is
+    /// flipped.
+    @UserDefault(key: "toneEnabled", defaultValue: false)
+    var toneEnabled: Bool
+
     @UserDefault(key: "transformToneMode", defaultValue: ToneMode.neutral.rawValue)
     private var transformToneModeRaw: String
 

@@ -92,6 +92,7 @@ final class TranslationServiceTests: XCTestCase {
     // suite snapshots and restores every preference it touches in
     // setUp/tearDown (crash-mid-test is the only case this cannot repair).
     private var savedTranslateEnabled = false
+    private var savedToneEnabled = false
     private var savedToneMode: ToneMode = .neutral
     private var savedEndpoint = ""
     private var savedModel = ""
@@ -107,12 +108,14 @@ final class TranslationServiceTests: XCTestCase {
         super.setUp()
         let prefs = AppPreferences.shared
         savedTranslateEnabled = prefs.translateEnabled
+        savedToneEnabled = prefs.toneEnabled
         savedToneMode = prefs.transformToneMode
         savedEndpoint = prefs.transformEndpoint
         savedModel = prefs.transformModel
         savedTimeout = prefs.transformTimeout
         savedAddSpaceAfterSentence = prefs.addSpaceAfterSentence
         prefs.translateEnabled = false
+        prefs.toneEnabled = false
 
         StubURLProtocol.reset()
         service = TranslationService(urlSession: makeStubbedSession())
@@ -121,6 +124,7 @@ final class TranslationServiceTests: XCTestCase {
     override func tearDown() {
         let prefs = AppPreferences.shared
         prefs.translateEnabled = savedTranslateEnabled
+        prefs.toneEnabled = savedToneEnabled
         prefs.transformToneMode = savedToneMode
         prefs.transformEndpoint = savedEndpoint
         prefs.transformModel = savedModel
@@ -149,6 +153,19 @@ final class TranslationServiceTests: XCTestCase {
         prefs.transformTimeout = timeout
     }
 
+    private func enableTone(_ tone: ToneMode = .neutral) {
+        let prefs = AppPreferences.shared
+        prefs.toneEnabled = true
+        prefs.transformToneMode = tone
+        prefs.transformEndpoint = "http://127.0.0.1:1919/v1/chat/completions"
+        prefs.transformTimeout = 8
+    }
+
+    /// Points the stub at usable content for one request.
+    private func stubContent(_ content: String) throws {
+        StubURLProtocol.outcome = .success(statusCode: 200, body: try makeResponse(content: content))
+    }
+
     private func makeResponse(content: String?, reasoning: String? = nil) throws -> Data {
         var message: [String: Any] = [:]
         if let content { message["content"] = content }
@@ -161,12 +178,12 @@ final class TranslationServiceTests: XCTestCase {
         try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
-    // MARK: - buildRequestBody
+    // MARK: - buildRequestBody / systemPrompt
 
     func testBuildRequestBody_includesModelMessagesAndThinkingDisabled() throws {
         let data = try TranslationService.buildRequestBody(
             text: "Cześć, jak się masz?",
-            tone: .neutral,
+            policy: .translate,
             model: "test-model"
         )
         let json = try jsonObject(from: data)
@@ -182,24 +199,86 @@ final class TranslationServiceTests: XCTestCase {
         XCTAssertEqual(messages[1]["content"] as? String, "Cześć, jak się masz?")
 
         let system = try XCTUnwrap(messages[0]["content"] as? String)
+        XCTAssertEqual(system, TranslationService.systemPrompt(for: .translate))
         XCTAssertTrue(system.contains("/no_think"))
-        XCTAssertTrue(system.contains(ToneMode.neutral.instruction))
 
         let kwargs = try XCTUnwrap(json["chat_template_kwargs"] as? [String: Bool])
         XCTAssertEqual(kwargs["enable_thinking"], false)
     }
 
-    func testBuildRequestBody_eachToneIncludesItsInstruction() throws {
-        for tone in ToneMode.allCases {
-            let data = try TranslationService.buildRequestBody(text: "tekst", tone: tone, model: "m")
-            let json = try jsonObject(from: data)
-            let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
-            let system = try XCTUnwrap(messages.first?["content"] as? String)
-            XCTAssertTrue(
-                system.contains(tone.instruction),
-                "System prompt missing instruction for tone \(tone.rawValue)"
+    /// Every transform policy keeps the wire shape the backend contract check
+    /// (`Scripts/verify-transform.sh`) asserts.
+    func testBuildRequestBody_invariantsHoldForEveryPolicy() throws {
+        let policies: [TransformPolicy] = [
+            .translate,
+            .toneOnly(.neutral),
+            .translateWithTone(.formal),
+        ]
+        for policy in policies {
+            let json = try jsonObject(
+                from: try TranslationService.buildRequestBody(text: "tekst", policy: policy, model: "m")
+            )
+            XCTAssertEqual(json["model"] as? String, "m")
+            XCTAssertEqual(json["temperature"] as? Double, 0.2)
+            XCTAssertEqual(json["stream"] as? Bool, false)
+            XCTAssertEqual(
+                (json["chat_template_kwargs"] as? [String: Bool])?["enable_thinking"],
+                false
             )
         }
+    }
+
+    /// Translate-only must send no tone wording at all — the neutral tone
+    /// sentence is exactly the text that used to ride along with every
+    /// translation.
+    func testSystemPrompt_translateOnly_carriesNoToneWording() {
+        let system = TranslationService.systemPrompt(for: .translate)
+
+        XCTAssertTrue(system.contains("Translate the user's Polish text into natural English"))
+        XCTAssertTrue(system.contains("/no_think"))
+        for tone in ToneMode.allCases {
+            XCTAssertFalse(
+                system.contains(tone.instruction),
+                "Translate-only prompt must not carry the \(tone.rawValue) instruction"
+            )
+        }
+        XCTAssertFalse(
+            system.lowercased().contains("tone"),
+            "Translate-only prompt must not mention tone at all: \(system)"
+        )
+    }
+
+    /// Tone-only is a rewrite, not a translation: the prompt asks for the same
+    /// language and embeds the selected tone.
+    func testSystemPrompt_toneOnly_carriesSameLanguageWordingAndTone() {
+        for tone in ToneMode.allCases {
+            let system = TranslationService.systemPrompt(for: .toneOnly(tone))
+
+            XCTAssertTrue(system.contains("keeping the same language as the input"))
+            XCTAssertTrue(system.contains("Do not translate."))
+            XCTAssertTrue(system.contains(tone.instruction))
+            XCTAssertTrue(system.contains("/no_think"))
+            XCTAssertFalse(
+                system.contains("Translate the user's Polish text into natural English"),
+                "Tone-only prompt must not ask for translation"
+            )
+        }
+    }
+
+    func testSystemPrompt_translateWithTone_carriesBothTranslationAndTone() {
+        for tone in ToneMode.allCases {
+            let system = TranslationService.systemPrompt(for: .translateWithTone(tone))
+
+            XCTAssertTrue(system.contains("Translate the user's Polish text into natural English"))
+            XCTAssertTrue(system.contains(tone.instruction))
+            XCTAssertTrue(system.contains("/no_think"))
+        }
+    }
+
+    func testPromptTone_isExposedOnlyForPoliciesThatSendToneText() {
+        XCTAssertNil(TransformPolicy.translate.promptTone)
+        XCTAssertEqual(TransformPolicy.toneOnly(.casual).promptTone, .casual)
+        XCTAssertEqual(TransformPolicy.translateWithTone(.formal).promptTone, .formal)
     }
 
     // MARK: - parseContent
@@ -326,14 +405,27 @@ final class TranslationServiceTests: XCTestCase {
 
     // MARK: - transformIfEnabled fallbacks
 
-    func testTransformIfEnabled_disabled_returnsRawInputWithoutNetwork() async {
+    func testTransformIfEnabled_bothSwitchesOff_returnsRawInputWithoutNetwork() async {
         AppPreferences.shared.translateEnabled = false
+        AppPreferences.shared.toneEnabled = false
         StubURLProtocol.reset()
 
         let result = await service.transformIfEnabled("Cześć")
 
         XCTAssertEqual(result, "Cześć")
-        XCTAssertEqual(StubURLProtocol.requestCount, 0, "Disabled translation must not hit the network")
+        XCTAssertEqual(StubURLProtocol.requestCount, 0, "No switch on: no network")
+    }
+
+    /// The tone switch alone must not wake the endpoint when nothing asks for a
+    /// tone (Polish with tone-only is a passthrough, see `policyRows`).
+    func testTransformIfEnabled_toneSwitchOnPolish_returnsRawInputWithoutNetwork() async {
+        enableTone(.formal)
+        StubURLProtocol.reset()
+
+        let result = await service.transformIfEnabled("Cześć, jak się masz?")
+
+        XCTAssertEqual(result, "Cześć, jak się masz?")
+        XCTAssertEqual(StubURLProtocol.requestCount, 0)
     }
 
     func testTransformIfEnabled_emptyText_returnsEmptyWithoutNetwork() async {
@@ -356,6 +448,182 @@ final class TranslationServiceTests: XCTestCase {
         XCTAssertEqual(StubURLProtocol.requestCount, 1, "The request was never attempted")
     }
 
+    // MARK: - Decision table (report §3.2)
+
+    /// One row of the gate's decision table.
+    private struct PolicyRow {
+        let name: String
+        let translate: Bool
+        let tone: Bool
+        /// Language reported by the engine; `nil` makes the gate classify the
+        /// transcript with `LanguageDetector`.
+        let language: String?
+        let text: String
+        /// `nil` means "paste the raw transcript".
+        let expectedPolicy: TransformPolicy?
+
+        var expectedRequests: Int { expectedPolicy == nil ? 0 : 1 }
+    }
+
+    private func policyRows() -> [PolicyRow] {
+        let polish = "Cześć, jak się masz?"
+        let english = "Please send the report to the client today."
+        return [
+            // Both switches off: nothing happens, and nothing is even looked up.
+            PolicyRow(name: "both off, Polish", translate: false, tone: false,
+                      language: "pl", text: polish, expectedPolicy: nil),
+            PolicyRow(name: "both off, no engine language", translate: false, tone: false,
+                      language: nil, text: polish, expectedPolicy: nil),
+
+            // The engine's language wins over the text: Polish-looking text the
+            // engine heard as English is never translated.
+            PolicyRow(name: "translate on, engine says English", translate: true, tone: false,
+                      language: "en", text: polish, expectedPolicy: nil),
+            PolicyRow(name: "translate+tone on, engine says English", translate: true, tone: true,
+                      language: "en", text: english, expectedPolicy: nil),
+
+            // Tone only, English only: a tone-only prompt on Polish translates it
+            // (measured 6/6), so Polish passes through.
+            PolicyRow(name: "tone on, English", translate: false, tone: true,
+                      language: "en", text: english, expectedPolicy: .toneOnly(.formal)),
+            PolicyRow(name: "tone on, Polish", translate: false, tone: true,
+                      language: "pl", text: polish, expectedPolicy: nil),
+
+            // Translation only, Polish only.
+            PolicyRow(name: "translate on, Polish", translate: true, tone: false,
+                      language: "pl", text: polish, expectedPolicy: .translate),
+            PolicyRow(name: "translate+tone on, Polish", translate: true, tone: true,
+                      language: "pl", text: polish, expectedPolicy: .translateWithTone(.formal)),
+
+            // No engine signal: the transcript heuristic decides.
+            PolicyRow(name: "no language, Polish text", translate: true, tone: false,
+                      language: nil, text: polish, expectedPolicy: .translate),
+            PolicyRow(name: "no language, English text", translate: true, tone: false,
+                      language: nil, text: english, expectedPolicy: nil),
+            PolicyRow(name: "no language, tone on, English text", translate: false, tone: true,
+                      language: nil, text: english, expectedPolicy: .toneOnly(.formal)),
+            PolicyRow(name: "no language, tone on, Polish text", translate: false, tone: true,
+                      language: nil, text: polish, expectedPolicy: nil),
+
+            // Short utterances of unknown language are never transformed.
+            PolicyRow(name: "short unknown text, translation on", translate: true, tone: false,
+                      language: nil, text: "Do it", expectedPolicy: nil),
+            PolicyRow(name: "short unknown text, both switches on", translate: true, tone: true,
+                      language: nil, text: "Chce nowy laptop", expectedPolicy: nil),
+
+            // A third language is not Polish and never reaches the
+            // Polish→English transform.
+            PolicyRow(name: "third language", translate: true, tone: true,
+                      language: "de", text: "Guten Morgen.", expectedPolicy: nil),
+        ]
+    }
+
+    func testPolicyTable_passthroughRowsReturnInputAndMakeNoRequest() async throws {
+        let prefs = AppPreferences.shared
+        prefs.transformToneMode = .formal
+
+        for row in policyRows() {
+            prefs.translateEnabled = false
+            prefs.toneEnabled = false
+            StubURLProtocol.reset()
+            try stubContent("Please send the report.")
+
+            let resolved = TransformPolicy.resolve(
+                translate: row.translate,
+                tone: row.tone,
+                language: row.language,
+                toneMode: .formal
+            )
+            XCTAssertEqual(resolved, row.expectedPolicy, row.name)
+
+            prefs.translateEnabled = row.translate
+            prefs.toneEnabled = row.tone
+
+            let result = await service.transformIfEnabled(row.text, sourceLanguage: row.language)
+
+            XCTAssertEqual(
+                StubURLProtocol.requestCount,
+                row.expectedRequests,
+                "\(row.name): request count"
+            )
+            if row.expectedPolicy == nil {
+                XCTAssertEqual(result, row.text, "\(row.name): passthrough must return the input")
+            } else {
+                XCTAssertEqual(result, "Please send the report.", "\(row.name): transformed text")
+            }
+        }
+    }
+
+    // MARK: - Tone-only language preservation (report §3.4)
+
+    func testToneOnly_rewriteThatChangedTheLanguage_isDiscarded() async throws {
+        enableTone(.formal)
+        // What the local model does to Polish even when told not to translate.
+        try stubContent("Proszę wysłać raport.")
+
+        let result = await service.transformIfEnabled("Please send the report.", sourceLanguage: "en")
+
+        XCTAssertEqual(result, "Please send the report.")
+        XCTAssertEqual(StubURLProtocol.requestCount, 1, "The rewrite must have been attempted")
+    }
+
+    func testToneOnly_rewriteThatKeptTheLanguage_isKept() async throws {
+        enableTone(.formal)
+        try stubContent("Please kindly transmit the report.")
+
+        let result = await service.transformIfEnabled("Please send the report.", sourceLanguage: "en")
+
+        XCTAssertEqual(result, "Please kindly transmit the report.")
+    }
+
+    /// Translation is *supposed* to change the language; the guard must not
+    /// touch it.
+    func testTranslateWithTone_isNotDiscardedWhenItChangesLanguage() async throws {
+        enableTranslation()
+        enableTone(.formal)
+        try stubContent("Please kindly send the report to the client today.")
+
+        let result = await service.transformIfEnabled(
+            "Wyślij raport do klienta dzisiaj.",
+            sourceLanguage: "pl"
+        )
+
+        XCTAssertEqual(result, "Please kindly send the report to the client today.")
+    }
+
+    func testToneOnlyPreservesLanguage_matchesOnTheVerdictNotTheText() {
+        XCTAssertTrue(
+            TranslationService.toneOnlyPreservesLanguage(
+                input: "Please send the report.",
+                output: "Please kindly transmit the report.",
+                sourceLanguage: "en"
+            )
+        )
+        XCTAssertFalse(
+            TranslationService.toneOnlyPreservesLanguage(
+                input: "Please send the report.",
+                output: "Proszę wysłać raport.",
+                sourceLanguage: "en"
+            )
+        )
+        // An engine that says "English" beats a heuristic that is unsure about a
+        // two-word input.
+        XCTAssertFalse(
+            TranslationService.toneOnlyPreservesLanguage(
+                input: "Do it",
+                output: "Zrób to.",
+                sourceLanguage: "en"
+            )
+        )
+        XCTAssertTrue(
+            TranslationService.toneOnlyPreservesLanguage(
+                input: "Do it",
+                output: "Do it.",
+                sourceLanguage: "en"
+            )
+        )
+    }
+
     // MARK: - transform (stubbed transport)
 
     func testTransform_successfulResponse_returnsParsedContent() async throws {
@@ -363,7 +631,7 @@ final class TranslationServiceTests: XCTestCase {
         let body = try makeResponse(content: "Hello world.")
         StubURLProtocol.outcome = .success(statusCode: 200, body: body)
 
-        let result = try await service.transform("Cześć")
+        let result = try await service.transform("Cześć", policy: .translate)
 
         XCTAssertEqual(result, "Hello world.")
         XCTAssertEqual(StubURLProtocol.requestCount, 1)
@@ -379,7 +647,7 @@ final class TranslationServiceTests: XCTestCase {
         StubURLProtocol.outcome = .success(statusCode: 500, body: Data())
 
         do {
-            _ = try await service.transform("Cześć")
+            _ = try await service.transform("Cześć", policy: .translate)
             XCTFail("Expected an httpError")
         } catch let error as TranslationError {
             guard case .httpError(let statusCode) = error else {
@@ -395,7 +663,7 @@ final class TranslationServiceTests: XCTestCase {
         enableTranslation(endpoint: "")
 
         do {
-            _ = try await service.transform("Cześć")
+            _ = try await service.transform("Cześć", policy: .translate)
             XCTFail("Expected an invalidEndpoint error")
         } catch TranslationError.invalidEndpoint {
             // expected
@@ -411,7 +679,7 @@ final class TranslationServiceTests: XCTestCase {
             body: try makeResponse(content: "Hello.")
         )
 
-        _ = try await service.transform("Cześć")
+        _ = try await service.transform("Cześć", policy: .translate)
 
         XCTAssertEqual(
             StubURLProtocol.lastRequest?.url?.absoluteString,
@@ -426,7 +694,7 @@ final class TranslationServiceTests: XCTestCase {
             body: try makeResponse(content: "Hello.")
         )
 
-        _ = try await service.transform("Cześć")
+        _ = try await service.transform("Cześć", policy: .translate)
 
         let timeout = try XCTUnwrap(StubURLProtocol.lastRequest?.timeoutInterval)
         XCTAssertEqual(timeout, 1, accuracy: 0.001, "A 0s timeout must be clamped up to 1s")
@@ -439,12 +707,12 @@ final class TranslationServiceTests: XCTestCase {
         )
 
         enableTranslation(timeout: 999)
-        _ = try await service.transform("Cześć")
+        _ = try await service.transform("Cześć", policy: .translate)
         let upper = try XCTUnwrap(StubURLProtocol.lastRequest?.timeoutInterval)
         XCTAssertEqual(upper, 120, accuracy: 0.001, "A 999s timeout must be clamped down to 120s")
 
         enableTranslation(timeout: 8)
-        _ = try await service.transform("Cześć")
+        _ = try await service.transform("Cześć", policy: .translate)
         let inRange = try XCTUnwrap(StubURLProtocol.lastRequest?.timeoutInterval)
         XCTAssertEqual(inRange, 8, accuracy: 0.001, "An in-range timeout must pass through unchanged")
     }
@@ -453,7 +721,7 @@ final class TranslationServiceTests: XCTestCase {
         enableTranslation(timeout: 5)
         StubURLProtocol.outcome = .hang
 
-        let task = Task { try await service.transform("Cześć") }
+        let task = Task { try await service.transform("Cześć", policy: .translate) }
 
         // Wait until the in-flight request reaches the stub.
         let deadline = Date().addingTimeInterval(5)
@@ -532,5 +800,32 @@ final class TranslationServiceTests: XCTestCase {
 
         AppPreferences.shared.transformToneMode = .formal
         XCTAssertEqual(AppPreferences.shared.transformToneMode, .formal)
+    }
+
+    func testAppPreferences_toneEnabledRoundTrip() {
+        AppPreferences.shared.toneEnabled = true
+        XCTAssertTrue(AppPreferences.shared.toneEnabled)
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: "toneEnabled"))
+
+        AppPreferences.shared.toneEnabled = false
+        XCTAssertFalse(AppPreferences.shared.toneEnabled)
+        XCTAssertFalse(UserDefaults.standard.bool(forKey: "toneEnabled"))
+    }
+
+    /// A fresh install (and every install that never touched the switch) must
+    /// stay bit-identical: no tone rewrite may start on its own.
+    func testAppPreferences_toneEnabledDefaultsToFalse() {
+        let key = "toneEnabled"
+        let original = UserDefaults.standard.object(forKey: key)
+        UserDefaults.standard.removeObject(forKey: key)
+        defer {
+            if let original {
+                UserDefaults.standard.set(original, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+
+        XCTAssertFalse(AppPreferences.shared.toneEnabled)
     }
 }
