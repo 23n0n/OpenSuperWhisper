@@ -20,12 +20,40 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 
 ## Installation
 
+Download `OpenSuperWhisper-<version>.pkg` from the
+[GitHub releases page](https://github.com/Starmel/OpenSuperWhisper/releases) and run it, or:
+
 ```shell
 brew update # Optional
 brew install opensuperwhisper
 ```
 
-Or from [GitHub releases page](https://github.com/Starmel/OpenSuperWhisper/releases).
+Everything the app needs is inside the package: the speech engine (whisper.cpp
+plus llama.cpp for translation and tone) is linked into the app, its Metal
+shaders are embedded in it, and neither needs Homebrew, a background server or a
+listening port. Speech models (and the ~1 GB transform model, if you use
+translation or tone) are downloaded by the app into its own folder on first use.
+
+On first launch macOS asks for the two permissions the app needs:
+
+| Permission | Why | Where it lives |
+|---|---|---|
+| **Microphone** | recording | Privacy & Security → Microphone |
+| **Accessibility** | typing the transcript into the focused app | Privacy & Security → Accessibility |
+
+Both grant the *app binary*. If you rebuild it locally with a different
+signature, macOS treats it as a different app and the grant must be given again.
+
+## Uninstalling
+
+One operation removes the app, your dictation history, the downloaded models and
+the installer receipt:
+
+- **Settings → Advanced → Uninstall OpenSuperWhisper…**, or the same item in the menu-bar menu; or
+- `/Applications/Uninstall OpenSuperWhisper.command`, if the app is already gone.
+
+It leaves `~/models`, `/opt/homebrew` and every other application's data alone,
+and running it twice is harmless.
 
 ## Requirements
 
@@ -45,28 +73,33 @@ To build locally, you'll need:
     git clone git@github.com:Starmel/OpenSuperWhisper.git
     cd OpenSuperWhisper
     git submodule update --init --recursive
-    brew install cmake libomp rust ruby
+    brew install cmake rust ruby
     gem install xcpretty
     ./run.sh build
+
+The vendored engines are built by `Scripts/build-native.sh`: llama.cpp is
+configured first and installs its ggml package, then whisper.cpp is configured
+against that same ggml (`WHISPER_USE_SYSTEM_GGML=ON`). There is exactly one ggml
+in the app image — linking a second copy fails with duplicate symbols.
 
 In case of problems, consult `.github/workflows/build.yml` which is our CI workflow
 where the app gets built automatically on GitHub's CI.
 
-## Local translation backend (Polish → English + tone)
+## Translation and tone (Polish → English + tone)
 
 Two independent switches in Settings drive the transform, and both are off by default: **Translate
-Polish to English** and **Apply tone**. When either is on, the app sends the transcript to an
-OpenAI-compatible endpoint on this machine; no cloud service is involved. Serve that endpoint with a
-small instruction-tuned model:
+Polish to English** and **Apply tone**. When either is on, the app runs a small instruction-tuned
+model **inside itself** — llama.cpp is linked into the app exactly like whisper.cpp, no server, no
+port, no cloud service. Turn on a switch and press **Download model** next to it in
+Settings → Transcription: the app fetches `Qwen2.5-1.5B-Instruct-Q4_K_M` (~986 MB, Apache-2.0) into
+its own Application Support folder, verifies the published checksum and keeps it there. Until it is
+downloaded, dictation is pasted unchanged.
 
-```shell
-brew install llama.cpp                  # provides llama-server
-Scripts/transform-server.sh --fetch     # downloads ~986 MB of weights once, then serves
-```
-
-Later runs only need `Scripts/transform-server.sh`; the weights stay in `$HOME/models` (override with
-`TRANSFORM_MODEL_DIR`). The script serves `http://127.0.0.1:1919/v1/chat/completions` reporting the
-model `qwen2.5-1.5b-instruct-q4_k_m` — the endpoint and model the app's defaults point at.
+**Advanced override:** if you would rather run your own endpoint, Settings → Advanced turns on
+*Use an external endpoint* and takes an OpenAI-compatible URL, model id and timeout. The weights it
+needs are not required then, and `Scripts/transform-server.sh` can fetch and serve them as before
+(`Scripts/transform-server.sh --fetch`); that script is an optional external backend, not a
+requirement.
 
 The language of each utterance decides what happens to it. The app takes the language the speech
 engine reports for that same transcription — whisper's own detection when the language setting is
@@ -93,11 +126,19 @@ re-run files) are never transformed. To get language awareness on the dictation 
 language picker to **Auto-detect** with a multilingual model (e.g. Turbo V3); a fixed setting is
 trusted as-is.
 
-To check that the running backend still matches the app's request/response contract (and that
-translation, tone control and latency behave), run:
+To check that an external endpoint still matches the app's request/response contract (and that
+translation, tone control and latency behave), start one and run:
 
 ```shell
+Scripts/transform-server.sh &            # or any OpenAI-compatible endpoint
 Scripts/verify-transform.sh
+```
+
+The packaging contract — the uninstaller's path list, its idempotence and a built package's payload —
+is checked with:
+
+```shell
+Scripts/verify-packaging.sh --app build/Build/Products/Release/OpenSuperWhisper.app
 ```
 
 ## Contributing

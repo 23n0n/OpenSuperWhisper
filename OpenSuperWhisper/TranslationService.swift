@@ -109,8 +109,13 @@ enum TransformPolicy: Equatable {
     }
 }
 
-/// Translates Polish dictation into English and applies a tone, using an
-/// OpenAI-compatible local chat completions endpoint.
+/// Transforms Polish dictation into English and applies a tone.
+///
+/// Two backends, one entry point: the engine built into the app (llama.cpp,
+/// linked in-process, weights in app-owned storage) is the default, and an
+/// OpenAI-compatible local endpoint stays available as an advanced override.
+/// Either way the prompts, the temperature and the response handling are the
+/// same code.
 final class TranslationService {
     static let shared = TranslationService()
 
@@ -119,8 +124,30 @@ final class TranslationService {
     /// state; production uses `URLSession.shared`.
     let urlSession: URLSession
 
-    init(urlSession: URLSession = .shared) {
+    /// The built-in runtime, injectable for the same reason: a test can drive
+    /// the dispatch without loading 986 MB of weights.
+    let localTransform: LocalTransform
+
+    /// Whether the transform goes to the external endpoint. Read on every call,
+    /// so flipping the switch takes effect on the next dictation; injectable so
+    /// a test can exercise both backends without writing the shared
+    /// preferences that other test classes run against in parallel.
+    let usesExternalEndpoint: () -> Bool
+
+    typealias LocalTransform = (_ systemPrompt: String, _ userText: String) async throws -> String
+
+    init(
+        urlSession: URLSession = .shared,
+        localTransform: @escaping LocalTransform = { systemPrompt, userText in
+            try await TransformRuntime.shared.transform(systemPrompt: systemPrompt, userText: userText)
+        },
+        usesExternalEndpoint: @escaping () -> Bool = {
+            AppPreferences.shared.transformUseExternalEndpoint
+        }
+    ) {
         self.urlSession = urlSession
+        self.localTransform = localTransform
+        self.usesExternalEndpoint = usesExternalEndpoint
     }
 
     // MARK: - Public API
@@ -153,7 +180,7 @@ final class TranslationService {
         }
 
         do {
-            let result = try await transform(text, policy: policy)
+            let result = try await performTransform(text, policy: policy)
             if case .toneOnly = policy,
                !Self.toneOnlyPreservesLanguage(input: text, output: result, sourceLanguage: sourceLanguage) {
                 print("[TranslationService] tone-only rewrite changed the language, returning raw text")
@@ -180,9 +207,38 @@ final class TranslationService {
         return LanguageDetector.detect(output) == inputVerdict
     }
 
+    /// Performs the transform on the selected backend. Throws on any failure so
+    /// the caller can fall back to the raw transcript.
+    ///
+    /// The built-in runtime is the default because the app ships it: llama.cpp
+    /// is linked into this process and the weights are downloaded into
+    /// app-owned storage on first use. `transformUseExternalEndpoint` switches
+    /// to the HTTP override, which is what someone running their own
+    /// `llama-server` (or any OpenAI-compatible endpoint) wants.
+    func performTransform(_ text: String, policy: TransformPolicy) async throws -> String {
+        if usesExternalEndpoint() {
+            return try await transformOverHTTP(text, policy: policy)
+        }
+        return try await transformInProcess(text, policy: policy)
+    }
+
+    /// The built-in runtime: one in-process chat completion with the same
+    /// system prompt and, in `LlamaModel`, the same temperature the HTTP path
+    /// sends. The response is cleaned exactly like an HTTP one, so a reasoning
+    /// trace or an empty reply is rejected the same way.
+    func transformInProcess(_ text: String, policy: TransformPolicy) async throws -> String {
+        let raw = try await localTransform(Self.systemPrompt(for: policy), text)
+        let stripped = Self.stripReasoning(from: raw)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !stripped.isEmpty else {
+            throw TranslationError.emptyResponse
+        }
+        return stripped
+    }
+
     /// Performs the HTTP request and parsing. Throws on any failure so the
     /// caller can fall back to the raw transcript.
-    func transform(_ text: String, policy: TransformPolicy) async throws -> String {
+    func transformOverHTTP(_ text: String, policy: TransformPolicy) async throws -> String {
         let prefs = AppPreferences.shared
         let endpoint = prefs.transformEndpoint
             .trimmingCharacters(in: .whitespacesAndNewlines)

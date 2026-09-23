@@ -6,4 +6,5 @@
 //
 
 #include "whisper.h"
+#include "llama.h"
 #include "libautocorrect/autocorrect_swift.h"
