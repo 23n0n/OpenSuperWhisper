@@ -223,15 +223,15 @@ final class StartHiddenPreferenceTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        originalValue = UserDefaults.standard.object(forKey: key)
-        UserDefaults.standard.removeObject(forKey: key)
+        originalValue = AppPreferences.defaults.object(forKey: key)
+        AppPreferences.defaults.removeObject(forKey: key)
     }
 
     override func tearDown() {
         if let originalValue {
-            UserDefaults.standard.set(originalValue, forKey: key)
+            AppPreferences.defaults.set(originalValue, forKey: key)
         } else {
-            UserDefaults.standard.removeObject(forKey: key)
+            AppPreferences.defaults.removeObject(forKey: key)
         }
         super.tearDown()
     }
@@ -243,7 +243,7 @@ final class StartHiddenPreferenceTests: XCTestCase {
     func testStartHiddenInMenuBar_persistsChanges() {
         AppPreferences.shared.startHiddenInMenuBar = true
         XCTAssertTrue(AppPreferences.shared.startHiddenInMenuBar)
-        XCTAssertTrue(UserDefaults.standard.bool(forKey: key))
+        XCTAssertTrue(AppPreferences.defaults.bool(forKey: key))
 
         AppPreferences.shared.startHiddenInMenuBar = false
         XCTAssertFalse(AppPreferences.shared.startHiddenInMenuBar)

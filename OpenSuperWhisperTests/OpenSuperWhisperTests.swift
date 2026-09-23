@@ -1113,7 +1113,7 @@ final class AddSpaceAfterSentenceTests: XCTestCase {
     }
     
     func testApplyPostProcessing_defaultPreferenceIsEnabled() {
-        UserDefaults.standard.removeObject(forKey: "addSpaceAfterSentence")
+        AppPreferences.defaults.removeObject(forKey: "addSpaceAfterSentence")
         let result = IndicatorViewModel.applyPostProcessing("Test.")
         XCTAssertEqual(result, "Test. ")
     }
@@ -1389,15 +1389,15 @@ final class EscapeCancelConfirmationTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        savedPrefValue = UserDefaults.standard.object(forKey: prefsKey)
-        UserDefaults.standard.removeObject(forKey: prefsKey)
+        savedPrefValue = AppPreferences.defaults.object(forKey: prefsKey)
+        AppPreferences.defaults.removeObject(forKey: prefsKey)
     }
 
     override func tearDown() {
         if let savedPrefValue {
-            UserDefaults.standard.set(savedPrefValue, forKey: prefsKey)
+            AppPreferences.defaults.set(savedPrefValue, forKey: prefsKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: prefsKey)
+            AppPreferences.defaults.removeObject(forKey: prefsKey)
         }
         super.tearDown()
     }
@@ -1433,7 +1433,7 @@ final class EscapeCancelConfirmationTests: XCTestCase {
     }
 
     func testLongRecording_withToggleEnabled_cancelsImmediately() {
-        UserDefaults.standard.set(true, forKey: prefsKey)
+        AppPreferences.defaults.set(true, forKey: prefsKey)
         let viewModel = makeRecordingViewModel(elapsed: 15)
 
         XCTAssertTrue(viewModel.handleCancelRequest(),

@@ -6,8 +6,8 @@ struct UserDefault<T> {
     let defaultValue: T
     
     var wrappedValue: T {
-        get { UserDefaults.standard.object(forKey: key) as? T ?? defaultValue }
-        set { UserDefaults.standard.set(newValue, forKey: key) }
+        get { AppPreferences.defaults.object(forKey: key) as? T ?? defaultValue }
+        set { AppPreferences.defaults.set(newValue, forKey: key) }
     }
 }
 
@@ -16,13 +16,40 @@ struct OptionalUserDefault<T> {
     let key: String
     
     var wrappedValue: T? {
-        get { UserDefaults.standard.object(forKey: key) as? T }
-        set { UserDefaults.standard.set(newValue, forKey: key) }
+        get { AppPreferences.defaults.object(forKey: key) as? T }
+        set { AppPreferences.defaults.set(newValue, forKey: key) }
     }
 }
 
 final class AppPreferences {
     static let shared = AppPreferences()
+
+    /// Where every preference is read from and written to.
+    ///
+    /// In production this is `UserDefaults.standard` — the app's own domain,
+    /// exactly as before. A test process gets a scratch suite of its own
+    /// instead, because the standard domain is shared with everything else on
+    /// this machine that runs the same bundle id: Xcode runs test classes in
+    /// several processes at once, every crew worktree builds
+    /// `ru.starmel.OpenSuperWhisper.dev`, and the app the developer is using
+    /// holds the same preferences. With one domain between them, a suite's
+    /// `translateEnabled` is another suite's state — and a test's tidy-up writes
+    /// into the preferences of a running app.
+    ///
+    /// Two properties make the scratch suite safe to share between the tests of
+    /// one process: the name carries the pid, so two processes can never meet,
+    /// and the suite is emptied first, so a reused pid cannot inherit values
+    /// from an earlier run.
+    static let defaults: UserDefaults = makeDefaults()
+
+    private static func makeDefaults() -> UserDefaults {
+        guard OpenSuperWhisperApp.isRunningTests else { return .standard }
+
+        let name = "OpenSuperWhisperTests.\(ProcessInfo.processInfo.processIdentifier)"
+        guard let scratch = UserDefaults(suiteName: name) else { return .standard }
+        scratch.removePersistentDomain(forName: name)
+        return scratch
+    }
 
     /// Shape version of the stored preferences. Bump this whenever a stored
     /// value has to be reinterpreted; `migrateOldPreferences()` then runs the
@@ -42,12 +69,13 @@ final class AppPreferences {
     /// leave the user with working dictation, not with a pointer to a file the
     /// app no longer owns.
     private func migrateOldPreferences() {
-        if let oldPath = UserDefaults.standard.string(forKey: "selectedModelPath"),
-           UserDefaults.standard.string(forKey: "selectedWhisperModelPath") == nil {
-            UserDefaults.standard.set(oldPath, forKey: "selectedWhisperModelPath")
+        let defaults = Self.defaults
+
+        if let oldPath = defaults.string(forKey: "selectedModelPath"),
+           defaults.string(forKey: "selectedWhisperModelPath") == nil {
+            defaults.set(oldPath, forKey: "selectedWhisperModelPath")
         }
 
-        let defaults = UserDefaults.standard
         guard defaults.integer(forKey: Self.prefsSchemaVersionKey) < Self.prefsSchemaVersion else { return }
 
         // 1. Whisper model paths are app-owned storage or nothing. A path that
