@@ -52,6 +52,62 @@ To build locally, you'll need:
 In case of problems, consult `.github/workflows/build.yml` which is our CI workflow
 where the app gets built automatically on GitHub's CI.
 
+### Keeping permission grants across rebuilds
+
+A Debug build from `run.sh` carries no identity — it is at best linker-signed with an
+ad-hoc signature, and Xcode writes the target's code into `OpenSuperWhisper.debug.dylib`
+behind a stub binary (`ENABLE_DEBUG_DYLIB` defaults to `YES` in Debug). An ad-hoc
+signature's designated requirement is a hash of the exact binary (`cdhash H"…"`), and
+macOS stores Accessibility, Microphone and Automation grants against that requirement.
+Every rebuild therefore produces a binary that no longer matches the grant: System
+Settings still shows Accessibility as granted while the app is refused.
+
+Sign local builds with a real (self-signed) identity instead. It is created without
+sudo, without an Apple account, and lives in its own keychain:
+
+```shell
+Scripts/dev-signing-identity.sh   # once per machine: creates "OpenSuperWhisper Local Dev"
+Scripts/dev-run.sh                # build (debug dylib off), sign, run
+Scripts/dev-run.sh build          # build and sign only
+```
+
+`Scripts/dev-run.sh` is `run.sh` plus `ENABLE_DEBUG_DYLIB=NO` and a signing pass, so the
+bundle you launch is the one that got signed. To sign a bundle built by `./run.sh`
+instead, or any other copy, point the signing script at it:
+
+```shell
+Scripts/dev-sign.sh build/Build/Products/Debug/OpenSuperWhisper.app
+```
+
+Every signed bundle then reports the same requirement, whatever changed in the code:
+
+```
+designated => identifier "ru.starmel.OpenSuperWhisper" and certificate leaf = H"…"
+```
+
+Because that requirement is derived from the signing identity, not from the binary, the
+grant is made once per identity and survives rebuilds. If a valid `Developer ID
+Application` identity exists in your keychains, both scripts prefer it and never create
+the self-signed one. Remove the self-signed identity in one line:
+
+```shell
+Scripts/dev-signing-identity.sh --remove
+```
+
+Granting is the one step no script can do for you: the app has to be running and asking
+for it, and you have to turn the switch on in System Settings → Privacy & Security →
+Accessibility (or in the app's own permission screen). When you move from an
+ad-hoc-signed build to an identity-signed one, the recorded grant matches the old
+requirement, so drop it once and grant again:
+
+```shell
+tccutil reset Accessibility ru.starmel.OpenSuperWhisper
+Scripts/dev-run.sh
+```
+
+From then on ordinary rebuilds keep the grant; `Scripts/dev-run.sh --reset-tcc` does that
+reset for you if you ever need it again.
+
 ## Local translation backend (Polish → English + tone)
 
 Two independent switches in Settings drive the transform, and both are off by default: **Translate
