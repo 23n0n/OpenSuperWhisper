@@ -56,10 +56,6 @@ class LanguageUtil {
         return fluidAudioModelVersion == "v2" ? parakeetV2Languages : parakeetV3Languages
     }
 
-    static func fallbackLanguage(engine: String) -> String {
-        engine == "fluidaudio" ? "en" : "auto"
-    }
-
     static func getSystemLanguage() -> String {
         if let preferredLanguage = Locale.preferredLanguages.first {
             let preferredLanguage = preferredLanguage.prefix(2).lowercased()

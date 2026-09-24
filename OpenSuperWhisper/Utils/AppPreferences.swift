@@ -33,7 +33,7 @@ final class AppPreferences {
     /// several processes at once, every crew worktree builds
     /// `ru.starmel.OpenSuperWhisper.dev`, and the app the developer is using
     /// holds the same preferences. With one domain between them, a suite's
-    /// `translateEnabled` is another suite's state — and a test's tidy-up writes
+    /// `toneEnabled` is another suite's state — and a test's tidy-up writes
     /// into the preferences of a running app.
     ///
     /// Two properties make the scratch suite safe to share between the tests of
@@ -92,38 +92,11 @@ final class AppPreferences {
             }
         }
 
-        // 2. A transform model id this build does not ship is stale (the
-        //    pre-built-in-runtime default was an MLX id the app never loaded).
-        //    With the external-endpoint override on, an arbitrary id is the
-        //    user's business and is left alone.
-        if let stored = defaults.string(forKey: "transformModel") {
-            if let migrated = Self.migratedTransformModelID(
-                stored: stored,
-                externalEndpointEnabled: defaults.bool(forKey: "transformUseExternalEndpoint")
-            ) {
-                defaults.set(migrated, forKey: "transformModel")
-            } else {
-                defaults.removeObject(forKey: "transformModel")
-            }
-        }
-
+        // 2. `transformModel` (the id an external endpoint used to be told) is
+        //    no longer read by anything, so nothing migrates it: the stale id
+        //    stays in the domain exactly as the other removed translation keys
+        //    do, and no code path looks at it.
         defaults.set(Self.prefsSchemaVersion, forKey: Self.prefsSchemaVersionKey)
-    }
-
-    /// The transform model id to keep, or `nil` when the stored one should be
-    /// dropped.
-    ///
-    /// Any id the shipped catalogue knows survives. Anything else is only
-    /// meaningful to an external endpoint, so it survives exactly when that
-    /// override is on; otherwise the preference falls back to the built-in
-    /// default model.
-    static func migratedTransformModelID(
-        stored: String,
-        externalEndpointEnabled: Bool
-    ) -> String? {
-        if externalEndpointEnabled { return stored }
-        if TransformModelManager.availableModels.contains(where: { $0.id == stored }) { return stored }
-        return nil
     }
 
     /// The app-owned path for a stored model path, or `nil` when there is
@@ -186,11 +159,7 @@ final class AppPreferences {
     
     @UserDefault(key: "fluidAudioModelVersion", defaultValue: "v3")
     var fluidAudioModelVersion: String
-    
-    
-    @UserDefault(key: "whisperLanguage", defaultValue: "en")
-    var whisperLanguage: String
-    
+
     // Transcription settings
     @UserDefault(key: "suppressBlankAudio", defaultValue: true)
     var suppressBlankAudio: Bool
@@ -253,15 +222,25 @@ final class AppPreferences {
     @UserDefault(key: "autoPasteTranscription", defaultValue: true)
     var autoPasteTranscription: Bool
 
-    // Translation / tone settings
-    @UserDefault(key: "translateEnabled", defaultValue: false)
-    var translateEnabled: Bool
+    // Tone and clean-up settings
+    //
+    // The translation feature is gone, and so are the preferences that
+    // configured it: `translateEnabled`, `transformTargetLanguage`,
+    // `transformEndpoint`, `transformModel`, `transformTimeout`,
+    // `transformUseExternalEndpoint` and `whisperLanguage` are no longer read
+    // or written anywhere. A domain that still holds them — the captain's own
+    // does — simply carries values nothing looks at, which is the honest
+    // handling: no migration, because there is nothing to migrate to, and
+    // nothing that could resurrect a removed control.
 
-    /// Gates every piece of tone text sent to the endpoint. Defaults to `false`
+    /// Gates every piece of tone text sent to the model. Defaults to `false`
     /// on purpose: a `true` default would start rewriting the dictation of
     /// installs that never enabled anything. There is deliberately no migration
     /// for it — existing installs stay bit-identical until the switch is
     /// flipped.
+    ///
+    /// The tone is a same-language rewrite: it changes the register of the
+    /// transcript, never its language.
     @UserDefault(key: "toneEnabled", defaultValue: false)
     var toneEnabled: Bool
 
@@ -272,30 +251,6 @@ final class AppPreferences {
         get { ToneMode(rawValue: transformToneModeRaw) ?? .neutral }
         set { transformToneModeRaw = newValue.rawValue }
     }
-
-    /// The language the transform writes. Speech already in this language is
-    /// pasted untouched and never reaches the model; speech in the other
-    /// language is translated into it. Defaults to English — the direction the
-    /// app shipped, and the one whose model is staged in the checkout — so an
-    /// install that never touches the picker behaves exactly as before.
-    ///
-    /// The picker chooses a *direction*, not a backend: the weights are routed
-    /// from this value (`TransformModelManager.modelID(forOutputLanguage:)`),
-    /// Polish output to its own larger model.
-    @UserDefault(key: "transformTargetLanguage", defaultValue: TransformLanguage.english.rawValue)
-    private var transformTargetLanguageRaw: String
-
-    var transformTargetLanguage: TransformLanguage {
-        get { TransformLanguage(rawValue: transformTargetLanguageRaw) ?? .english }
-        set { transformTargetLanguageRaw = newValue.rawValue }
-    }
-
-    /// Advanced override. Off by default: the app carries its own llama.cpp
-    /// runtime, and the transform runs in this process against app-owned
-    /// weights. Turn this on to send the transform to an OpenAI-compatible
-    /// endpoint on this machine instead (a self-hosted `llama-server`, say).
-    @UserDefault(key: "transformUseExternalEndpoint", defaultValue: false)
-    var transformUseExternalEndpoint: Bool
 
     /// The clean-up pass: the deterministic scrub of filler, stutters and
     /// repeated words, plus the grammar repair folded into the transform call.
@@ -313,15 +268,6 @@ final class AppPreferences {
     /// no reference block at all.
     @UserDefault(key: "transformReference", defaultValue: "")
     var transformReference: String
-
-    @UserDefault(key: "transformEndpoint", defaultValue: "http://127.0.0.1:1919/v1/chat/completions")
-    var transformEndpoint: String
-
-    @UserDefault(key: "transformModel", defaultValue: "qwen2.5-1.5b-instruct-q4_k_m")
-    var transformModel: String
-
-    @UserDefault(key: "transformTimeout", defaultValue: 8.0)
-    var transformTimeout: Double
 
     @UserDefault(key: "escCancelWithoutConfirmation", defaultValue: false)
     var escCancelWithoutConfirmation: Bool

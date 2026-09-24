@@ -92,7 +92,11 @@ class FluidAudioEngine: TranscriptionEngine {
         
         var processedText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        if settings.shouldApplyAsianAutocorrect && !processedText.isEmpty {
+        // Parakeet measures no language, so the transcript itself is the signal:
+        // the CJK autocorrect applies when the text is written in one of the
+        // scripts it exists for.
+        if settings.shouldApplyAsianAutocorrect(detectedLanguage: nil, text: processedText),
+           !processedText.isEmpty {
             processedText = AutocorrectWrapper.format(processedText)
         }
         

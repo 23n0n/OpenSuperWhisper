@@ -16,12 +16,6 @@ enum OnboardingShortcutOption: String, CaseIterable {
 
 @MainActor
 class OnboardingViewModel: ObservableObject {
-    @Published var selectedLanguage: String {
-        didSet {
-            AppPreferences.shared.whisperLanguage = selectedLanguage
-        }
-    }
-    
     @Published var useAsianAutocorrect: Bool {
         didSet {
             AppPreferences.shared.useAsianAutocorrect = useAsianAutocorrect
@@ -57,9 +51,6 @@ class OnboardingViewModel: ObservableObject {
         try await AsrModels.downloadAndLoad(version: $0, progressHandler: $1)
     }) {
         self.downloadFluid = downloadFluid
-        let systemLanguage = LanguageUtil.getSystemLanguage()
-        AppPreferences.shared.whisperLanguage = systemLanguage
-        self.selectedLanguage = systemLanguage
         self.useAsianAutocorrect = AppPreferences.shared.useAsianAutocorrect
         
         let currentHotkey = ModifierKey(rawValue: AppPreferences.shared.modifierOnlyHotkey) ?? .none
@@ -376,26 +367,20 @@ struct OnboardingView: View {
                 }
                 .padding(.bottom, 8)
                 
-                // Language Selection
+                // Language detection is automatic: there is no picker any more,
+                // and the app never changes the language of what is dictated.
                 HStack(spacing: 8) {
-                    
-                    Picker("Language", selection: $viewModel.selectedLanguage) {
-                        ForEach(LanguageUtil.availableLanguages, id: \.self) { code in
-                            Text(LanguageUtil.languageNames[code] ?? code)
-                                .tag(code)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(width: 150)
+                    Text("Language: detected automatically — dictate in Polish, English or anything else")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 
-                if Settings.asianLanguages.contains(viewModel.selectedLanguage) {
-                    Toggle(isOn: $viewModel.useAsianAutocorrect) {
-                        Text("Use Asian Autocorrect")
-                            .font(.caption)
-                    }
-                    .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
+                Toggle(isOn: $viewModel.useAsianAutocorrect) {
+                    Text("Use Asian Autocorrect")
+                        .font(.caption)
                 }
+                .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)

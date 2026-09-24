@@ -24,26 +24,29 @@ final class LlamaRuntimeIntegrationTests: XCTestCase {
         return path
     }
 
-    func testComplete_translatesPolishThroughTheRealModel() throws {
+    func testComplete_rewritesPolishInPolishThroughTheRealModel() throws {
         let model = try LlamaModel(modelPath: try requireWeights())
         defer { model.unload() }
 
         let started = Date()
         let text = try model.complete(
-            systemPrompt: TranslationService.systemPrompt(for: .translate(from: .polish, to: .english), cleanUp: false),
-            userText: "Nie mogę dzisiaj przyjść na spotkanie, przepraszam."
+            systemPrompt: TransformService.systemPrompt(
+                for: .cleanUpWithTone(language: .polish, tone: .formal),
+                cleanUp: true
+            ),
+            userText: "no więc ja myślę że trzeba wysłać ten raport do klienta jutro rano"
         )
         let elapsed = Date().timeIntervalSince(started)
-        print("[LlamaRuntimeIntegrationTests] in-process transform: \(String(format: "%.2f", elapsed))s -> \(text)")
+        print("[LlamaRuntimeIntegrationTests] in-process rewrite: \(String(format: "%.2f", elapsed))s -> \(text)")
 
         XCTAssertFalse(text.isEmpty, "the model produced nothing")
         XCTAssertFalse(
             text.contains("<|im_start|>"),
             "the chat template must not leak into the answer: \(text)"
         )
-        XCTAssertNil(
+        XCTAssertNotNil(
             text.rangeOfCharacter(from: CharacterSet(charactersIn: "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")),
-            "a Polish→English transform must come back in English: \(text)"
+            "a Polish rewrite must come back in Polish, diacritics and all: \(text)"
         )
     }
 
@@ -69,13 +72,14 @@ final class LlamaRuntimeIntegrationTests: XCTestCase {
         let model = try LlamaModel(modelPath: try requireWeights())
         defer { model.unload() }
 
+        let prompt = TransformService.systemPrompt(for: .cleanUp(language: .polish), cleanUp: true)
         let first = try model.complete(
-            systemPrompt: TranslationService.systemPrompt(for: .translate(from: .polish, to: .english), cleanUp: false),
-            userText: "Dziękuję bardzo za pomoc."
+            systemPrompt: prompt,
+            userText: "dziękuję bardzo za pomoc"
         )
         let second = try model.complete(
-            systemPrompt: TranslationService.systemPrompt(for: .translate(from: .polish, to: .english), cleanUp: false),
-            userText: "Nie mogę dzisiaj przyjść na spotkanie, przepraszam."
+            systemPrompt: prompt,
+            userText: "nie mogę dzisiaj przyjść na spotkanie przepraszam"
         )
 
         print("[LlamaRuntimeIntegrationTests] first: \(first)")

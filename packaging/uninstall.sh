@@ -16,9 +16,8 @@
 # -- or after deleting the app by hand -- is harmless.
 #
 # Nothing outside the list below is touched. In particular this never removes
-# ~/models (where `Scripts/transform-server.sh` may have put a copy of the
-# transform weights), /opt/homebrew (where a user-installed llama.cpp lives),
-# or any other application's data.
+# ~/models (the developer's own copy of the transform weights), /opt/homebrew
+# (where a user-installed llama.cpp lives), or any other application's data.
 #
 # Testing: OSW_INSTALL_ROOT prefixes every absolute path (default "/"), so the
 # whole path list can be exercised against a scratch tree. Everything that needs

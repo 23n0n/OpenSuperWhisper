@@ -9,10 +9,10 @@ import XCTest
 /// Both are the same defect one level apart. For preferences it is a property of
 /// *where* `AppPreferences` reads and writes, so it is asserted here instead of
 /// being re-checked in every test that touches a switch: with the app's own
-/// domain behind it, `TransformBackendTests` and `TranslationServiceTests`
-/// disagree about `translateEnabled` depending on which process wrote last, which
-/// is how `testStoredSwitchChoosesTheBackend` came to fail intermittently,
-/// returning the input "Cześć" instead of the stub's "from the endpoint". For the
+/// domain behind it, two suites that inject different `GateSettings` would
+/// disagree about `toneEnabled` depending on which process wrote last, and a
+/// test that flips a switch would be flipping it for every other class running
+/// in parallel. For the
 /// model it is a property of how a test gets one: the tests hand their fixture to
 /// `WhisperEngine(modelPath:)`, because `selectedWhisperModelPath` describes the
 /// machine, not the test.

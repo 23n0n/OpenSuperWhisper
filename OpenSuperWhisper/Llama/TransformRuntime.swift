@@ -34,10 +34,11 @@ final class CancellationFlag {
 /// after `idleUnloadInterval` without a request, so the weights it holds are
 /// only resident while the feature is actually in use.
 ///
-/// One model at a time, by design: a dictation writes exactly one output
-/// language, so the runtime holds the backend for that direction and swaps it
-/// (unload, then load) when the direction changes. Holding both would cost the
-/// 8B's 5.3 GB *and* the 1.5B's 1.1 GB wired for a switch the user makes once.
+/// One model at a time, by design: the transcript keeps the language it was
+/// spoken in, so a dictation runs on the model that language prefers — and the
+/// runtime holds exactly that one, swapping it (unload, then load) when the
+/// language changes. Holding both would cost the 8B's 5.3 GB *and* the 1.5B's
+/// 1.1 GB wired for a switch the user makes between dictations.
 final class TransformRuntime {
     static let shared = TransformRuntime()
 
@@ -96,10 +97,10 @@ final class TransformRuntime {
     /// Runs one transform in process, on `model`'s weights.
     ///
     /// Throws on every failure (missing model, load failure, decode failure,
-    /// cancellation); `TranslationService` turns that into the raw transcript.
-    /// A missing model is **not** substituted: the caller asked for the Polish
-    /// backend because the output is Polish, and the small model is not the
-    /// answer to that question.
+    /// cancellation); `TransformService` turns that into the raw transcript.
+    /// The model handed in is the one the language's preference resolved to, so
+    /// nothing is substituted here: the caller already decided, and a model
+    /// missing from disk is a miss to report rather than a reason to use another.
     func transform(systemPrompt: String, userText: String, model: TransformModel) async throws -> String {
         let cancellation = CancellationFlag()
         return try await withTaskCancellationHandler {
@@ -123,21 +124,22 @@ final class TransformRuntime {
         }
     }
 
-    /// Warms up only when the transform could actually run: a switch is on and
-    /// the built-in runtime is the selected backend. The app must never hold a
-    /// multi-gigabyte model for a feature that is off.
+    /// Warms up only when the transform could actually run: a switch is on. The
+    /// app must never hold a multi-gigabyte model for a feature that is off.
     ///
-    /// Which backend the next dictation needs cannot be known before the speech
-    /// is in, but with translation on it can: the output language *is* the
-    /// target. Without translation the output language is whatever was spoken,
-    /// and the target is the only signal there is — so it picks the model for
-    /// the target in both cases. A dictation that arrives in the other language
-    /// then pays one swap (unload, load) instead of a cold load.
+    /// Which language the next dictation will be in cannot be known before the
+    /// speech is in — and the language is what picks the model — so this does
+    /// not choose a language. It keeps the backend the last dictation used (the
+    /// best predictor there is, and its weights are already paid for), and
+    /// otherwise loads the model every language can run on: the shipped 1.5B,
+    /// which English always uses and Polish uses whenever the 8B is not
+    /// installed. The 8B's cold load is paid once by the first Polish dictation
+    /// and then hidden by the residency window that follows it.
     func warmUpIfEnabled() {
         let prefs = AppPreferences.shared
-        guard prefs.translateEnabled || prefs.toneEnabled else { return }
-        guard !prefs.transformUseExternalEndpoint else { return }
-        warmUp(for: models.model(forOutputLanguage: prefs.transformTargetLanguage))
+        guard prefs.toneEnabled || prefs.cleanUpEnabled else { return }
+        guard !isLoaded else { return }
+        warmUp(for: models.defaultModel)
     }
 
     /// Loads `model`'s weights and runs one throwaway decode, so the first
@@ -211,10 +213,10 @@ final class TransformRuntime {
             return resident
         }
 
-        // A direction change: the other backend's weights must go before this
-        // one is mapped, or the app would be holding both.
+        // A language change: the other model's weights must go before this one
+        // is mapped, or the app would be holding both.
         if releaseResident() {
-            print("[TransformRuntime] unloaded the previous backend for a direction change")
+            print("[TransformRuntime] unloaded the previous model for a language change")
         }
 
         guard let path = models.verifiedPath(for: requested) else {

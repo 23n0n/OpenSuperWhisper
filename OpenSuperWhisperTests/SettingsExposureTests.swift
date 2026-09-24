@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 
 @testable import OpenSuperWhisper
@@ -39,93 +40,115 @@ final class SettingsExposureTests: XCTestCase {
 
     // MARK: - The transform model card
 
-    /// The card has to name the backend each direction needs, and say what is
-    /// waiting when the one Polish output needs is not installed — without ever
-    /// offering the small model as its substitute.
-    func testThePolishDirectionReportsItsOwnMissingModelAndNeverPointsAtTheOtherOne() throws {
-        let prefs = AppPreferences.shared
-        let savedTranslate = prefs.translateEnabled
-        let savedTarget = prefs.transformTargetLanguage
-        defer {
-            prefs.translateEnabled = savedTranslate
-            prefs.transformTargetLanguage = savedTarget
+    /// A view model over a temporary directory and a small stand-in for the two
+    /// catalogue entries (same ids, same shape, bytes instead of gigabytes), so
+    /// what the card says is decided by this test's staging and nothing here
+    /// touches the user's Application Support.
+    private func card() throws -> (SettingsViewModel, TransformModelManager, URL, TransformModel, TransformModel) {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("osw-card-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let payload = Data(repeating: 0x5A, count: 512)
+        let digest = SHA256.hash(data: payload).map { String(format: "%02x", $0) }.joined()
+        func entry(_ id: String, _ name: String, _ file: String) -> TransformModel {
+            TransformModel(
+                id: id,
+                displayName: name,
+                fileName: file,
+                downloadURL: URL(string: "https://example.invalid/\(file)")!,
+                sha256: digest,
+                sizeBytes: Int64(payload.count),
+                memoryBytes: 1024,
+                licence: "Apache-2.0",
+                source: "test"
+            )
         }
+        let shipped = entry(TransformModelManager.defaultModelID, "Shipped Test Model", "shipped.gguf")
+        let eightBee = entry(TransformModelManager.polishOutputModelID, "Eight Bee Test Model", "8b.gguf")
 
-        prefs.translateEnabled = true
-        prefs.transformTargetLanguage = .polish
-        let model = SettingsViewModel()
-        model.installedTransformModelIDs = []
-
-        let polish = TransformModelManager.shared.model(forOutputLanguage: .polish)
-        let english = TransformModelManager.shared.model(forOutputLanguage: .english)
-
-        XCTAssertEqual(model.neededTransformModels.map(\.id), [polish.id],
-                       "a Polish target needs the Polish backend, and only it")
-        XCTAssertEqual(model.transformModelRoleDescription(polish), "Polish output — \(polish.displayName)")
-
-        let state = model.transformModelStateDescription(polish)
-        XCTAssertTrue(state.hasPrefix("Not downloaded"), "the row must state that the weights are missing: \(state)")
-        XCTAssertTrue(state.contains(polish.memoryDescription), "the row must state the RAM cost too: \(state)")
-
-        let notice = try XCTUnwrap(model.transformMissingNotice(for: polish))
-        XCTAssertTrue(notice.contains("Polish"), notice)
-        XCTAssertTrue(
-            notice.contains("does not fall back to \(english.displayName)"),
-            "the notice must say the small model is not used for Polish: \(notice)"
-        )
-        XCTAssertNil(
-            model.transformMissingNotice(for: english),
-            "with a Polish target the English backend is not needed, so it has nothing to warn about"
-        )
+        let manager = TransformModelManager(directory: directory, catalogue: [shipped, eightBee])
+        let model = SettingsViewModel(transformModelManager: manager)
+        return (model, manager, directory, shipped, eightBee)
     }
 
-    /// Without translation the output language is whatever was spoken, so both
-    /// backends can be asked for — and both get their own row and warning.
-    func testWithoutTranslationBothBackendsCanBeNeeded() {
-        let prefs = AppPreferences.shared
-        let savedTranslate = prefs.translateEnabled
-        let savedTone = prefs.toneEnabled
-        let savedEndpoint = prefs.transformUseExternalEndpoint
-        defer {
-            prefs.translateEnabled = savedTranslate
-            prefs.toneEnabled = savedTone
-            prefs.transformUseExternalEndpoint = savedEndpoint
-        }
-
-        prefs.translateEnabled = false
-        prefs.toneEnabled = true
-        prefs.transformUseExternalEndpoint = false
-        let model = SettingsViewModel()
-        model.installedTransformModelIDs = []
-
-        let polish = TransformModelManager.shared.model(forOutputLanguage: .polish)
-        let english = TransformModelManager.shared.model(forOutputLanguage: .english)
-
-        XCTAssertEqual(Set(model.neededTransformModels.map(\.id)), Set([polish.id, english.id]))
-        XCTAssertNotNil(model.transformMissingNotice(for: polish))
-        XCTAssertNotNil(model.transformMissingNotice(for: english))
-
-        // With the external endpoint on, no local model is needed at all.
-        model.transformUseExternalEndpoint = true
-        XCTAssertTrue(model.neededTransformModels.isEmpty)
-        XCTAssertNil(model.transformMissingNotice(for: polish))
-        XCTAssertNil(model.transformMissingNotice(for: english))
+    /// Stages `model`'s bytes in the manager's own directory, so the card's
+    /// "is it installed" answer comes from a real verified file.
+    private func stage(_ model: TransformModel, in manager: TransformModelManager, directory: URL) throws {
+        let source = directory.appendingPathComponent("source-\(model.id).gguf")
+        let payload = Data(repeating: 0x5A, count: Int(model.sizeBytes))
+        try payload.write(to: source)
+        try manager.install(fileAt: source, model: model)
     }
 
-    /// The Target language picker carries both directions' costs, before either
-    /// is paid.
-    func testTheTargetPickerStatesEachBackendsRamAndDiskCost() {
-        let model = SettingsViewModel()
-        let caption = model.transformBackendCostDescription
+    /// The card says which model each language uses — and states, rather than
+    /// warns, that Polish runs on the shipped model while the optional 8B is not
+    /// installed. Nothing is refused for a missing 8B.
+    func testTheCardSaysWhichModelEachLanguageUses() throws {
+        let (model, _, directory, shipped, eightBee) = try card()
+        defer { try? FileManager.default.removeItem(at: directory) }
 
-        let polish = TransformModelManager.shared.model(forOutputLanguage: .polish)
-        let english = TransformModelManager.shared.model(forOutputLanguage: .english)
+        model.installedTransformModelIDs = [shipped.id]
 
-        XCTAssertTrue(caption.contains(english.displayName), caption)
-        XCTAssertTrue(caption.contains(english.memoryDescription), caption)
-        XCTAssertTrue(caption.contains(english.sizeDescription), caption)
-        XCTAssertTrue(caption.contains(polish.displayName), caption)
-        XCTAssertTrue(caption.contains(polish.memoryDescription), caption)
-        XCTAssertTrue(caption.contains(polish.sizeDescription), caption)
+        let description = model.transformLanguageModelDescription
+        XCTAssertTrue(description.contains("Polish runs on \(shipped.displayName)"), description)
+        XCTAssertTrue(description.contains("English runs on \(shipped.displayName)"), description)
+        XCTAssertTrue(description.contains("The 8B is not installed"), description)
+        XCTAssertTrue(description.contains("nothing is refused"), description)
+
+        // The shipped model is the only requirement; the 8B is never a warning.
+        XCTAssertNil(model.transformMissingNotice(for: eightBee),
+                     "a missing optional model is not a problem: \(model.transformModelRoleDescription(eightBee))")
+        XCTAssertNil(model.transformMissingNotice(for: shipped), "the shipped model is installed here")
+    }
+
+    /// With the 8B installed the card says Polish runs on it — and the shipped
+    /// model still serves English.
+    func testWithTheEightBeeInstalledPolishRunsOnIt() throws {
+        let (model, manager, directory, shipped, eightBee) = try card()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        try stage(eightBee, in: manager, directory: directory)
+        model.installedTransformModelIDs = [shipped.id, eightBee.id]
+
+        let description = model.transformLanguageModelDescription
+        XCTAssertTrue(description.contains("Polish runs on \(eightBee.displayName)"), description)
+        XCTAssertTrue(description.contains("The 8B is installed"), description)
+        XCTAssertTrue(description.contains("English runs on \(shipped.displayName)"), description)
+    }
+
+    /// The shipped model missing is the one real problem: it is the model every
+    /// language runs on, and the card says what waits for it.
+    func testTheShippedModelMissingIsTheOnlyWarning() throws {
+        let (model, _, directory, shipped, _) = try card()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        model.installedTransformModelIDs = []
+        let notice = try XCTUnwrap(model.transformMissingNotice(for: shipped))
+        XCTAssertTrue(notice.contains("every language runs on"), notice)
+        XCTAssertTrue(notice.contains("8B is optional"), notice)
+    }
+
+    /// Every row states what its model costs before it is paid, and which
+    /// languages it serves.
+    func testEachRowStatesItsLanguagesAndItsCost() throws {
+        let (model, _, directory, shipped, eightBee) = try card()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        XCTAssertTrue(model.transformModelRoleDescription(shipped).contains("English always"),
+                      model.transformModelRoleDescription(shipped))
+        XCTAssertTrue(model.transformModelRoleDescription(eightBee).contains("Preferred for Polish"),
+                      model.transformModelRoleDescription(eightBee))
+
+        for entry in [shipped, eightBee] {
+            let state = model.transformModelStateDescription(entry)
+            XCTAssertTrue(state.hasPrefix("Not downloaded"), state)
+            XCTAssertTrue(state.contains(entry.memoryDescription), state)
+            XCTAssertTrue(state.contains(entry.sizeDescription), state)
+        }
+
+        model.installedTransformModelIDs = [shipped.id]
+        XCTAssertTrue(model.transformModelStateDescription(shipped).hasPrefix("Installed"),
+                      model.transformModelStateDescription(shipped))
     }
 }

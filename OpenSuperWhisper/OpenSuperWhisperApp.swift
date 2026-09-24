@@ -88,7 +88,6 @@ class AppState: ObservableObject {
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableObject {
     private var statusItem: NSStatusItem?
     private var mainWindow: NSWindow?
-    private var languageSubmenu: NSMenu?
     private var copyTranscriptionItem: NSMenuItem?
     private var microphoneService = MicrophoneService.shared
     private var microphoneObserver: AnyCancellable?
@@ -254,29 +253,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
         
         menu.addItem(NSMenuItem(title: "OpenSuperWhisper", action: #selector(openApp), keyEquivalent: "o"))
 
-        let transcriptionLanguageItem = NSMenuItem(title: "Language", action: nil, keyEquivalent: "")
-        languageSubmenu = NSMenu()
-        
-        if let languageSubmenu {
-            populateLanguageSubmenu(languageSubmenu)
-        }
-        
-        transcriptionLanguageItem.submenu = languageSubmenu
-        menu.addItem(transcriptionLanguageItem)
-
         let copyItem = NSMenuItem(title: "Copy", action: #selector(copyLastTranscription(_:)), keyEquivalent: "")
         copyItem.target = self
         copyItem.isHidden = true
         copyTranscriptionItem = copyItem
         menu.addItem(copyItem)
-        
-        // Listen for language preference changes
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(languagePreferenceChanged),
-            name: .appPreferencesLanguageChanged,
-            object: nil
-        )
         
         menu.addItem(NSMenuItem.separator())
         
@@ -458,49 +439,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
             return
         }
         NSApplication.shared.terminate(nil)
-    }
-    
-    @objc private func selectLanguage(_ sender: NSMenuItem) {
-        guard let languageCode = sender.representedObject as? String else { return }
-        
-        // Update preferences
-        AppPreferences.shared.whisperLanguage = languageCode
-        
-        // Update menu item states
-        if let submenu = sender.menu {
-            for item in submenu.items {
-                item.state = .off
-            }
-            sender.state = .on
-        }
-    }
-    
-    @objc private func languagePreferenceChanged() {
-        updateLanguageMenuSelection()
-    }
-    
-    private func updateLanguageMenuSelection() {
-        guard let languageSubmenu = languageSubmenu else { return }
-        populateLanguageSubmenu(languageSubmenu)
-    }
-    
-    private func populateLanguageSubmenu(_ submenu: NSMenu) {
-        submenu.removeAllItems()
-        
-        let supportedLanguages = LanguageUtil.supportedLanguages(
-            engine: AppPreferences.shared.selectedEngine,
-            fluidAudioModelVersion: AppPreferences.shared.fluidAudioModelVersion
-        )
-        let currentLanguage = AppPreferences.shared.whisperLanguage
-        
-        for languageCode in supportedLanguages {
-            let languageName = LanguageUtil.languageNames[languageCode] ?? languageCode
-            let languageItem = NSMenuItem(title: languageName, action: #selector(selectLanguage(_:)), keyEquivalent: "")
-            languageItem.target = self
-            languageItem.representedObject = languageCode
-            languageItem.state = (currentLanguage == languageCode) ? .on : .off
-            submenu.addItem(languageItem)
-        }
     }
     
     /// The WindowGroup window must be told apart from the other windows the

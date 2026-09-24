@@ -81,7 +81,6 @@ final class PCMRecordingTests: XCTestCase {
         let engine = WhisperEngine(modelPath: model.path)
         try await engine.initialize()
         var settings = Settings()
-        settings.selectedLanguage = "en"
         settings.initialPrompt = ""
         settings.temperature = 0
         settings.useBeamSearch = false

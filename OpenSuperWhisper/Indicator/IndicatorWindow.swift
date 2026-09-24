@@ -48,7 +48,7 @@ class IndicatorViewModel: ObservableObject {
     private let stopRecordingOperation: () async -> RecordedAudio?
     private let cancelAudioRecordingOperation: () -> Void
     private let injectTextOperation: (String) -> KeyboardSimulator.InjectionResult
-    private let transformTextOperation: (String, String?) async -> TranslationService.TransformOutcome
+    private let transformTextOperation: (String, String?) async -> TransformService.TransformOutcome
     private let cleanUpOperation: (String) -> DictationScrubber.Result
     private let cleanUpEnabledOperation: () -> Bool
     private let reportCenter: DictationReportCenter
@@ -67,8 +67,8 @@ class IndicatorViewModel: ObservableObject {
             // begins and stops it if the target changes or the user types.
             KeyboardSimulator.typeText($0, watch: .live())
         },
-        transformText: @escaping (String, String?) async -> TranslationService.TransformOutcome = {
-            await TranslationService.shared.transformDetailed($0, sourceLanguage: $1)
+        transformText: @escaping (String, String?) async -> TransformService.TransformOutcome = {
+            await TransformService.shared.transformDetailed($0, sourceLanguage: $1)
         },
         cleanUp: @escaping (String) -> DictationScrubber.Result = { text in
             // The switch is read per dictation, so flipping it in Settings takes
@@ -355,9 +355,10 @@ class IndicatorViewModel: ObservableObject {
                 }
             } catch TranscriptionError.speechLanguageConflict(let conflict) {
                 // The refused combination, reported where the user is looking:
-                // the model and the setting named, the installed multilingual
-                // model offered as a button, and the audio preserved so the
-                // dictation can be re-run once the fix is applied. Nothing was
+                // the model and what the dictation looks like named, the
+                // installed multilingual model offered as a button, and the
+                // audio preserved so the dictation can be re-run once the fix is
+                // applied. Nothing was
                 // transcribed and nothing is pasted.
                 self.showAutoDismissingMessage(.incompatibleModel)
                 if let savedRecording {
@@ -457,10 +458,11 @@ class IndicatorViewModel: ObservableObject {
 
     /// The refusal, surfaced where the user can act on it.
     ///
-    /// The message names the model file and the language setting and says what
-    /// whisper does instead of transcribing; when a multilingual model is
-    /// already installed, the alert carries the button that selects it — the
-    /// fix in place, applied only because the user pressed it.
+    /// The message names the model file and what the transcript it produced
+    /// looks like, and says what whisper did instead of transcribing; when a
+    /// multilingual model is already installed, the alert carries the button
+    /// that selects it — the fix in place, applied only because the user pressed
+    /// it.
     private func reportSpeechLanguageConflict(_ conflict: SpeechLanguageConflict) {
         if let remedyTitle = conflict.remedyButtonTitle, let path = conflict.remedyModelPath {
             AppErrorCenter.shared.report(
@@ -726,8 +728,9 @@ struct IndicatorWindow: View {
                         .foregroundColor(.orange)
                         .frame(width: 24)
 
-                    // The card is 200pt wide, so the full story (the model, the
-                    // setting, the fix) is in the alert this state accompanies.
+                    // The card is 200pt wide, so the full story (the model,
+                    // what the dictation looks like, the fix) is in the alert
+                    // this state accompanies.
                     Text("Needs a multilingual model")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.orange)

@@ -3,9 +3,9 @@
 OpenSuperWhisper is a macOS application that provides real-time audio transcription using the Whisper model. It offers a seamless way to record and transcribe audio with customizable settings and keyboard shortcuts.
 
 > **This tree is a fork of [Starmel/OpenSuperWhisper](https://github.com/Starmel/OpenSuperWhisper) (MIT).**
-> Everything the original does is still here; on top of it this fork adds local translation and tone, language-aware
-> gating, a dictation clean-up pass, keystroke delivery that never touches the clipboard, and a repaired long-form
-> decode path. Section [What this fork changes](#what-this-fork-changes) describes every difference in detail, and
+> Everything the original does is still here; on top of it this fork adds local tone and clean-up rewrites that
+> **never change the language of what you dictated** (Polish stays Polish, English stays English), a dictation
+> clean-up pass, keystroke delivery that never touches the clipboard, and a repaired long-form decode path. Section [What this fork changes](#what-this-fork-changes) describes every difference in detail, and
 > [What is unchanged](#what-is-unchanged) lists what is inherited verbatim.
 >
 > **The `brew install` line and the release links below install the *original* app, not this build.** This fork
@@ -31,16 +31,17 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 
 ### Added by this fork
 
-- 🌐 **Local translation and tone** — an instruction-tuned model runs inside the app (llama.cpp linked in, no
-  server, no port); two independent switches plus a target-language picker, off by default
-- 🇵🇱 **Polish output runs on Qwen3-8B** — the direction the shipped 1.5B was measured unreliable on; the app
-  routes by output language, states each backend's disk and RAM cost, and never substitutes one for the other
-- 🧭 **Language-aware gating** — speech already in the target language is never sent to the model; English is
-  never translated while the target is English; an unknown language passes through raw
-- 🛡️ **English-only model guard** — an English-only model with a non-English language is refused with a notice
-  instead of silently hallucinating
-- 🧹 **Dictation clean-up** — filler words, `hmm`, `aaa` and stutters are scrubbed, the sentence language repaired,
-  through the same single transform call
+- 🌐 **Local tone and clean-up, in the language you spoke** — an instruction-tuned model runs inside the app
+  (llama.cpp linked in, no server, no port); two independent switches, off by default. The transcript is rewritten
+  in place: **the app never changes the language of your dictation**
+- 🇵🇱 **Polish prefers Qwen3-8B when it is installed** — the shipped 1.5B does the work when it is not, and the
+  app says which model each language uses. Nothing is refused, nothing is substituted silently
+- 🧭 **Auto-detected language, always** — the engine measures the language of every utterance (no language
+  picker); a transcript nothing can place is pasted raw, untouched
+- 🛡️ **English-only model guard** — an `.en` model cannot detect anything, so when the transcript it produced is
+  not English the app says so and offers the multilingual model instead of keeping the invented text
+- 🧹 **Dictation clean-up** — filler words, `hmm`, `aaa` and stutters are scrubbed, punctuation, articles and word
+  order repaired, all in the language that was spoken, through the same single transform call
 - 📚 **Reference / glossary field** — names and terms fed into the transform prompt
 - ⌨️ **Keystroke delivery** — the transcript is typed into the focused app; the clipboard is never written to
 - 🔒 **Accessibility only** — Input Monitoring is no longer used or required anywhere, and no permission screen
@@ -53,7 +54,7 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
   reaches it even with the main window closed
 - 📦 **One-package install, one-operation uninstall** — from inside the app
 - 🛠️ **Developer tooling** — identity-signed builds whose permission grants survive rebuilds, one build script for
-  the vendored engines, contract checks for the transform endpoint and the installer
+  the vendored engines, and a contract check for the installer
 
 ## What this fork changes
 
@@ -75,52 +76,59 @@ shortcuts, the queue, the model catalogue, the onboarding — is upstream's, edi
 
 Paths below are relative to `OpenSuperWhisper/` unless they start with `Scripts/`, `packaging/` or `libllama/`.
 
-### 1. Translation and tone, inside the app
+### 1. Tone and clean-up, inside the app — never a language change
 
-Upstream transcribes; it does not translate, and it has no notion of tone. This fork adds both, driven by two
-independent switches in **Settings → Transcription** ("Translate into …" and "Apply tone"), each carrying a
-**Target language** picker (English by default, Polish as the reverse direction). Both default to off.
+Upstream transcribes; it has no notion of tone and no rewriting pass at all. This fork adds two independent
+switches in **Settings → Transcription** ("Apply tone" and "Clean up dictation"), both riding one call to a model
+that runs **inside the app**. The transcript is rewritten **in the language it was spoken in**: Polish stays
+Polish, English stays English, and there is no direction change anywhere in the product.
 
-The transform is performed **in-process** by one of two models, picked by the direction the output takes: `Qwen2.5-1.5B-Instruct-Q4_K_M` (~986 MB on disk, ~1.1 GB of RAM while loaded) writes English, and `Qwen3-8B-Q4_K_M` (~5 GB on disk, ~5.3 GB of RAM while loaded) writes Polish — the direction the small model was measured unreliable on. Each is downloaded on demand into the app's own Application Support folder and verified against its pinned checksum before it is used; the direction whose model is missing is refused and says so in Settings, rather than falling back to the other model. llama.cpp is
-vendored as `libllama/` and linked into the app exactly like whisper.cpp, so there is no background server and no
-listening port. The runtime lives in `OpenSuperWhisper/Llama/{Llama,TransformRuntime}.swift`, the models'
-lifecycle, routing and verification in `TransformModelManager.swift`, and the prompt/request layer in
-`TranslationService.swift`. A user who prefers their own backend can set an OpenAI-compatible endpoint in
-**Settings → Advanced**; `Scripts/transform-server.sh` can serve one and `Scripts/verify-transform.sh` checks any
-endpoint against the app's request/response contract. The external endpoint is handed the single model id you
-configure there and serves both directions itself.
+The rewrite is performed **in-process** by one of two models, picked by the **language of the dictation**:
+`Qwen2.5-1.5B-Instruct-Q4_K_M` (~986 MB on disk, ~1.1 GB of RAM while loaded) is the model every language can
+run on, and `Qwen3-8B-Q4_K_M` (~5 GB on disk, ~5.3 GB while loaded) is what Polish **prefers when it is
+installed** — the shipped model does Polish work when it is not, and the card says which one is in use. Each is
+downloaded on demand into the app's own Application Support folder and verified against its pinned checksum
+before it is used. llama.cpp is vendored as `libllama/` and linked into the app exactly like whisper.cpp, so
+there is no background server, no listening port and no endpoint override: the transform
+(`OpenSuperWhisper/TransformService.swift`) is the only way the text can be rewritten.
 
-### 2. Language awareness: what gets translated, and when
+### 2. The language is auto-detected, and never changed
 
-The decision is a table (`TransformPolicy` in `TranslationService.swift`), not a per-call guess, and it is fed by
-the language the speech engine reports *for that same utterance* — whisper's own detection under **Auto-detect**
-with a multilingual model, a fixed language setting when set, or the text heuristic in
+The decision is a table (`TransformPolicy` in `TransformService.swift`), not a per-call guess, and it is fed by the
+language the speech engine reports *for that same utterance* — whisper's own detection, the only mode there is
+now that the **Language picker is gone from Settings, onboarding and the menu bar** — or by the text heuristic in
 `Utils/LanguageDetector.swift` (Polish diacritics, function words, bigrams) for engines that cannot report one,
-such as Parakeet. The rules that matter:
+such as Parakeet. `params.language` is always `nil` and `params.detectLanguage` stays `false`. The rules that
+matter:
 
-- Speech already in the **target** language is pasted unchanged — **no model call at all**, even with tone on.
-- With the default target (English), **English dictation is never translated**, so the original's behaviour is
-  preserved for English users and the transform only ever engages on foreign speech.
-- Tone rides on a translation: it describes the output of a direction change, so it does nothing without one.
-- When the language cannot be determined, the raw transcript is pasted and nothing is sent to a model.
+- The transcript is rewritten **in its own language**, always: there is no target language in the product, and no
+  prompt that could move the text into another one.
+- Both switches off is the default install: **no model call at all**, and the transcript is bit-for-bit what the
+  engine produced.
+- A transcript nothing could place (an engine that reports nothing, and a text too short for the heuristic) is
+  pasted raw; no model is asked to guess its language.
+- Tone no longer rides on anything: it is a same-language rewrite, so it needs no other switch to be on.
 
-The full switch table is in [Translation and tone](#translation-and-tone-towards-a-target-language) below.
+The full switch table is in [Tone and clean-up](#tone-and-clean-up-in-the-language-you-spoke) below.
 
-### 3. English-only model guard
+### 3. English-only model guard, re-keyed to the transcript
 
-A `.en` whisper model cannot detect a language; pairing one with a Polish utterance made whisper *translate into
-English* and hallucinate before the transform ever ran. `Utils/SpeechModelLanguageGate.swift` now refuses that
-combination with an inline notice (and a remedy button) instead of producing confident nonsense.
+An `.en` whisper model cannot detect a language at all, and with the language picker gone there is no setting left
+to compare against — so the evidence is the text the model produced. `Utils/SpeechModelLanguageGate.swift` reads
+the transcript with the same `LanguageDetector` heuristic the transform uses, and when an English-only model's
+transcript is not English (the captain's own case: `ggml-tiny.en.bin` writing confident English over Polish
+speech) the dictation is refused with a notice naming the model *and* what the dictation looks like, plus the
+multilingual model already on the machine as a one-click remedy. English dictation can never be caught by it.
 
 ### 4. Dictation clean-up and the reference field
 
 Two more controls in **Settings → Transcription**. **Clean up dictation** removes filler sounds, drawn-out
 vowel runs, stutters and false starts, and repairs the sentence language (Polish affixes, casing, diacritics) —
 deterministically in `Utils/DictationScrubber.swift`, and where grammar is at stake through the *same* single
-transform call the translation already uses: measured on the captain's own recordings with the bundled model,
-clean-up **adds no model call** where a translation or tone rewrite is already happening (the clean-up wording
-travels inside that prompt), and it adds exactly **one** call — median 0.17–0.38 s — where the app previously made
-none, which is target-language speech with clean-up on. The deterministic scrub itself costs ~0.13 ms. **Reference** takes free text — names, product
+transform call the tone already uses: measured on the captain's own recordings with the bundled model, clean-up
+**adds no model call** where a tone rewrite is already happening (the clean-up wording travels inside that
+prompt), and it adds exactly **one** call — median 0.17–0.38 s — where the app previously made none, which is a
+dictation with clean-up on and the tone switch off. The deterministic scrub itself costs ~0.13 ms. **Reference** takes free text — names, product
 terms, jargon — and passes it into that prompt so the model stops mangling them.
 
 The last dictation is inspectable in the app: `DictationReport.swift` records the detected language plus the raw,
@@ -207,19 +215,21 @@ covered part of the suite.
 Inherited from upstream, unmodified in behaviour: the whisper.cpp and Parakeet (FluidAudio) transcription
 engines and their model downloads, key-combination and single-modifier triggers, the mouse-button trigger,
 hold-to-record, drag & drop with the transcription queue, microphone selection (including iPhone/Continuity),
-auto language detection, Asian-language autocorrect, the Hebrew (ivrit.ai) model entry, onboarding, and the MIT
-licence. Upstream's own README sections — Installation, Requirements, Support, Building locally, Contributing,
+language detection (now always automatic — see §2), Asian-language autocorrect, the Hebrew (ivrit.ai) model
+entry, onboarding, and the MIT licence. Upstream's own README sections — Installation, Requirements, Support, Building locally, Contributing,
 Whisper Models — are kept as they are, apart from the notes this fork needed.
 
 ### Known limits and what is not built yet
 
-- **Polish output is not perfect even on its own backend.** `Qwen3-8B-Q4_K_M` was measured at 11/15 clean and
-  never inventing content, against the 1.5B's 4/15 clean with 2 invented sentences — a categorical improvement,
-  not a guarantee: it still mangles a verb phrase in 2 of 15 English→Polish sentences. The routed backend makes
-  the failure mode visible (bad morphology) instead of silent (invented detail).
-- **The better 30B-A3B is not the shipped Polish backend**, although it measured 12/15 with no broken grammar and
-  is faster per call: it needs ~18 GB of RAM and ~44 s to load, which the 10-minute idle unload cannot hide on a
-  32 GB machine. It stays a manual choice for anyone who runs their own endpoint.
+- **Polish rewrite quality is a preference, not a guarantee.** `Qwen3-8B-Q4_K_M` is what Polish *prefers*, and
+  it is not required: with only the shipped 1.5B installed, Polish work runs on it. The 8B/1.5B measurement that
+  justified the preference was taken on the translation direction this task removed (`fm-20260923-24`: 8B 11/15
+  clean and nothing invented, 1.5B 4/15 with 2 invented), so it is carried as a preference that is stated in the
+  Settings card rather than as a claim about same-language rewriting — which this tree measures in
+  `SameLanguageTransformIntegrationTests` but does not grade at scale.
+- **The better 30B-A3B is not shipped.** It measured well and is fast per call, but it needs ~18 GB of RAM and
+  ~44 s to load, which the 10-minute idle unload cannot hide on a 32 GB machine — and with the external-endpoint
+  override gone there is no supported way to run it against the app.
 - **In-process transform determinism is an open question.** The sampling chain is fully seed-pinned already
   (`Llama.swift:270-278`, `dist(seed = 0)`, a fresh chain per request), so identical inputs *should* give
   identical outputs; observed differences on this machine point at backend reduction nondeterminism rather than
@@ -240,11 +250,12 @@ brew install opensuperwhisper
 ```
 
 Everything the app needs is inside the package: the speech engine (whisper.cpp
-plus llama.cpp for translation and tone) is linked into the app, its Metal
+plus llama.cpp for tone and clean-up) is linked into the app, its Metal
 shaders are embedded in it, and neither needs Homebrew, a background server or a
-listening port. Speech models (and the transform models, ~1 GB for English output
-and ~5 GB for Polish output, if you use translation or tone) are downloaded by the
-app into its own folder on first use.
+listening port. Speech models (and, if you use the tone or clean-up switches, the
+rewrite models: ~1 GB for the model every language can run on, plus an optional
+~5 GB 8B that Polish prefers) are downloaded by the app into its own folder on
+first use.
 
 On first launch macOS asks for the two permissions the app needs:
 
@@ -265,8 +276,8 @@ outright, reporting the space that frees; the Parakeet rows report whether every
 file the engine needs is present, which is all FluidAudio publishes. **Settings →
 Advanced** carries the **Debug Mode** switch
 that makes whisper.cpp print its verbose decode trace, and **Show the welcome
-screen again**, which re-runs the first-run flow (dictation language, shortcut,
-speech model) without changing any of the three until you choose.
+screen again**, which re-runs the first-run flow (shortcut and speech model)
+without changing either until you choose.
 
 ## Uninstalling
 
@@ -406,87 +417,51 @@ Scripts/dev-run.sh
 From then on ordinary rebuilds keep the grant; `Scripts/dev-run.sh --reset-tcc` does that
 reset for you if you ever need it again.
 
-## Translation and tone (towards a target language)
+## Tone and clean-up (in the language you spoke)
 
-Two independent switches in Settings drive the transform, and both are off by default: **Translate
-into …** and **Apply tone**. The switch carries a **Target language** picker (English by default,
-Polish for the demanded reverse direction). When either switch is on, the app runs an
-instruction-tuned model **inside itself** — llama.cpp is linked into the app exactly like whisper.cpp,
-no server, no port, no cloud service. Turn on a switch and press **Download model** next to the
-direction you need in Settings → Transcription: the app fetches that direction's weights into its own
-Application Support folder, verifies the pinned checksum and keeps them there. Until they are
-downloaded, dictation in that direction is pasted unchanged — and the app says which direction is
-waiting for its model instead of quietly using the other one.
+Two independent switches in **Settings → Transcription**, both off by default: **Apply tone** (with a
+Formal / Casual / Neutral picker) and **Clean up dictation**. When either is on, the app runs an
+instruction-tuned model **inside itself** — llama.cpp is linked into the app exactly like whisper.cpp, no
+server, no port, no cloud service, and there is no endpoint override any more. Turn a switch on and press
+**Download model** next to a model in Settings → Transcription: the app fetches those weights into its own
+Application Support folder, verifies the pinned checksum, and keeps them there.
 
-**Advanced override:** if you would rather run your own endpoint, Settings → Advanced turns on
-*Use an external endpoint* and takes an OpenAI-compatible URL, model id and timeout. The weights it
-needs are not required then, and `Scripts/transform-server.sh` can fetch and serve them as before
-(`Scripts/transform-server.sh --fetch`); that script is an optional external backend, not a
-requirement.
+**The language of the transcript is never changed.** Polish comes back Polish, English comes back English.
+The tone switch asks for a different register of the *same* text; the clean-up switch removes filler, repairs
+punctuation, articles and word order, and drops stutters. Neither one is a translation, and no setting in the
+app can make them one.
 
-The language of each utterance decides what happens to it. The app takes the language the speech
-engine reports for that same transcription — whisper's own detection when the language setting is
-**Auto-detect** and a multilingual model is loaded, or your fixed language setting exactly as chosen —
-and falls back to a small text heuristic (Polish diacritics, function words, bigrams) for engines that
-cannot report one, such as Parakeet. When it cannot tell, the raw transcript is pasted. The action is
-then decided against the **target language**; with the default target (English) the table reads:
+**Which model each language uses.** The model follows the language of the dictation, and it is a preference,
+not a requirement:
 
-| Translation | Tone | Spoken language | Pasted text |
+| Language | Model (Apache-2.0) | Download | RAM while loaded |
 |---|---|---|---|
-| off | off | any | raw transcript, nothing is even detected |
-| on | off | Polish (English target) | translated English, with no tone sentence in the prompt |
-| on | off | English (English target) | raw transcript — speech already in the target is never translated |
-| off | on | any | raw transcript — a tone rides on a translation, and none is asked for |
-| on | on | Polish (English target) | translated into English and toned |
-| on | on | English (English target) | raw transcript — nothing to translate, so nothing to tone |
-| any | any | unknown | raw transcript |
+| English — always | `Qwen2.5-1.5B-Instruct-Q4_K_M` | ~986 MB | ~1.1 GB |
+| Polish — preferred when installed | `Qwen3-8B-Q4_K_M` | ~5.0 GB | ~5.3 GB |
+| Polish — when the 8B is not installed | `Qwen2.5-1.5B-Instruct-Q4_K_M` | ~986 MB | ~1.1 GB |
 
-With **Polish** as the target the two directions swap: spoken **English** is translated into Polish
-(tone riding along when the tone switch is on), and spoken **Polish** is pasted unchanged — it is
-already in the target, so no model call is made at all.
+Nothing has to be downloaded for Polish to work: with only the shipped 1.5B installed, Polish dictation is
+rewritten by it, and the Settings card says exactly that ("Polish runs on … The 8B is not installed, so the
+shipped model does the work — nothing is refused…"). The 8B is what Polish *prefers* when it is there, and
+its larger size is why it is not required. Only one model is ever resident: a language change unloads one
+before loading the other, so the wired memory is the model in use, not the sum. Either is released after ten
+minutes without a transform; because the 8B's cold load is seconds rather than milliseconds, the app warms
+up the shipped model when recording starts, so the load happens while you are still speaking.
 
-Speech already in the target language is never sent to the model, tone switch or not. The tone belongs
-to a translation: it describes the output of a direction change, so it needs the translation switch on
-to have anything to rewrite.
-
-**Which model writes what, and what it costs.** The backend follows the **output language**, and the
-app states both options' costs next to the Target language picker before either is paid:
-
-| Output language | Backend (Apache-2.0) | Download | RAM while loaded |
+| Tone | Clean up | Spoken language | Pasted text |
 |---|---|---|---|
-| English | `Qwen2.5-1.5B-Instruct-Q4_K_M` | ~986 MB | ~1.1 GB |
-| Polish | `Qwen3-8B-Q4_K_M` | ~5.0 GB | ~5.3 GB |
+| off | off | any | the raw transcript — nothing is detected, nothing is called |
+| on | off | Polish | rewritten Polish, formal/casual/neutral, same language |
+| on | off | English | rewritten English, same language |
+| off | on | any placed language | the transcript repaired in the language it was spoken in |
+| on | on | either | one call carrying both instructions |
+| any | any | unplaceable text | the raw transcript — no prompt can name the language to keep |
 
-Only one of the two is ever resident: switching direction unloads one before loading the other, so the
-wired memory is the model you are using, not the sum. The Polish backend is loaded only when Polish is
-actually written, and it is released after ten minutes without a transform exactly like the small one.
-Because its cold load is seconds, not milliseconds, the app also warms it up when recording starts — the
-llama.cpp equivalent of what it already does for the speech model — so the load happens while you are
-still speaking. With the weights resident, a Polish-output dictation costs about a second against roughly
-a fifth of a second for English (measured in-process on this machine); the first call after a load pays
-the load itself, which the warm-up absorbs.
-
-**Honest note on Polish output.** The shipped 1.5B was measured on 15 English sentences
-(`fm-20260923-24`, `verdicts.json`): **4/15 clean**, with 2 sentences whose content was invented and 5
-with broken Polish grammar; a second scorer was stricter still (1/15 clean, same 2 inventions). That
-measurement is why Polish output moved to `Qwen3-8B`, which scored **11/15 clean with nothing invented**;
-its remaining errors are clumsy verb forms (2 of 15), i.e. visibly wrong rather than silently wrong.
-Polish→English — the daily direction — stays on the 1.5B (8/8 correct, ~0.3 s), because the larger model
-is not uniformly better there and costs 5× the memory.
-
-Dictation history always keeps the raw transcript, and recordings transcribed from the list (queued or
-re-run files) are never transformed. To get language awareness on the dictation hotkey, set the
-language picker to **Auto-detect** with a multilingual model (e.g. Turbo V3); a fixed setting is
-trusted as-is. An English-only model in Auto-detect (e.g. `ggml-tiny.en.bin`) will turn Polish speech
-into English hallucination before the transform ever runs — use a multilingual model.
-
-To check that an external endpoint still matches the app's request/response contract (and that
-translation, tone control and latency behave), start one and run:
-
-```shell
-Scripts/transform-server.sh &            # or any OpenAI-compatible endpoint
-Scripts/verify-transform.sh
-```
+Dictation history always keeps the raw transcript, and recordings transcribed from the list (queued or re-run
+files) are never rewritten. The language of each utterance is detected automatically, which needs a
+multilingual whisper model (e.g. Turbo V3): an English-only model such as `ggml-tiny.en.bin` cannot detect
+anything, so when the transcript it produces does not read as English the app refuses that dictation, names
+the model, and offers the multilingual model to switch to.
 
 The packaging contract — the uninstaller's path list, its idempotence and a built package's payload —
 is checked with:

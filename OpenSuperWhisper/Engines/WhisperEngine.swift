@@ -79,8 +79,8 @@ class WhisperEngine: TranscriptionEngine {
 
     /// Whether the loaded model can hear more than English, or `nil` when no
     /// model is loaded — `whisper_is_multilingual()` can only answer for a
-    /// context that exists. Read by `SpeechModelLanguageGate`, which refuses an
-    /// English-only model paired with a non-English language setting.
+    /// context that exists. Read by `SpeechModelLanguageGate`, which refuses to
+    /// keep a transcript an English-only model cannot possibly have heard.
     var isModelMultilingual: Bool? {
         context?.isMultilingual
     }
@@ -143,8 +143,9 @@ class WhisperEngine: TranscriptionEngine {
     }
 
     /// Detailed result for the PCM path, which is the hotkey dictation path:
-    /// alongside the text it carries the language the decoder saw, which decides
-    /// whether the transcript is translated, toned or pasted as-is.
+    /// alongside the text it carries the language the decoder measured, which
+    /// decides whether the transcript is toned, cleaned up or pasted as-is —
+    /// and which model does that work.
     func transcribeSamplesDetailed(
         _ samples: [Float],
         settings: Settings
@@ -285,7 +286,7 @@ class WhisperEngine: TranscriptionEngine {
         // Read the language immediately: it lives in the decoding state, which
         // `defer` frees when this function returns, and no later step may touch
         // that state first.
-        let language = Self.reportedLanguage(settings: settings, context: context)
+        let language = Self.reportedLanguage(context: context)
         
         try Task.checkCancellation()
         
@@ -329,7 +330,8 @@ class WhisperEngine: TranscriptionEngine {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         
         var processedText = cleanedText
-        if settings.shouldApplyAsianAutocorrect && !cleanedText.isEmpty {
+        if settings.shouldApplyAsianAutocorrect(detectedLanguage: language, text: cleanedText),
+           !cleanedText.isEmpty {
             processedText = AutocorrectWrapper.format(cleanedText)
         }
         
@@ -340,29 +342,19 @@ class WhisperEngine: TranscriptionEngine {
         )
     }
 
-    /// The language of the utterance that was just decoded.
+    /// The language of the utterance that was just decoded, measured inside the
+    /// `whisper_full` call above.
     ///
-    /// A fixed `whisperLanguage` setting is what the decoder was conditioned on,
-    /// so it is authoritative — and on an English-only model it is the *only*
-    /// meaningful answer, which is why this branch comes before the
-    /// multilingual check: `ggml-tiny.en` reports nonsense ids (`fa`/`ur` at
-    /// p = 0.01) when asked to detect.
-    ///
-    /// Only the `auto` setting measures the language, inside the `whisper_full`
-    /// call above, at no extra cost (a multilingual model detects as part of the
-    /// encoder pass it already runs). A model that is not multilingual cannot
+    /// The app has no language setting any more, so the decoder is never
+    /// conditioned on one: it is always asked to measure the language of the
+    /// audio it just heard. Only a multilingual model can, and its verdict is
+    /// read off the decoding state — a non-multilingual (`.en`) model cannot
     /// measure anything, so the answer is `nil` and the transcript text is used
     /// as the fallback signal instead.
     ///
     /// `params.detectLanguage` must stay `false`: setting it makes whisper.cpp
     /// return right after detection, without transcribing anything.
-    private static func reportedLanguage(
-        settings: Settings,
-        context: MyWhisperContext
-    ) -> String? {
-        if settings.selectedLanguage != "auto" {
-            return settings.selectedLanguage
-        }
+    private static func reportedLanguage(context: MyWhisperContext) -> String? {
         guard context.isMultilingual else { return nil }
         let languageId = context.fullLangId
         guard languageId >= 0 else { return nil }
@@ -414,8 +406,11 @@ class WhisperEngine: TranscriptionEngine {
         // decoder really covered, so no speech is skipped.
         params.noTimestamps = false
         params.suppressBlank = settings.suppressBlankAudio
-        let isAutoDetect = settings.selectedLanguage == "auto"
-        params.language = isAutoDetect ? nil : settings.selectedLanguage
+        // The language is never set: the app always lets the model detect it,
+        // and nothing in the product may condition the decoder on a chosen
+        // language. `detectLanguage` stays false as it must — setting it makes
+        // whisper.cpp return right after detection, without transcribing.
+        params.language = nil
         params.detectLanguage = false
         params.temperature = Float(settings.temperature)
         params.noSpeechThold = Float(settings.noSpeechThreshold)

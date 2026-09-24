@@ -57,10 +57,7 @@ struct DictationReport {
     /// What to call the transform in the UI, including the honest failure case.
     var transformLabel: String {
         guard let policy else { return "No transform" }
-        switch (didRunModel, policy.isTranslation) {
-        case (true, _): return policy.summary
-        case (false, _): return "\(policy.summary) — model call failed, transcript kept"
-        }
+        return didRunModel ? policy.summary : "\(policy.summary) — model call failed, transcript kept"
     }
 
     /// Whether the pasted text differs from the transcript the engine produced.

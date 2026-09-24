@@ -16,7 +16,6 @@ class SettingsViewModel: ObservableObject {
             } else {
                 initializeFluidAudioModels()
             }
-            resetLanguageIfUnsupported()
             Task { @MainActor in
                 TranscriptionService.shared.reloadEngine()
             }
@@ -32,19 +31,6 @@ class SettingsViewModel: ObservableObject {
                 }
             }
             initializeFluidAudioModels()
-            resetLanguageIfUnsupported()
-        }
-    }
-    
-    var supportedLanguages: [String] {
-        LanguageUtil.supportedLanguages(engine: selectedEngine, fluidAudioModelVersion: fluidAudioModelVersion)
-    }
-    
-    private func resetLanguageIfUnsupported() {
-        if !supportedLanguages.contains(selectedLanguage) {
-            selectedLanguage = LanguageUtil.fallbackLanguage(engine: selectedEngine)
-        } else {
-            NotificationCenter.default.post(name: .appPreferencesLanguageChanged, object: nil)
         }
     }
     
@@ -56,15 +42,10 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
-    /// User-initiated model selection. Persists the model and, if the model declares a
-    /// preferred language (e.g. the ivrit.ai Hebrew model), switches the language to it.
-    /// Do not call from init/restore — only in response to an explicit user action.
+    /// User-initiated model selection. Persists the model; the transcription
+    /// language is not a setting any more, so there is nothing else to switch.
     func selectModel(_ url: URL) {
         selectedModelURL = url
-        if let lang = SettingsDownloadableModels.preferredLanguage(forFilename: url.lastPathComponent),
-           selectedLanguage != lang {
-            selectedLanguage = lang
-        }
     }
 
     @Published var availableModels: [URL] = []
@@ -77,13 +58,6 @@ class SettingsViewModel: ObservableObject {
     private var downloadTask: Task<Void, Error>?
     private var downloadID: UUID?
     
-    @Published var selectedLanguage: String {
-        didSet {
-            AppPreferences.shared.whisperLanguage = selectedLanguage
-            NotificationCenter.default.post(name: .appPreferencesLanguageChanged, object: nil)
-        }
-    }
-
     @Published var suppressBlankAudio: Bool {
         didSet {
             AppPreferences.shared.suppressBlankAudio = suppressBlankAudio
@@ -197,12 +171,6 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
-    @Published var translateEnabled: Bool {
-        didSet {
-            AppPreferences.shared.translateEnabled = translateEnabled
-        }
-    }
-
     @Published var toneEnabled: Bool {
         didSet {
             AppPreferences.shared.toneEnabled = toneEnabled
@@ -212,39 +180,6 @@ class SettingsViewModel: ObservableObject {
     @Published var transformToneMode: ToneMode {
         didSet {
             AppPreferences.shared.transformToneMode = transformToneMode
-        }
-    }
-
-    @Published var transformTargetLanguage: TransformLanguage {
-        didSet {
-            AppPreferences.shared.transformTargetLanguage = transformTargetLanguage
-        }
-    }
-
-    @Published var transformEndpoint: String {
-        didSet {
-            AppPreferences.shared.transformEndpoint = transformEndpoint
-        }
-    }
-
-    @Published var transformModel: String {
-        didSet {
-            AppPreferences.shared.transformModel = transformModel
-        }
-    }
-
-    @Published var transformTimeout: Double {
-        didSet {
-            AppPreferences.shared.transformTimeout = transformTimeout
-        }
-    }
-
-    /// Advanced override: run the transform against an external endpoint
-    /// instead of the engine built into the app.
-    @Published var transformUseExternalEndpoint: Bool {
-        didSet {
-            AppPreferences.shared.transformUseExternalEndpoint = transformUseExternalEndpoint
-            refreshTransformModelState()
         }
     }
 
@@ -267,8 +202,8 @@ class SettingsViewModel: ObservableObject {
 
     // MARK: - Built-in transform models
 
-    /// The catalogue ids whose weights verify on disk. Both directions are
-    /// checked, because both can be asked for by one set of switches.
+    /// The catalogue ids whose weights verify on disk. Both are checked, because
+    /// either can be the one a dictation runs on.
     @Published var installedTransformModelIDs: Set<String> = []
     @Published var transformModelDownloadProgress: Double = 0
     @Published var transformModelError: String?
@@ -284,33 +219,19 @@ class SettingsViewModel: ObservableObject {
     /// against the user's Application Support.
     let transformModelManager: TransformModelManager
 
-    /// Both backends, as the card lists them: the shipped small one, then the
-    /// one Polish output needs.
+    /// Both models, as the card lists them: the shipped one every language can
+    /// run on, then the larger one Polish prefers.
     var transformModels: [TransformModel] { TransformModelManager.availableModels }
 
-    /// The backend that writes English — the shipped small model.
-    var englishOutputTransformModel: TransformModel {
-        transformModelManager.model(forOutputLanguage: .english)
+    /// The shipped model — the one English always runs on, and the one Polish
+    /// runs on whenever the larger one is not installed.
+    var shippedTransformModel: TransformModel {
+        transformModelManager.defaultModel
     }
 
-    /// The backend that writes Polish. Loaded only when Polish is written, and
-    /// never replaced by the small one.
-    var polishOutputTransformModel: TransformModel {
-        transformModelManager.model(forOutputLanguage: .polish)
-    }
-
-    /// The backends the current switches can ask for.
-    ///
-    /// With translation on, the output language is the target, so exactly that
-    /// one can run. With translation off, the output language is whatever was
-    /// spoken and both can. Nothing is needed while the external endpoint is
-    /// the backend.
-    var neededTransformModels: [TransformModel] {
-        guard !transformUseExternalEndpoint else { return [] }
-        if translateEnabled {
-            return [transformModelManager.model(forOutputLanguage: transformTargetLanguage)]
-        }
-        return [englishOutputTransformModel, polishOutputTransformModel]
+    /// The larger model Polish prefers when it is installed.
+    var preferredPolishTransformModel: TransformModel {
+        transformModelManager.polishModel
     }
 
     func isTransformModelInstalled(_ model: TransformModel) -> Bool {
@@ -321,13 +242,15 @@ class SettingsViewModel: ObservableObject {
         downloadingTransformModelID == model.id
     }
 
-    /// Which direction a backend writes. The app routes by output language, so
-    /// naming that on the row is the whole of the model choice.
+    /// Which languages run on a row's model. Neither model belongs to a single
+    /// language any more: one is the floor, the other is a preference.
     func transformModelRoleDescription(_ model: TransformModel) -> String {
-        "\(model.id == polishOutputTransformModel.id ? "Polish" : "English") output — \(model.displayName)"
+        model.id == preferredPolishTransformModel.id
+            ? "Preferred for Polish — used whenever it is installed"
+            : "English always, and Polish until the 8B is installed"
     }
 
-    /// What a row says about its backend: download state, disk and RAM.
+    /// What a row says about its model: download state, disk and RAM.
     func transformModelStateDescription(_ model: TransformModel) -> String {
         let cost = "\(model.sizeDescription) on disk, about \(model.memoryDescription) of RAM while loaded"
         if isDownloading(model) {
@@ -337,28 +260,31 @@ class SettingsViewModel: ObservableObject {
     }
 
     /// What stays unchanged while `model` is missing, or `nil` when it is
-    /// installed or nothing currently asks for it.
+    /// installed or optional.
+    ///
+    /// Only the shipped model is a requirement: it is the one every language can
+    /// run on. The 8B is a preference, so a missing 8B is never a warning — the
+    /// card states which model Polish uses instead, and nothing is refused.
     func transformMissingNotice(for model: TransformModel) -> String? {
-        guard neededTransformModels.contains(where: { $0.id == model.id }),
-              !isTransformModelInstalled(model) else {
-            return nil
-        }
-        if model.id == polishOutputTransformModel.id {
-            return "Without it, dictation that would come out in Polish is pasted unchanged — the app does not "
-                + "fall back to \(englishOutputTransformModel.displayName) for Polish, whose English→Polish output "
-                + "is what this backend exists to replace."
-        }
-        return "Without it, dictation that would come out in English is pasted unchanged."
+        guard model.id == shippedTransformModel.id, !isTransformModelInstalled(model) else { return nil }
+        return "Without it no dictation can be rewritten at all: it is the model every language runs on, "
+            + "and the 8B is optional. English and Polish both wait for this one."
     }
 
-    /// The cost of each direction, shown next to the target picker: what the
-    /// choice costs in RAM while loaded, and in disk to download.
-    var transformBackendCostDescription: String {
-        let english = englishOutputTransformModel
-        let polish = polishOutputTransformModel
-        return "English output runs on \(english.displayName) — about \(english.memoryDescription) of RAM while "
-            + "loaded, \(english.sizeDescription) to download. Polish output runs on \(polish.displayName) — about "
-            + "\(polish.memoryDescription) of RAM while loaded, \(polish.sizeDescription) to download."
+    /// Which model each language will run on, and whether the 8B is present.
+    ///
+    /// The model choice is a preference, so the card states it rather than
+    /// warning about it: Polish runs on the larger model when it is installed
+    /// and on the shipped one when it is not, and nothing has to be downloaded
+    /// for Polish work to happen.
+    var transformLanguageModelDescription: String {
+        let shipped = shippedTransformModel
+        let polish = transformModelManager.model(forSpokenLanguage: .polish)
+        let presence = transformModelManager.isPolishModelInstalled
+            ? "The 8B is installed."
+            : "The 8B is not installed, so the shipped model does the work — nothing is refused, and "
+                + "nothing has to be downloaded for Polish."
+        return "Polish runs on \(polish.displayName). English runs on \(shipped.displayName). \(presence)"
     }
 
     /// Recomputes the installed state of every backend off the main thread: the
@@ -447,7 +373,6 @@ class SettingsViewModel: ObservableObject {
         let prefs = AppPreferences.shared
         self.selectedEngine = prefs.selectedEngine
         self.fluidAudioModelVersion = prefs.fluidAudioModelVersion
-        self.selectedLanguage = prefs.whisperLanguage
         self.suppressBlankAudio = prefs.suppressBlankAudio
         self.showTimestamps = prefs.showTimestamps
         self.temperature = prefs.temperature
@@ -466,14 +391,8 @@ class SettingsViewModel: ObservableObject {
         self.addSpaceAfterSentence = prefs.addSpaceAfterSentence
         self.autoCopyToClipboard = prefs.autoCopyToClipboard
         self.autoPasteTranscription = prefs.autoPasteTranscription
-        self.translateEnabled = prefs.translateEnabled
         self.toneEnabled = prefs.toneEnabled
         self.transformToneMode = prefs.transformToneMode
-        self.transformTargetLanguage = prefs.transformTargetLanguage
-        self.transformEndpoint = prefs.transformEndpoint
-        self.transformModel = prefs.transformModel
-        self.transformTimeout = prefs.transformTimeout
-        self.transformUseExternalEndpoint = prefs.transformUseExternalEndpoint
         self.cleanUpEnabled = prefs.cleanUpEnabled
         self.transformReference = prefs.transformReference
 
@@ -484,13 +403,6 @@ class SettingsViewModel: ObservableObject {
         initializeDownloadableModels()
         initializeFluidAudioModels()
         refreshTransformModelState()
-        
-        if !supportedLanguages.contains(selectedLanguage) {
-            let fallback = LanguageUtil.fallbackLanguage(engine: selectedEngine)
-            selectedLanguage = fallback
-            AppPreferences.shared.whisperLanguage = fallback
-            NotificationCenter.default.post(name: .appPreferencesLanguageChanged, object: nil)
-        }
     }
     
     func initializeFluidAudioModels() {
@@ -1043,16 +955,12 @@ struct SettingsDownloadableModels {
             isDownloaded: false,
             url: URL(string: "https://huggingface.co/ivrit-ai/whisper-large-v3-turbo-ggml/resolve/main/ggml-model.bin?download=true")!,
             size: 1624,
-            description: "Hebrew fine-tune of Turbo V3 by ivrit.ai. Sets the language to Hebrew.",
+            description: "Hebrew fine-tune of Turbo V3 by ivrit.ai.",
             filename: "ggml-ivrit-large-v3-turbo.bin",
             preferredLanguage: "he",
             sha256: "c8090411113357097bfafc2b8e228ec1639fa7f5fe4ecb5d054ac0ccef8641b1"
         )
     ]
-
-    static func preferredLanguage(forFilename filename: String) -> String? {
-        availableModels.first { $0.filename == filename }?.preferredLanguage
-    }
 
     /// The digest published for a file, or `nil` for one nobody publishes a
     /// checksum for (a hand-placed model, say).
@@ -1071,12 +979,15 @@ struct SettingsDownloadableModels {
     /// it is released from.
     static let bundledModelSHA256 = "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f"
 
+    /// A model tuned for one language is only offered where it can be useful:
+    /// on a machine whose own language it serves. The transcription language is
+    /// always auto-detected now, so there is no setting to consult here — and an
+    /// already-downloaded model is always listed.
     static func isVisible(_ model: SettingsDownloadableModel,
-                          selectedLanguage: String,
                           systemLanguage: String) -> Bool {
         guard let lang = model.preferredLanguage else { return true }
         if model.isDownloaded { return true }
-        return selectedLanguage == lang || systemLanguage == lang
+        return systemLanguage == lang
     }
 }
 
@@ -1107,8 +1018,7 @@ func huggingFaceOwner(fromPageURL url: URL) -> String? {
 
 struct Settings {
     static let asianLanguages: Set<String> = ["zh", "ja", "ko"]
-    
-    var selectedLanguage: String
+
     /// Advanced → Debug Options. Whisper prints its verbose decode trace when
     /// this is on; read here so the toggle takes effect on the next dictation.
     var debugMode: Bool
@@ -1120,18 +1030,42 @@ struct Settings {
     var useBeamSearch: Bool
     var beamSize: Int
     var useAsianAutocorrect: Bool
-    
-    var isAsianLanguage: Bool {
-        Settings.asianLanguages.contains(selectedLanguage)
+
+    /// Whether the CJK autocorrect runs on this utterance.
+    ///
+    /// There is no language setting any more: the language is whatever the
+    /// engine heard for this very utterance. A multilingual whisper model
+    /// measures it, and Chinese, Japanese and Korean are the three the
+    /// autocorrect's rule set covers. An engine that measures nothing at all
+    /// (Parakeet/FluidAudio) leaves only the transcript itself, and there the
+    /// scripts the autocorrect exists for — Han, Hiragana, Katakana, Hangul —
+    /// are the signal.
+    func shouldApplyAsianAutocorrect(detectedLanguage: String?, text: String) -> Bool {
+        guard useAsianAutocorrect else { return false }
+        if let detectedLanguage { return Settings.asianLanguages.contains(detectedLanguage) }
+        return Settings.containsAsianScript(text)
     }
-    
-    var shouldApplyAsianAutocorrect: Bool {
-        isAsianLanguage && useAsianAutocorrect
+
+    /// Whether `text` is written in one of the scripts the autocorrect covers.
+    static func containsAsianScript(_ text: String) -> Bool {
+        text.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x1100...0x11FF,   // Hangul Jamo
+                 0x3040...0x30FF,   // Hiragana and Katakana
+                 0x3130...0x318F,   // Hangul Compatibility Jamo
+                 0x3400...0x4DBF,   // CJK Extension A
+                 0x4E00...0x9FFF,   // CJK Unified Ideographs
+                 0xAC00...0xD7AF,   // Hangul Syllables
+                 0xF900...0xFAFF:   // CJK Compatibility Ideographs
+                return true
+            default:
+                return false
+            }
+        }
     }
-    
+
     init() {
         let prefs = AppPreferences.shared
-        self.selectedLanguage = prefs.whisperLanguage
         self.suppressBlankAudio = prefs.suppressBlankAudio
         self.showTimestamps = prefs.showTimestamps
         self.temperature = prefs.temperature
@@ -1385,7 +1319,6 @@ struct SettingsView: View {
                         VStack(spacing: 12) {
                             ForEach($viewModel.downloadableModels) { $model in
                                 if SettingsDownloadableModels.isVisible(model,
-                                        selectedLanguage: viewModel.selectedLanguage,
                                         systemLanguage: LanguageUtil.getSystemLanguage()) {
                                     ModelDownloadItemView(model: $model, viewModel: viewModel)
                                 }
@@ -1537,33 +1470,29 @@ struct SettingsView: View {
                         .foregroundColor(.primary)
                     
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Transcription Language")
+                        Text("Recognition Language")
                             .font(.subheadline)
-                        
-                        Picker("Language", selection: $viewModel.selectedLanguage) {
-                            ForEach(viewModel.supportedLanguages, id: \.self) { code in
-                                Text(LanguageUtil.languageNames[code] ?? code)
-                                    .tag(code)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(.controlBackgroundColor))
-                        .cornerRadius(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        
-                        if Settings.asianLanguages.contains(viewModel.selectedLanguage) {
-                            HStack {
+
+                        // No picker: the engine always detects the language of
+                        // the utterance, and the app never changes it.
+                        Text("Automatic — the model detects the language of each dictation")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text("Use Asian Autocorrect")
                                     .font(.subheadline)
-                                Spacer()
-                                Toggle("", isOn: $viewModel.useAsianAutocorrect)
-                                    .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
-                                    .labelsHidden()
+                                Text("Chinese, Japanese and Korean dictation, as detected above")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
-                            .padding(.top, 4)
+                            Spacer()
+                            Toggle("", isOn: $viewModel.useAsianAutocorrect)
+                                .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
+                                .labelsHidden()
                         }
+                        .padding(.top, 4)
                     }
                 }
                 .padding()
@@ -1660,51 +1589,18 @@ struct SettingsView: View {
                 .background(Color(.controlBackgroundColor).opacity(0.3))
                 .cornerRadius(12)
 
-                // Translation & Tone
+                // Tone & Clean-up
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Translation & Tone")
+                    Text("Tone & Clean-up")
                         .font(.headline)
                         .foregroundColor(.primary)
 
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Translate into \(viewModel.transformTargetLanguage.displayName)")
-                                    .font(.subheadline)
-                                Text("Translate dictation into the target language below; speech already in that language is never translated")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            Toggle("", isOn: $viewModel.translateEnabled)
-                                .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
-                                .labelsHidden()
-                        }
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Target language")
-                                .font(.subheadline)
-                            Picker("Target language", selection: $viewModel.transformTargetLanguage) {
-                                ForEach(TransformLanguage.allCases) { language in
-                                    Text(language.displayName).tag(language)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .labelsHidden()
-                            .disabled(!viewModel.translateEnabled)
-                            // What each direction costs before it is paid: the
-                            // Polish backend is 5 GB and 5 GB of RAM.
-                            Text(viewModel.transformBackendCostDescription)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
                                 Text("Apply tone")
                                     .font(.subheadline)
-                                Text("Rewrite the translated text in the selected tone — a tone rides on a translation, so it needs the translation switch on")
+                                Text("Rewrite the dictation in the selected tone, in the language you spoke — the language is never changed, and nothing else is rewritten")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -1761,20 +1657,26 @@ struct SettingsView: View {
                         }
 
                         // Built-in runtime: the weights the app downloads and
-                        // runs itself, one per output direction. The endpoint
-                        // fields live in Advanced, because they are the
-                        // override, not the default.
+                        // runs itself. There is no other backend.
                         Divider()
 
                         VStack(alignment: .leading, spacing: 12) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Transform models")
                                     .font(.subheadline)
-                                Text("One backend per output direction, downloaded into the app's own folder so uninstalling takes them with it. A backend that is not installed is never swapped for the other one.")
+                                Text("The app runs these itself, from its own folder, so uninstalling takes them with it. The first is the model every language can run on; the second is what Polish prefers when it is installed, and Polish works without it.")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
+
+                            // Which model each language uses right now, and
+                            // whether the 8B is present — stated, never warned
+                            // about: the 8B is a preference, not a requirement.
+                            Text(viewModel.transformLanguageModelDescription)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
 
                             ForEach(viewModel.transformModels) { model in
                                 VStack(alignment: .leading, spacing: 6) {
@@ -1806,10 +1708,7 @@ struct SettingsView: View {
                                             }
                                             .font(.subheadline)
                                             .buttonStyle(.borderedProminent)
-                                            .disabled(
-                                                viewModel.transformUseExternalEndpoint
-                                                    || viewModel.downloadingTransformModelID != nil
-                                            )
+                                            .disabled(viewModel.downloadingTransformModelID != nil)
                                         }
                                     }
 
@@ -1846,7 +1745,7 @@ struct SettingsView: View {
                             }
                         }
 
-                        Text("The pasted text depends on the spoken language, the target language and the three switches: raw by default, translated into the target when the spoken language differs from it and the translation switch is on, toned with the tone switch on, and cleaned up — filler removed and grammar repaired — with the clean-up switch on. Speech already in the target language is pasted untouched unless clean-up asks the model to repair it. Every dictation reports the detected language and shows the raw transcript beside the cleaned and transformed text. Dictation history always keeps the raw transcript, and recordings transcribed from the list are never transformed. Language awareness needs a multilingual whisper model in Auto-detect; with a fixed language the app trusts your setting. The backend follows the output language: Polish output runs on the larger model above — the shipped 1.5B's English→Polish output was measured dropping content and inventing details, so it is never used for Polish — and English output stays on the 1.5B, which is the measured-reliable, ~1.1 GB direction.")
+                        Text("Nothing here changes the language of what you dictated: Polish comes out Polish and English comes out English, always. The tone switch rewrites the dictation in the register you pick, the clean-up switch removes filler and repairs punctuation, articles and word order, and both ride one model call — with both switches off nothing is sent to a model at all. Every dictation reports the detected language and shows the raw transcript beside the cleaned and rewritten text; history always keeps the raw transcript, and recordings transcribed from the list are never rewritten. The language of each utterance is detected automatically, which needs a multilingual whisper model. Polish prefers the larger 8B when it is installed and runs on the shipped 1.5B when it is not; English always runs on the shipped 1.5B.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -2007,69 +1906,6 @@ struct SettingsView: View {
                 .background(Color(.controlBackgroundColor).opacity(0.3))
                 .cornerRadius(12)
                 
-                // Transform backend (advanced override)
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Transform Backend")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Use an external endpoint")
-                                    .font(.subheadline)
-                                Text("Send the transform to an OpenAI-compatible endpoint instead of the engine built into the app")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            Toggle("", isOn: $viewModel.transformUseExternalEndpoint)
-                                .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
-                                .labelsHidden()
-                        }
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Endpoint")
-                                .font(.subheadline)
-                            TextField("http://127.0.0.1:1919/v1/chat/completions", text: $viewModel.transformEndpoint)
-                                .textFieldStyle(.roundedBorder)
-                                .disabled(!viewModel.transformUseExternalEndpoint)
-                        }
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Model id")
-                                .font(.subheadline)
-                            TextField("qwen2.5-1.5b-instruct-q4_k_m", text: $viewModel.transformModel)
-                                .textFieldStyle(.roundedBorder)
-                                .disabled(!viewModel.transformUseExternalEndpoint)
-                            Text(viewModel.transformUseExternalEndpoint
-                                 ? "The id the endpoint reports in /v1/models."
-                                 : "Only the external endpoint reads this. The built-in engine picks its backend by output direction — Polish on \(viewModel.polishOutputTransformModel.displayName), everything else on \(viewModel.englishOutputTransformModel.displayName).")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        HStack {
-                            Text("Timeout (seconds):")
-                                .font(.subheadline)
-                            Spacer()
-                            TextField("", value: $viewModel.transformTimeout, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .multilineTextAlignment(.trailing)
-                                .frame(width: 70)
-                                .disabled(!viewModel.transformUseExternalEndpoint)
-                        }
-
-                        Text("With the override off, translation and tone are processed in this process against the downloaded model; nothing listens on a port and no other process has to be running.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.controlBackgroundColor).opacity(0.3))
-                .cornerRadius(12)
-
                 // G-12: the welcome flow could only be re-shown by editing a
                 // DEBUG config file; this is the same reset, from the UI.
                 welcomeScreenSettings
@@ -2167,7 +2003,7 @@ struct SettingsView: View {
     
     /// G-12: show the welcome flow again.
     ///
-    /// It sets the language, the shortcut and the model, and it was reachable
+    /// It sets the shortcut and the speech model, and it was reachable
     /// only once — resetting `hasCompletedOnboarding` needed a DEBUG
     /// `dev_config.json`. This is the same reset, and it changes nothing until
     /// something is picked in the flow.
@@ -2177,7 +2013,7 @@ struct SettingsView: View {
                 .font(.headline)
                 .foregroundColor(.primary)
 
-            Text("The welcome screen sets your dictation language, shortcut and speech model. "
+            Text("The welcome screen sets your dictation shortcut and speech model. "
                  + "Showing it again changes none of them until you choose something there. "
                  + "The main window shows it as soon as this sheet closes.")
                 .font(.caption)
