@@ -967,11 +967,22 @@ struct SettingsDownloadableModels {
         availableModels.first { $0.filename == filename }?.preferredLanguage
     }
 
-    /// The digest published for a catalogue file, or `nil` for a file the
-    /// catalogue does not know (a hand-placed model, say).
+    /// The digest published for a file, or `nil` for one nobody publishes a
+    /// checksum for (a hand-placed model, say).
+    ///
+    /// The model the app ships with is not a catalogue entry — it comes from the
+    /// bundle, not a download — but its publisher does publish a digest for it,
+    /// so `Verify` can still compare it instead of shrugging.
     static func pinnedSHA256(forFilename filename: String) -> String? {
-        availableModels.first { $0.filename == filename }?.sha256
+        if filename == WhisperModelManager.defaultModelName {
+            return bundledModelSHA256
+        }
+        return availableModels.first { $0.filename == filename }?.sha256
     }
+
+    /// sha256 of `ggml-tiny.en.bin`, as published by the whisper.cpp repository
+    /// it is released from.
+    static let bundledModelSHA256 = "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f"
 
     static func isVisible(_ model: SettingsDownloadableModel,
                           selectedLanguage: String,
@@ -1011,6 +1022,9 @@ struct Settings {
     static let asianLanguages: Set<String> = ["zh", "ja", "ko"]
     
     var selectedLanguage: String
+    /// Advanced → Debug Options. Whisper prints its verbose decode trace when
+    /// this is on; read here so the toggle takes effect on the next dictation.
+    var debugMode: Bool
     var suppressBlankAudio: Bool
     var showTimestamps: Bool
     var temperature: Double
@@ -1039,12 +1053,16 @@ struct Settings {
         self.useBeamSearch = prefs.useBeamSearch
         self.beamSize = prefs.beamSize
         self.useAsianAutocorrect = prefs.useAsianAutocorrect
+        self.debugMode = prefs.debugMode
     }
 }
 
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @StateObject private var permissionsManager = PermissionsManager()
+    /// G-12: the Advanced tab resets the welcome flow through the same state the
+    /// app's root reads.
+    @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) var dismiss
     @State private var isRecordingNewShortcut = false
     @State private var selectedTab = 0
@@ -1473,9 +1491,12 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Auto-paste Transcription")
                                     .font(.subheadline)
-                                Text("Automatically paste into the focused app")
+                                Text("Types the text into the focused app as keystrokes — "
+                                     + "the clipboard is not used, and Accessibility is required "
+                                     + "for the keystrokes to land")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                             Spacer()
                             Toggle("", isOn: $viewModel.autoPasteTranscription)
@@ -1837,6 +1858,10 @@ struct SettingsView: View {
                 .background(Color(.controlBackgroundColor).opacity(0.3))
                 .cornerRadius(12)
 
+                // G-12: the welcome flow could only be re-shown by editing a
+                // DEBUG config file; this is the same reset, from the UI.
+                welcomeScreenSettings
+
                 // Uninstall
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Uninstall")
@@ -1873,13 +1898,20 @@ struct SettingsView: View {
                         .foregroundColor(.primary)
 
                     HStack {
-                        Text("Debug Mode")
-                            .font(.subheadline)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Debug Mode")
+                                .font(.subheadline)
+                            Text("Prints whisper.cpp's verbose decode trace while transcribing "
+                                 + "(temperatures, fallbacks, timings) — for bug reports")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         Spacer()
                         Toggle("", isOn: $viewModel.debugMode)
                             .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
                             .labelsHidden()
-                            .help("Enable additional logging and debugging information")
+                            .help("Print the decoder's verbose trace to the app's output")
                     }
                 }
                 .padding()
@@ -1921,9 +1953,119 @@ struct SettingsView: View {
         return .keyCombo
     }
     
+    /// G-12: show the welcome flow again.
+    ///
+    /// It sets the language, the shortcut and the model, and it was reachable
+    /// only once — resetting `hasCompletedOnboarding` needed a DEBUG
+    /// `dev_config.json`. This is the same reset, and it changes nothing until
+    /// something is picked in the flow.
+    private var welcomeScreenSettings: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Welcome Screen")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            Text("The welcome screen sets your dictation language, shortcut and speech model. "
+                 + "Showing it again changes none of them until you choose something there. "
+                 + "The main window shows it as soon as this sheet closes.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Show the welcome screen again") {
+                appState.hasCompletedOnboarding = false
+                dismiss()
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.controlBackgroundColor).opacity(0.3))
+        .cornerRadius(12)
+    }
+
+    /// G-02/G-03: the two grants this app needs, in Settings, where everything
+    /// else about its state lives.
+    ///
+    /// Both were invisible here before: the Accessibility warning existed only
+    /// inside two of the three trigger modes (never for the default key
+    /// combination), and the microphone was not mentioned in the sheet at all —
+    /// the only place it appeared was the main window, and only while something
+    /// was missing.
+    private var permissionsSettings: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Permissions")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            permissionSettingsRow(
+                title: "Keystrokes into other apps",
+                detail: "Accessibility. Needed to type a transcription into the app you are dictating into.",
+                granted: permissionsManager.isAccessibilityPermissionGranted,
+                action: { permissionsManager.requestAccessibilityPermissionOrOpenSystemPreferences() })
+
+            permissionSettingsRow(
+                title: "Microphone",
+                detail: "Needed to record your dictation.",
+                granted: permissionsManager.isMicrophonePermissionGranted,
+                action: { permissionsManager.requestMicrophonePermissionOrOpenSystemPreferences() })
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.controlBackgroundColor).opacity(0.3))
+        .cornerRadius(12)
+        // The sheet is not the main window, so the manager's own poll does not
+        // run here: read both grants when the tab is opened, and again when the
+        // app comes back from System Settings (the manager watches activation).
+        .onAppear {
+            permissionsManager.checkAccessibilityPermission()
+            permissionsManager.checkMicrophonePermission()
+        }
+    }
+
+    @ViewBuilder
+    private func permissionSettingsRow(title: String, detail: String, granted: Bool,
+                                       action: @escaping () -> Void) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundColor(granted ? .green : .orange)
+                .imageScale(.medium)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+
+                Text(detail)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if permissionsManager.hasCompletedInitialCheck {
+                    Text(granted ? "Granted" : "Not granted")
+                        .font(.caption)
+                        .foregroundColor(granted ? .green : .orange)
+                } else {
+                    Text("Checking…")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+
+            if !granted {
+                Button("Open System Settings", action: action)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+        }
+    }
+
     var shortcutSettings: some View {
         ScrollView {
             VStack(spacing: 20) {
+                permissionsSettings
+
                 // Recording Trigger
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Recording Trigger")
@@ -2548,7 +2690,12 @@ struct InstalledWhisperModelView: View {
                             .foregroundColor(.green)
                     }
 
-                    if model.catalogueName == nil {
+                    if model.name == WhisperModelManager.defaultModelName {
+                        Text("shipped with the app")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .help("This is the model inside the app bundle, copied into the models directory on first run")
+                    } else if model.catalogueName == nil {
                         Text("not in the catalogue")
                             .font(.caption2)
                             .foregroundColor(.secondary)
