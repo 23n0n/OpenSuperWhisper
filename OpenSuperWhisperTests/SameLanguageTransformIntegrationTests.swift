@@ -137,8 +137,11 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         try shippedWeights()
         try polishWeights()
 
-        let polishInput = "Dzień dobry, chciałbym przesunąć spotkanie z klientem na przyszły tydzień, "
-            + "jeśli to możliwe."
+        // A tone has to have something to do: this is *casual* Polish asked for a
+        // *formal* register. (An already-formal sentence made this case vacuous —
+        // the 8B returned it byte for byte, and the case could not tell that from
+        // a rewrite that happened to match.)
+        let polishInput = "no hej, sluchaj, musimy przelozyc to spotkanie z klientem na przyszly tydzien, ok?"
         let englishInput = "Please send the report to the client today, and copy me on the reply."
 
         // Polish → Polish, tone on: the register is rewritten, the language is
@@ -160,9 +163,11 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         XCTAssertEqual(polishOutcome.policy, .tone(language: .polish, tone: .formal))
         XCTAssertEqual(LanguageDetector.detect(polishOutcome.text), .polish,
                        "Polish in must be Polish out: \(polishOutcome.text)")
-        XCTAssertTrue(hasPolishDiacritics(polishOutcome.text),
-                      "Polish output keeps its diacritics: \(polishOutcome.text)")
         XCTAssertNotEqual(polishOutcome.text, polishInput, "the tone switch has to rewrite something")
+        XCTAssertNotNil(
+            polishOutcome.text.range(of: "spotkanie"),
+            "the rewrite keeps what was said: \(polishOutcome.text)"
+        )
 
         // English → English, tone on: the same rule, the other language.
         let englishCalls = CallCounter()
@@ -203,6 +208,9 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
 
         XCTAssertTrue(outcome.didRunModel)
         XCTAssertEqual(outcome.policy, .cleanUp(language: .polish))
+        XCTAssertNotEqual(outcome.text, input, "the clean-up call exists to repair the dictation")
+        XCTAssertNotNil(outcome.text.range(of: "raport"),
+                        "the repair keeps what was said: \(outcome.text)")
         XCTAssertEqual(LanguageDetector.detect(outcome.text), .polish,
                        "the clean-up may not change the language: \(outcome.text)")
         XCTAssertEqual(calls.models, [TransformModelManager.defaultModelID],

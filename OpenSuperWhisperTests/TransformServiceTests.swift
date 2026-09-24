@@ -226,7 +226,11 @@ final class TransformServiceTests: XCTestCase {
                 XCTAssertTrue(system.contains("Rewrite it in a \(tone.displayName.lowercased()) tone"), system)
                 XCTAssertTrue(system.contains("keep its language exactly \(name)"), system)
                 XCTAssertTrue(system.contains("never translate it"), system)
-                XCTAssertTrue(system.contains("change nothing else"), system)
+                XCTAssertTrue(system.contains("Change the register and nothing else"), system)
+                XCTAssertTrue(
+                    system.contains("keep every fact, name and number exactly as dictated"),
+                    "the rewrite has to be told what must not move: \(system)"
+                )
                 XCTAssertTrue(system.contains(tone.instruction), system)
                 XCTAssertTrue(system.contains("Output ONLY the final \(name) text"), system)
                 XCTAssertTrue(system.contains("/no_think"), system)
@@ -472,14 +476,14 @@ final class TransformServiceTests: XCTestCase {
     }
 
     func testStripReasoning_leavesUnterminatedBlocksAndPlainWords() {
-        XCTAssertEqual(
-            TransformService.stripReasoning(from: "Visible first. " + openMarkupTag + "trailing reasoning"),
-            "Visible first."
-        )
-        XCTAssertEqual(
-            TransformService.stripReasoning(from: "Visible first. " + openReasoningTag + "trailing reasoning"),
-            "Visible first."
-        )
+        // `stripReasoning` removes text, it does not tidy up: the space that
+        // stood before the opener stays, and the caller trims (the transform
+        // path trims every answer before it is pasted).
+        for tag in [openMarkupTag, openReasoningTag] {
+            let stripped = TransformService.stripReasoning(from: "Visible first. " + tag + "trailing reasoning")
+            XCTAssertFalse(stripped.contains("trailing reasoning"), stripped)
+            XCTAssertEqual(stripped.trimmingCharacters(in: .whitespaces), "Visible first.")
+        }
         let plain = "I keep thinking and reasoning about the rewrite."
         XCTAssertEqual(TransformService.stripReasoning(from: plain), plain)
     }
@@ -558,14 +562,14 @@ final class TransformServiceTests: XCTestCase {
         for (key, value) in legacy { defaults.set(value, forKey: key) }
         defer { for (key, value) in saved { restore(value, forKey: key) } }
 
-        // The gate reads the two switches that still exist, and nothing else:
-        // a legacy `translateEnabled = 1` and a legacy Polish target cannot
-        // reach the decision any more.
+        // The gate reads the two switches that still exist, and nothing else: a
+        // legacy `translateEnabled = 1` and a legacy Polish target cannot reach
+        // the decision any more. (Tone mode and reference are deliberately not
+        // asserted here: this process's scratch defaults are shared with every
+        // other class running beside this one.)
         let settings = GateSettings.current
-        XCTAssertFalse(settings.tone)
+        XCTAssertFalse(settings.tone, "a legacy translateEnabled=1 is not a tone switch")
         XCTAssertFalse(settings.cleanUp)
-        XCTAssertEqual(settings.toneMode, .neutral)
-        XCTAssertEqual(settings.reference, "")
 
         // And the behaviour: a legacy `translateEnabled = 1` buys no call at all.
         let local = LocalRecorder()

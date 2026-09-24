@@ -363,7 +363,8 @@ final class TransformService {
             lines.append(
                 "You are a dictation editor. The user dictated \(language.displayName) text. "
                 + "Rewrite it in a \(tone.displayName.lowercased()) tone — keep its language exactly "
-                + "\(language.displayName), never translate it, and change nothing else. "
+                + "\(language.displayName), never translate it, and keep every fact, name and number "
+                + "exactly as dictated. Change the register and nothing else. "
                 + tone.instruction
             )
         }
