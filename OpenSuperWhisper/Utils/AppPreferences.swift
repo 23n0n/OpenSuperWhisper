@@ -296,6 +296,23 @@ final class AppPreferences {
     @UserDefault(key: "transformUseExternalEndpoint", defaultValue: false)
     var transformUseExternalEndpoint: Bool
 
+    /// The clean-up pass: the deterministic scrub of filler, stutters and
+    /// repeated words, plus the grammar repair folded into the transform call.
+    ///
+    /// On by default because the deterministic half costs nothing, works
+    /// without any model, and only ever removes an artifact — it can never
+    /// invent a word. The grammar half rides on a transform call the user has
+    /// already enabled, so it adds no call of its own.
+    @UserDefault(key: "cleanUpDictation", defaultValue: true)
+    var cleanUpEnabled: Bool
+
+    /// Names, jargon and domain terms the user actually says, fed into the
+    /// transform prompt so they come back spelled the way the user writes them.
+    /// Empty by default and inert while empty: the composed prompt then contains
+    /// no reference block at all.
+    @UserDefault(key: "transformReference", defaultValue: "")
+    var transformReference: String
+
     @UserDefault(key: "transformEndpoint", defaultValue: "http://127.0.0.1:1919/v1/chat/completions")
     var transformEndpoint: String
 

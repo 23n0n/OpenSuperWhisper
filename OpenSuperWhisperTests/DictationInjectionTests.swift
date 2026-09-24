@@ -89,7 +89,9 @@ final class DictationInjectionTests: XCTestCase {
     /// An identity transform keeps them independent of the user's
     /// translate/tone switches and of whether a local model endpoint happens to
     /// be running — the real gate reaches the network.
-    private static let passthroughTransform: (String, String?) async -> String = { text, _ in text }
+    private static let passthroughTransform: (String, String?) async -> TranslationService.TransformOutcome = { text, _ in
+        TranslationService.TransformOutcome(text: text, policy: nil, didRunModel: false)
+    }
 
     /// Auto-paste must be on for the injection path to run. Pin it, but write
     /// nothing when the domain already holds what the test needs: a test host
@@ -224,5 +226,78 @@ final class DictationInjectionTests: XCTestCase {
         let rows = try await store.fetchRecordings(limit: 10, offset: 0)
         temporaryFiles.append(contentsOf: rows.map(\.url))
         XCTAssertEqual(rows.map(\.transcription), ["nobody received this"])
+    }
+
+    /// The pipeline, made visible. After a dictation the app has to be able to
+    /// show which language the engine heard, the raw transcript it saved, what
+    /// the clean-up removed, and what was actually pasted — the captain could
+    /// see none of it, which is why an English-only model inventing English
+    /// looked exactly like a broken translation.
+    func testTheDictationReportCarriesTheLanguageAndTheRawToFinalTrio() async throws {
+        let store = try makeStore()
+        let sources = makeSourceFiles(count: 1)
+        var injected: [String] = []
+
+        let restoreAutoPaste = pinAutoPasteOn()
+        defer { restoreAutoPaste() }
+
+        let reports = DictationReportCenter()
+        let raw = "So hmm, uh, this is the first dictation."
+        let cleaned = "So, this is the first dictation."
+        let pasted = "So this is the first dictation."
+
+        let viewModel = IndicatorViewModel(
+            transcriptionService: TranscriptionService(
+                engine: StubLanguageWhisperEngine(text: raw, language: "en")
+            ),
+            recordingStore: store,
+            stopRecording: {
+                guard let url = sources.next() else { return nil }
+                return RecordedAudio(url: url, samples: [])
+            },
+            cancelAudioRecording: {},
+            injectText: { text in
+                injected.append(text)
+                return KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 4)
+            },
+            transformText: { _, _ in
+                TranslationService.TransformOutcome(
+                    text: pasted,
+                    policy: .cleanUp(language: .english),
+                    didRunModel: true
+                )
+            },
+            cleanUp: { DictationScrubber.scrub($0) },
+            cleanUpEnabled: { true },
+            reportCenter: reports
+        )
+        defer { viewModel.cleanup() }
+
+        try await dictate(viewModel)
+        try await waitForInjections(1, { injected })
+
+        // The clean-up ran on the raw transcript and the transform ran on what
+        // it left, so the three texts are all different on purpose. What reached
+        // the keyboard is the transform's output, not the raw transcript — the
+        // trailing space is the app's separate "add a space after a sentence"
+        // switch (on by default), which is not what this test is about.
+        XCTAssertEqual(injected.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }, [pasted])
+        let report = try XCTUnwrap(reports.last, "every dictation must publish a report")
+        XCTAssertEqual(report.language, "en")
+        XCTAssertEqual(report.languageLabel, "English")
+        XCTAssertEqual(report.raw, raw)
+        XCTAssertEqual(report.cleaned, cleaned)
+        XCTAssertEqual(report.final, pasted)
+        XCTAssertEqual(report.policy, .cleanUp(language: .english))
+        XCTAssertTrue(report.didRunModel)
+        XCTAssertTrue(report.changedAnything)
+        XCTAssertEqual(report.removedFillers, 2)
+        XCTAssertEqual(report.scrubSummary, "removed 2 fillers")
+        XCTAssertEqual(report.transformLabel, "English, clean-up only")
+
+        // History keeps the raw transcript, not the cleaned or the pasted text.
+        let rows = try await store.fetchRecordings(limit: 10, offset: 0)
+        temporaryFiles.append(contentsOf: rows.map(\.url))
+        XCTAssertEqual(rows.map(\.transcription), [raw])
     }
 }

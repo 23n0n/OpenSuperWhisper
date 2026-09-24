@@ -30,7 +30,7 @@ final class LlamaRuntimeIntegrationTests: XCTestCase {
 
         let started = Date()
         let text = try model.complete(
-            systemPrompt: TranslationService.systemPrompt(for: .translate(from: .polish, to: .english)),
+            systemPrompt: TranslationService.systemPrompt(for: .translate(from: .polish, to: .english), cleanUp: false),
             userText: "Nie mogę dzisiaj przyjść na spotkanie, przepraszam."
         )
         let elapsed = Date().timeIntervalSince(started)
@@ -70,11 +70,11 @@ final class LlamaRuntimeIntegrationTests: XCTestCase {
         defer { model.unload() }
 
         let first = try model.complete(
-            systemPrompt: TranslationService.systemPrompt(for: .translate(from: .polish, to: .english)),
+            systemPrompt: TranslationService.systemPrompt(for: .translate(from: .polish, to: .english), cleanUp: false),
             userText: "Dziękuję bardzo za pomoc."
         )
         let second = try model.complete(
-            systemPrompt: TranslationService.systemPrompt(for: .translate(from: .polish, to: .english)),
+            systemPrompt: TranslationService.systemPrompt(for: .translate(from: .polish, to: .english), cleanUp: false),
             userText: "Nie mogę dzisiaj przyjść na spotkanie, przepraszam."
         )
 

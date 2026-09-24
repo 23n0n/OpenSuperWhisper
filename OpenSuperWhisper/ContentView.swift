@@ -308,6 +308,7 @@ class ContentViewModel: ObservableObject {
 
 struct ContentView: View {
     @ObservedObject private var errors = AppErrorCenter.shared
+    @ObservedObject private var lastReport = DictationReportCenter.shared
     @StateObject private var viewModel = ContentViewModel()
     @StateObject private var permissionsManager = PermissionsManager()
     @Environment(\.colorScheme) private var colorScheme
@@ -394,6 +395,62 @@ struct ContentView: View {
                     )
                     .cornerRadius(20)
                     .padding([.horizontal, .top])
+
+                    // The last dictation's pipeline, where the user already is:
+                    // the language the engine heard, what the deterministic
+                    // clean-up removed, and — when a transform ran — the raw
+                    // transcript beside what was actually pasted. History keeps
+                    // the raw transcript; this is the window onto what the app
+                    // did with it.
+                    if let report = lastReport.last {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "waveform")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("Last dictation")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                Text(report.languageLabel)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            Text(report.transformLabel)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            HStack(alignment: .top, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Heard")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    Text(report.raw)
+                                        .font(.caption)
+                                }
+                                if report.changedAnything {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Pasted")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                        Text(report.final)
+                                            .font(.caption)
+                                    }
+                                }
+                            }
+                            Text(report.scrubSummary)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(ThemePalette.panelSurface(colorScheme))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(ThemePalette.panelBorder(colorScheme), lineWidth: 1)
+                        )
+                        .cornerRadius(12)
+                        .padding([.horizontal, .top])
+                    }
 
                     ScrollView(showsIndicators: false) {
                         if viewModel.recordings.isEmpty {
@@ -663,7 +720,18 @@ struct ContentView: View {
             }
         }
         .alert(item: $errors.issue) { issue in
-            Alert(title: Text(issue.title), message: Text(issue.message), dismissButton: .default(Text("OK")))
+            // A report that carries a fix shows it as the default button, so the
+            // problem and the way out of it are in the same place. Everything
+            // else keeps the plain OK alert.
+            if let remedyTitle = issue.remedyTitle, let remedy = issue.remedy {
+                return Alert(
+                    title: Text(issue.title),
+                    message: Text(issue.message),
+                    primaryButton: .default(Text(remedyTitle), action: remedy),
+                    secondaryButton: .cancel(Text("Not now"))
+                )
+            }
+            return Alert(title: Text(issue.title), message: Text(issue.message), dismissButton: .default(Text("OK")))
         }
         .onReceive(errors.$issue.compactMap { $0 }) { _ in
             (NSApplication.shared.delegate as? AppDelegate)?.showMainWindow()

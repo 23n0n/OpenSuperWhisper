@@ -31,6 +31,7 @@ final class TransformBackendTests: XCTestCase {
         settings: GateSettings = GateSettings(
             translate: true,
             tone: false,
+            cleanUp: false,
             toneMode: .neutral,
             target: .english
         )
@@ -69,7 +70,7 @@ final class TransformBackendTests: XCTestCase {
         let result = await service.transformIfEnabled("Cześć, jak się masz?", sourceLanguage: "pl")
 
         XCTAssertEqual(result, "Hello from the app.")
-        XCTAssertEqual(local.systemPrompts, [TranslationService.systemPrompt(for: .translate(from: .polish, to: .english))])
+        XCTAssertEqual(local.systemPrompts, [TranslationService.systemPrompt(for: .translate(from: .polish, to: .english), cleanUp: false)])
         XCTAssertEqual(local.userTexts, ["Cześć, jak się masz?"])
         XCTAssertEqual(StubURLProtocol.requestCount, 0, "the default backend is in process")
     }
@@ -109,7 +110,7 @@ final class TransformBackendTests: XCTestCase {
             urlSession: URLSession(configuration: configuration),
             localTransform: { _, _ in local.systemPrompts.append("called"); return "in process" },
             gateSettings: {
-                GateSettings(translate: true, tone: false, toneMode: .neutral, target: .english)
+                GateSettings(translate: true, tone: false, cleanUp: false, toneMode: .neutral, target: .english)
             }
         )
 
@@ -174,7 +175,7 @@ final class TransformBackendTests: XCTestCase {
         let service = service(
             local: local,
             externalEndpoint: false,
-            settings: GateSettings(translate: true, tone: true, toneMode: .formal, target: .english)
+            settings: GateSettings(translate: true, tone: true, cleanUp: false, toneMode: .formal, target: .english)
         )
 
         let result = await service.transformIfEnabled(
@@ -198,7 +199,7 @@ final class TransformBackendTests: XCTestCase {
         let service = service(
             local: local,
             externalEndpoint: false,
-            settings: GateSettings(translate: true, tone: false, toneMode: .neutral, target: .polish)
+            settings: GateSettings(translate: true, tone: false, cleanUp: false, toneMode: .neutral, target: .polish)
         )
 
         let result = await service.transformIfEnabled(
@@ -209,7 +210,7 @@ final class TransformBackendTests: XCTestCase {
         XCTAssertEqual(result, "Proszę wysłać raport.")
         XCTAssertEqual(
             local.systemPrompts,
-            [TranslationService.systemPrompt(for: .translate(from: .english, to: .polish))]
+            [TranslationService.systemPrompt(for: .translate(from: .english, to: .polish), cleanUp: false)]
         )
     }
 }
