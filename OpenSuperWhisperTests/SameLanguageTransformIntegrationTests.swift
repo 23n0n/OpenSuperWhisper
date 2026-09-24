@@ -236,6 +236,7 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
 
     /// The 8B is a preference, not a requirement: with only the shipped model
     /// installed, Polish work runs on it, says so, and is not refused.
+    @MainActor
     func testPolishWithoutTheEightBeeRunsOnTheShippedModelAndSaysSo() async throws {
         try shippedWeights()
         XCTAssertFalse(manager.isPolishModelInstalled, "precondition: only the shipped model is staged")
