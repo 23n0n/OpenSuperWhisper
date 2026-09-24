@@ -218,3 +218,151 @@ final class KeyboardSimulatorTests: XCTestCase {
         return String(utf16CodeUnits: buffer, count: length)
     }
 }
+
+// MARK: - End-to-end delivery
+
+/// The smallest receiver that can host real key events: it is handed the events
+/// the delivery path posts and gives each one to AppKit's key-binding machinery,
+/// and every insertion goes through a real `NSTextView` — the characters, the
+/// Return and the Tab are inserted by AppKit, not by this class.
+///
+/// It is a plain `NSView` rather than a subclass of `NSTextView` because
+/// `NSTextView.keyDown` routes through its window's input context, and a
+/// headless test has no key window; a bare view's `interpretKeyEvents` uses the
+/// same standard key bindings (Return resolves to `insertNewline:`, Tab to
+/// `insertTab:`).
+final class TypingReceiverView: NSView {
+    let editor = NSTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
+
+    override var acceptsFirstResponder: Bool { true }
+
+    /// Hands one event of the posted stream to the receiver, the way the window
+    /// server would after routing it to the focused application.
+    func receive(_ event: NSEvent) {
+        switch event.type {
+        case .keyDown: keyDown(with: event)
+        case .keyUp: keyUp(with: event)
+        default: break
+        }
+    }
+
+    override func keyDown(with event: NSEvent) {
+        interpretKeyEvents([event])
+    }
+
+    override func keyUp(with event: NSEvent) {}
+
+    override func insertText(_ string: Any) {
+        switch string {
+        case let text as String:
+            editor.insertText(text, replacementRange: caretAtEnd())
+        case let attributed as NSAttributedString:
+            editor.insertText(attributed.string, replacementRange: caretAtEnd())
+        default:
+            break
+        }
+    }
+
+    override func insertNewline(_ sender: Any?) {
+        _ = caretAtEnd()
+        editor.insertNewline(sender)
+    }
+
+    override func insertTab(_ sender: Any?) {
+        _ = caretAtEnd()
+        editor.insertTab(sender)
+    }
+
+    /// Puts the caret after the last character and answers where that is.
+    @discardableResult
+    private func caretAtEnd() -> NSRange {
+        let end = NSRange(location: editor.string.utf16.count, length: 0)
+        editor.setSelectedRange(end)
+        return end
+    }
+}
+
+/// The path the captain dictates through every day — the transcript reaches the
+/// focused application as synthetic keystrokes, the clipboard untouched — end to
+/// end and without naming a keyboard layout.
+///
+/// `ClipboardUtilPasteIntegrationTests` is gated on layouts a normal machine does
+/// not have, so on the machine the app ships to it proves nothing about delivered
+/// text. This case reads the input source that is *active* at run time, never
+/// switches it, and types a payload the active layout has no keys for, so a
+/// delivery path that consulted the layout is caught here on any machine; that is
+/// the layout-independence the layout-gated cases above can only check on the
+/// machines that have their layout.
+///
+/// Not covered: the HID event tap and the window server's routing of the posted
+/// events to the frontmost application, the one step a headless test must not
+/// take. Everything from the posted event onwards is real.
+@MainActor
+final class KeyboardSimulatorDeliveryTests: XCTestCase {
+
+    /// Multi-chunk and multi-script: longer than
+    /// `KeyboardSimulator.maxUTF16PerEvent`, so the text is split, and carrying
+    /// characters no single layout produces (CJK, Cyrillic, emoji) plus a
+    /// newline and a tab.
+    private static let payload = "Zažółć gęślą jaźń — 中文測試 Ж їß 😀 ok\n\ttail"
+
+    /// The payload's single-scalar BMP characters: `findKeycodeForCharacter`
+    /// reads one UTF-16 unit, so the emoji and the control characters are left
+    /// out of the layout probe rather than fed to it.
+    private static let payloadCharacters: [Character] = Array(payload).filter { character in
+        guard character.unicodeScalars.count == 1,
+              let scalar = character.unicodeScalars.first,
+              scalar.value <= 0xFFFF
+        else { return false }
+        return !character.isWhitespace && !character.isNewline
+    }
+
+    func testTypesTheExactTextThroughTheActiveInputSource() throws {
+        // Resolved at run time and never switched: whatever layout this machine
+        // has active is the layout the typing happens under.
+        let activeSourceID = try XCTUnwrap(
+            ClipboardUtil.getCurrentInputSourceID(),
+            "a machine in a GUI session always has an active input source"
+        )
+
+        let receiver = TypingReceiverView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
+        var posted: [CGEvent] = []
+
+        // The one step replaced: the app posts each event to the HID event tap
+        // for the window server to route to the focused application; here the
+        // event goes straight to the receiver.
+        let result = KeyboardSimulator.typeText(Self.payload, trusted: true) { event in
+            posted.append(event)
+            guard let keyEvent = NSEvent(cgEvent: event) else { return }
+            receiver.receive(keyEvent)
+        }
+
+        XCTAssertTrue(result.injected)
+        XCTAssertEqual(result.eventsPosted, posted.count)
+        XCTAssertEqual(
+            receiver.editor.string, Self.payload,
+            "the focused application must receive the transcript character for character"
+        )
+        // The other half of this path's contract — the clipboard stays untouched
+        // — is asserted by `KeyboardSimulatorTests.testTypeTextDoesNotTouchPasteboard`
+        // and deliberately not repeated here: the pasteboard is process-wide and
+        // the paste cases run in parallel with this one.
+
+        // Layout independence, shown at run time rather than assumed: the
+        // payload carries characters the active layout has no key for, so the
+        // delivered text above cannot have come from that layout's key codes.
+        let untypedByTheLayout = Self.payloadCharacters.filter {
+            ClipboardUtil.findKeycodeForCharacter($0) == nil
+        }
+        XCTAssertFalse(
+            untypedByTheLayout.isEmpty,
+            "the active input source (\(activeSourceID)) has a key for every payload character, "
+            + "so this case would not show that delivery ignores the layout"
+        )
+        TestFixtures.report(
+            "keyboard delivery: active input source \(activeSourceID), \(result.eventsPosted) events, "
+            + "payload characters that layout cannot type: "
+            + untypedByTheLayout.map(String.init).joined()
+        )
+    }
+}
