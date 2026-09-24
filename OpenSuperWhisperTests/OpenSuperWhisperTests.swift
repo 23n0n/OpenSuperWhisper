@@ -387,6 +387,13 @@ final class MicrophoneInventoryTests: XCTestCase {
 
 // MARK: - Keyboard Layout Tests
 
+/// Every case below except the two source-listing ones switches to a layout it
+/// names and skips when the machine does not have it, which is the honest state
+/// of a machine with one layout installed. The translation and delivery those
+/// cases check for a named layout are exercised on any machine by
+/// `ClipboardUtilPasteIntegrationTests.testPasteWithActiveInputSource` (the ⌘V
+/// key code the delivery path posts, on the active layout) and
+/// `KeyboardSimulatorDeliveryTests` (the typed text itself).
 final class ClipboardUtilKeyboardLayoutTests: XCTestCase {
     
     private var originalInputSourceID: String?
@@ -668,17 +675,40 @@ final class MicrophoneServiceRequiresConnectionTests: XCTestCase {
 
 // MARK: - Paste Integration Tests
 
+/// The cases below name the layout they need and skip when the machine does not
+/// have it — an honest skip, and one that makes nearly all of this class silent
+/// on a machine with a single layout installed.
+/// `testPasteWithActiveInputSource` and `testPasteAllAvailableLayouts` are the
+/// two that run everywhere, because they take the input source the machine
+/// actually has instead of naming one.
 @MainActor
 final class ClipboardUtilPasteIntegrationTests: XCTestCase {
     private func pasteText(_ text: String, layoutID: String) async throws {
         let originalInputSourceID = ClipboardUtil.getCurrentInputSourceID()
+        guard ClipboardUtil.switchToInputSource(withID: layoutID) else {
+            throw XCTSkip("\(layoutID) layout not available")
+        }
+        try await pasteText(
+            text,
+            describedAs: layoutID,
+            restoringInputSource: originalInputSourceID
+        )
+    }
+
+    /// Pastes on whatever input source is active and restores the one that was
+    /// active before. No layout is named and none is switched, so a machine
+    /// without any of the layouts above still runs the delivery contract: the
+    /// ⌘V the delivery path posts is the Paste key equivalent of the frontmost
+    /// application, and the text arrives.
+    private func pasteText(
+        _ text: String,
+        describedAs description: String,
+        restoringInputSource originalInputSourceID: String?
+    ) async throws {
         defer {
             if let originalInputSourceID {
                 _ = ClipboardUtil.switchToInputSource(withID: originalInputSourceID)
             }
-        }
-        guard ClipboardUtil.switchToInputSource(withID: layoutID) else {
-            throw XCTSkip("\(layoutID) layout not available")
         }
 
         let pasteboard = NSPasteboard.general
@@ -716,8 +746,27 @@ final class ClipboardUtilPasteIntegrationTests: XCTestCase {
         while editor.string != text && Date() < pasteDeadline {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
-        XCTAssertEqual(editor.string, text, "Paste failed for \(layoutID)")
+        XCTAssertEqual(editor.string, text, "Paste failed for \(description)")
         try await Task.sleep(nanoseconds: UInt64((ClipboardUtil.clipboardRestoreDelay + 0.1) * 1_000_000_000))
+    }
+
+    // MARK: - The layout this machine has
+
+    /// The one case in this class that cannot skip: it takes the input source
+    /// that is active and never switches it, so the layout-aware key code the
+    /// delivery path posts for ⌘V is exercised for the layout the machine
+    /// actually runs — including the `findKeycodeForCharacter` branch, which no
+    /// layout-named case can reach on a machine without that layout.
+    func testPasteWithActiveInputSource() async throws {
+        let activeSourceID = try XCTUnwrap(
+            ClipboardUtil.getCurrentInputSourceID(),
+            "a machine in a GUI session always has an active input source"
+        )
+        try await pasteText(
+            "Hello from the active input source (\(activeSourceID))",
+            describedAs: "the active input source \(activeSourceID)",
+            restoringInputSource: activeSourceID
+        )
     }
 
     // MARK: - Basic Layouts
@@ -903,6 +952,9 @@ final class ClipboardUtilPasteIntegrationTests: XCTestCase {
 
 // MARK: - Keyboard Layout Provider Tests
 
+/// The US/Russian/German cases below are gated on layouts a normal machine does
+/// not have; `testResolveInfo_ActiveLayout_returnsInfo` runs the same validation
+/// path on the layout the machine has.
 final class KeyboardLayoutProviderTests: XCTestCase {
     
     private let provider = KeyboardLayoutProvider.shared
@@ -965,6 +1017,24 @@ final class KeyboardLayoutProviderTests: XCTestCase {
     
     // MARK: - resolveInfo (full validation)
     
+    /// The cases either side of this one name a layout. This one takes the input
+    /// source that is active — the layout the app is actually running under — and
+    /// asserts the provider resolves full info for it on an ANSI keyboard, the
+    /// same contract as the US case, minus the layout name.
+    func testResolveInfo_ActiveLayout_returnsInfo() throws {
+        let activeSourceID = try XCTUnwrap(
+            ClipboardUtil.getCurrentInputSourceID(),
+            "a machine in a GUI session always has an active input source"
+        )
+        let info = provider.resolveInfo()
+        if provider.detectPhysicalType() == .ansi {
+            XCTAssertNotNil(
+                info,
+                "the active layout \(activeSourceID) on an ANSI keyboard should produce info"
+            )
+        }
+    }
+
     func testResolveInfo_USLayout_returnsInfo() throws {
         let switched = ClipboardUtil.switchToInputSource(withID: "US")
         if !switched { throw XCTSkip("US layout not available") }
