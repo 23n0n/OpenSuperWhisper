@@ -44,6 +44,18 @@ On first launch macOS asks for the two permissions the app needs:
 Both grant the *app binary*. If you rebuild it locally with a different
 signature, macOS treats it as a different app and the grant must be given again.
 
+The same two grants are visible inside the app — **Settings → Shortcuts →
+Permissions** — with their current state and a button that opens the pane which
+restores a missing one. With the Whisper engine, **Settings → Model** lists every
+model file that is on disk, downloaded or put there by hand, marks the one in use,
+and each row can be verified against the sha256 its publisher reports or removed
+outright, reporting the space that frees; the Parakeet rows report whether every
+file the engine needs is present, which is all FluidAudio publishes. **Settings →
+Advanced** carries the **Debug Mode** switch
+that makes whisper.cpp print its verbose decode trace, and **Show the welcome
+screen again**, which re-runs the first-run flow (dictation language, shortcut,
+speech model) without changing any of the three until you choose.
+
 ## Uninstalling
 
 One operation removes the app, your dictation history, the downloaded models and

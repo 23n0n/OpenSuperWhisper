@@ -1491,9 +1491,9 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Auto-paste Transcription")
                                     .font(.subheadline)
-                                Text("Types the text into the focused app as keystrokes — "
-                                     + "the clipboard is not used, and Accessibility is required "
-                                     + "for the keystrokes to land")
+                                Text("Types the text into the focused app as keystrokes, not a paste "
+                                     + "— Accessibility is required for the keystrokes to land. "
+                                     + "The clipboard is left alone unless Copy to Clipboard above is on")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -2014,9 +2014,9 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.controlBackgroundColor).opacity(0.3))
         .cornerRadius(12)
-        // The sheet is not the main window, so the manager's own poll does not
-        // run here: read both grants when the tab is opened, and again when the
-        // app comes back from System Settings (the manager watches activation).
+        // The manager reads both grants when it is created and again on every
+        // activation, but opening this tab reads nothing: re-read them here
+        // rather than showing whatever was true when the sheet was built.
         .onAppear {
             permissionsManager.checkAccessibilityPermission()
             permissionsManager.checkMicrophonePermission()
