@@ -1144,6 +1144,70 @@ struct Settings {
     }
 }
 
+/// Hosts the library's shortcut recorder so that clicking it starts recording.
+///
+/// `KeyboardShortcuts.RecorderCocoa` reaches the keyboard through a local event
+/// monitor it installs in `becomeFirstResponder()` and nowhere else, and a click
+/// on an `NSSearchField` never gets it there: `AppKit` puts the field editor in
+/// as the window's first responder and never asks the field itself, so the
+/// recorder was watching nothing while the combination the user pressed was
+/// inserted into the field as ordinary text. Measured in this process, in the
+/// real Settings sheet: the field's placeholder never became “Press Shortcut”,
+/// the field's value went to `K` as ⌥⇧K was typed into it, and nothing was
+/// stored — while the very same keystroke was captured and stored the moment the
+/// field *was* made the first responder.
+///
+/// This host takes the click and hands the recorder the first responder, which
+/// is the whole fix. Everything else stays the library's: the displayed
+/// shortcut, the conflict and “taken by the system” checks, the storage, and the
+/// monitoring itself.
+private final class ShortcutRecorderHost: NSView {
+    let recorder = KeyboardShortcuts.RecorderCocoa(for: .toggleRecord)
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        addSubview(recorder)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize { recorder.intrinsicContentSize }
+
+    override func layout() {
+        super.layout()
+        recorder.frame = bounds
+    }
+
+    /// The mouse events belong to this view rather than to the field: giving
+    /// them to the field is exactly what makes the field editor the responder
+    /// and keeps the recorder from ever starting.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard !isHidden, alphaValue > 0, let superview else { return nil }
+        return bounds.contains(convert(point, from: superview)) ? self : nil
+    }
+
+    /// A bare `NSView` refuses the mouse-down that would activate an inactive
+    /// window, which is the one thing a text field does not do — and this host
+    /// stands in for one. Without it the click is dropped on every window that is
+    /// not already key and recording never starts.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(recorder)
+    }
+}
+
+private struct ShortcutRecorderField: NSViewRepresentable {
+    func makeNSView(context: Context) -> ShortcutRecorderHost {
+        ShortcutRecorderHost(frame: NSRect(x: 0, y: 0, width: 150, height: 24))
+    }
+
+    func updateNSView(_ nsView: ShortcutRecorderHost, context: Context) {}
+}
+
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @StateObject private var permissionsManager = PermissionsManager()
@@ -1151,7 +1215,6 @@ struct SettingsView: View {
     /// app's root reads.
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) var dismiss
-    @State private var isRecordingNewShortcut = false
     @State private var selectedTab = 0
     @State private var previousModelURL: URL?
     @State private var showingUninstallSheet = false
@@ -2316,7 +2379,7 @@ struct SettingsView: View {
                                     Text("Shortcut")
                                         .font(.subheadline)
                                     Spacer()
-                                    KeyboardShortcuts.Recorder("", name: .toggleRecord)
+                                    ShortcutRecorderField()
                                         .frame(width: 150)
                                 }
                                 .padding(.horizontal, 12)
@@ -2324,11 +2387,9 @@ struct SettingsView: View {
                                 .background(Color(.textBackgroundColor).opacity(0.5))
                                 .cornerRadius(8)
 
-                                if isRecordingNewShortcut {
-                                    Text("Press your new shortcut combination...")
-                                        .foregroundColor(.secondary)
-                                        .font(.subheadline)
-                                }
+                                Text("Click the field and press the combination you want. Hold it to record, or press it once to start and once to stop.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                         }
                     }
