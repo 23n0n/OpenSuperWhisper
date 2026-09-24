@@ -9,6 +9,9 @@ enum RecordingState {
     case decoding
     case busy
     case noMicrophone
+    /// The selected speech model cannot hear the selected language — refused
+    /// rather than transcribed into invented English.
+    case incompatibleModel
 }
 
 @MainActor
@@ -45,8 +48,11 @@ class IndicatorViewModel: ObservableObject {
     private let stopRecordingOperation: () async -> RecordedAudio?
     private let cancelAudioRecordingOperation: () -> Void
     private let injectTextOperation: (String) -> KeyboardSimulator.InjectionResult
-    private let transformTextOperation: (String, String?) async -> String
-    
+    private let transformTextOperation: (String, String?) async -> TranslationService.TransformOutcome
+    private let cleanUpOperation: (String) -> DictationScrubber.Result
+    private let cleanUpEnabledOperation: () -> Bool
+    private let reportCenter: DictationReportCenter
+
     init(
         transcriptionService: TranscriptionService = .shared,
         recordingStore: RecordingStore = .shared,
@@ -59,9 +65,25 @@ class IndicatorViewModel: ObservableObject {
         injectText: @escaping (String) -> KeyboardSimulator.InjectionResult = {
             KeyboardSimulator.typeText($0)
         },
-        transformText: @escaping (String, String?) async -> String = {
-            await TranslationService.shared.transformIfEnabled($0, sourceLanguage: $1)
-        }
+        transformText: @escaping (String, String?) async -> TranslationService.TransformOutcome = {
+            await TranslationService.shared.transformDetailed($0, sourceLanguage: $1)
+        },
+        cleanUp: @escaping (String) -> DictationScrubber.Result = { text in
+            // The switch is read per dictation, so flipping it in Settings takes
+            // effect on the next one — and the scrub itself is a pure function
+            // with no model behind it.
+            guard AppPreferences.shared.cleanUpEnabled else {
+                return DictationScrubber.Result(
+                    text: text,
+                    removedFillers: 0,
+                    removedRepetitions: 0,
+                    removedAnnotations: 0
+                )
+            }
+            return DictationScrubber.scrub(text)
+        },
+        cleanUpEnabled: @escaping () -> Bool = { AppPreferences.shared.cleanUpEnabled },
+        reportCenter: DictationReportCenter = .shared
     ) {
         self.recordingStore = recordingStore
         self.transcriptionService = transcriptionService
@@ -70,6 +92,9 @@ class IndicatorViewModel: ObservableObject {
         self.cancelAudioRecordingOperation = cancelAudioRecording
         self.injectTextOperation = injectText
         self.transformTextOperation = transformText
+        self.cleanUpOperation = cleanUp
+        self.cleanUpEnabledOperation = cleanUpEnabled
+        self.reportCenter = reportCenter
         
         recorder.$startFailure
             .compactMap { $0 }
@@ -265,15 +290,26 @@ class IndicatorViewModel: ObservableObject {
                     operationID: sessionID,
                     pcmSamples: audio.samples
                 )
-                let text = output.text
+                let rawText = output.text
                 try Task.checkCancellation()
                 guard self.decodingSessionID == sessionID else {
                     throw CancellationError()
                 }
 
+                // The deterministic clean-up runs first and without a model:
+                // filler, stutters, repeated words and the recogniser's own
+                // annotations are gone before anything is asked of a transform.
+                // History keeps the raw transcript either way.
+                let scrub = self.cleanUpOperation(rawText)
+                let text = scrub.text
+
                 if text.isEmpty {
                     try? FileManager.default.removeItem(at: tempURL)
-                    print("No speech detected, dictation discarded")
+                    print(
+                        rawText.isEmpty
+                            ? "No speech detected, dictation discarded"
+                            : "Nothing but filler or an annotation; dictation discarded"
+                    )
                 } else {
                     let timestamp = Date()
                     let recordingId = UUID()
@@ -282,7 +318,7 @@ class IndicatorViewModel: ObservableObject {
                         id: recordingId,
                         timestamp: timestamp,
                         fileName: fileName,
-                        transcription: text,
+                        transcription: rawText,
                         duration: duration,
                         status: .completed,
                         progress: 1.0,
@@ -296,12 +332,42 @@ class IndicatorViewModel: ObservableObject {
 
                     try Task.checkCancellation()
                     guard self.decodingSessionID == sessionID else { throw CancellationError() }
-                    let finalText = await transformTextOperation(text, output.language)
+                    let outcome = await transformTextOperation(text, output.language)
                     try Task.checkCancellation()
                     guard self.decodingSessionID == sessionID else { throw CancellationError() }
-                    insertText(finalText)
-                    print("Transcription result: \(text)")
+                    self.reportCenter.publish(DictationReport(
+                        language: output.language,
+                        raw: rawText,
+                        cleaned: text,
+                        final: outcome.text,
+                        policy: outcome.policy,
+                        didRunModel: outcome.didRunModel,
+                        cleanUpEnabled: cleanUpEnabledOperation(),
+                        removedFillers: scrub.removedFillers,
+                        removedRepetitions: scrub.removedRepetitions,
+                        removedAnnotations: scrub.removedAnnotations,
+                        date: timestamp
+                    ))
+                    insertText(outcome.text)
+                    print("Transcription result: \(rawText)")
                 }
+            } catch TranscriptionError.speechLanguageConflict(let conflict) {
+                // The refused combination, reported where the user is looking:
+                // the model and the setting named, the installed multilingual
+                // model offered as a button, and the audio preserved so the
+                // dictation can be re-run once the fix is applied. Nothing was
+                // transcribed and nothing is pasted.
+                self.showAutoDismissingMessage(.incompatibleModel)
+                if let savedRecording {
+                    do { try await Task { try await recordingStore.deleteRecordingSync(savedRecording, cancelTranscription: false) }.value }
+                    catch { AppErrorCenter.shared.report("Cancelled recording could not be removed", error: error) }
+                } else {
+                    await self.recordingStore.preserveFailedDictation(
+                        RecordedAudio(url: tempURL, samples: audio.samples),
+                        error: TranscriptionError.speechLanguageConflict(conflict)
+                    )
+                }
+                self.reportSpeechLanguageConflict(conflict)
             } catch is CancellationError {
                 if let savedRecording {
                     do { try await Task { try await recordingStore.deleteRecordingSync(savedRecording, cancelTranscription: false) }.value }
@@ -374,6 +440,26 @@ class IndicatorViewModel: ObservableObject {
             }
         }
         // If both are false, do nothing
+    }
+
+    /// The refusal, surfaced where the user can act on it.
+    ///
+    /// The message names the model file and the language setting and says what
+    /// whisper does instead of transcribing; when a multilingual model is
+    /// already installed, the alert carries the button that selects it — the
+    /// fix in place, applied only because the user pressed it.
+    private func reportSpeechLanguageConflict(_ conflict: SpeechLanguageConflict) {
+        if let remedyTitle = conflict.remedyButtonTitle, let path = conflict.remedyModelPath {
+            AppErrorCenter.shared.report(
+                conflict.title,
+                message: conflict.message,
+                remedyTitle: remedyTitle
+            ) {
+                SpeechLanguageRemedy.useMultilingualModel(atPath: path)
+            }
+        } else {
+            AppErrorCenter.shared.report(conflict.title, message: conflict.message)
+        }
     }
 
     /// macOS drops every event an untrusted process posts, so a dictation that
@@ -591,6 +677,22 @@ struct IndicatorWindow: View {
                     Text("No microphone")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.orange)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            case .incompatibleModel:
+                HStack(spacing: 8) {
+                    Image(systemName: "waveform.slash")
+                        .foregroundColor(.orange)
+                        .frame(width: 24)
+
+                    // The card is 200pt wide, so the full story (the model, the
+                    // setting, the fix) is in the alert this state accompanies.
+                    Text("Needs a multilingual model")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.orange)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 

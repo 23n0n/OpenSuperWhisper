@@ -663,7 +663,18 @@ struct ContentView: View {
             }
         }
         .alert(item: $errors.issue) { issue in
-            Alert(title: Text(issue.title), message: Text(issue.message), dismissButton: .default(Text("OK")))
+            // A report that carries a fix shows it as the default button, so the
+            // problem and the way out of it are in the same place. Everything
+            // else keeps the plain OK alert.
+            if let remedyTitle = issue.remedyTitle, let remedy = issue.remedy {
+                return Alert(
+                    title: Text(issue.title),
+                    message: Text(issue.message),
+                    primaryButton: .default(Text(remedyTitle), action: remedy),
+                    secondaryButton: .cancel(Text("Not now"))
+                )
+            }
+            return Alert(title: Text(issue.title), message: Text(issue.message), dismissButton: .default(Text("OK")))
         }
         .onReceive(errors.$issue.compactMap { $0 }) { _ in
             (NSApplication.shared.delegate as? AppDelegate)?.showMainWindow()

@@ -12,6 +12,26 @@ class TranscriptionService: ObservableObject {
     @Published private(set) var isConverting = false
     @Published private(set) var conversionProgress: Float = 0.0
     
+    /// The English-only-model conflict for this dictation, or `nil` when the
+    /// combination can work.
+    ///
+    /// Only whisper can be wrong this way — the model's own context is asked
+    /// (`whisper_is_multilingual() == 0`), and the file name stands in for a
+    /// model that is not loaded. The language setting is whatever this
+    /// dictation was configured with, which is the same value the engine is
+    /// conditioned on.
+    private func speechLanguageConflict(settings: Settings) -> SpeechLanguageConflict? {
+        guard let whisper = currentEngine as? WhisperEngine else { return nil }
+        let selectedPath = engineSelection?.modelPath
+            ?? AppPreferences.shared.selectedWhisperModelPath
+            ?? AppPreferences.shared.selectedModelPath
+        return SpeechModelLanguageGate.conflict(
+            modelPath: selectedPath,
+            isMultilingual: whisper.isModelMultilingual,
+            languageCode: settings.selectedLanguage
+        )
+    }
+
     /// The result of one transcription: the text, plus the language the engine
     /// saw. The language decides whether the transform gate translates, tones or
     /// pastes the transcript as-is, so it travels with the text instead of
@@ -271,6 +291,14 @@ class TranscriptionService: ObservableObject {
             }
         }
         
+        // The one combination that cannot work is refused before any state is
+        // published: an impossible model/language pair must not look like a
+        // transcription in progress, must not write a transcript, and must not
+        // be pasted. See `SpeechModelLanguageGate`.
+        if let conflict = speechLanguageConflict(settings: settings) {
+            throw TranscriptionError.speechLanguageConflict(conflict)
+        }
+
         progress = 0.0
         conversionProgress = 0.0
         isConverting = true
@@ -419,4 +447,15 @@ enum TranscriptionError: Error {
     case contextInitializationFailed
     case audioConversionFailed
     case processingFailed
+    /// A speech model that cannot hear the selected language, carrying the whole
+    /// story so every surface — the indicator, the queue, the history row —
+    /// tells the same one.
+    case speechLanguageConflict(SpeechLanguageConflict)
+}
+
+extension TranscriptionError: LocalizedError {
+    var errorDescription: String? {
+        guard case .speechLanguageConflict(let conflict) = self else { return nil }
+        return conflict.message
+    }
 }

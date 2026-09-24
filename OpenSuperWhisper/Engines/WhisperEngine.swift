@@ -77,6 +77,14 @@ class WhisperEngine: TranscriptionEngine {
         context != nil
     }
 
+    /// Whether the loaded model can hear more than English, or `nil` when no
+    /// model is loaded — `whisper_is_multilingual()` can only answer for a
+    /// context that exists. Read by `SpeechModelLanguageGate`, which refuses an
+    /// English-only model paired with a non-English language setting.
+    var isModelMultilingual: Bool? {
+        context?.isMultilingual
+    }
+
     var hasPreparedState: Bool { context?.hasState == true }
 
     func prepareForRecording() throws {
