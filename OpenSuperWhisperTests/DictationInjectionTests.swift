@@ -228,6 +228,75 @@ final class DictationInjectionTests: XCTestCase {
         XCTAssertEqual(rows.map(\.transcription), ["nobody received this"])
     }
 
+    /// An interference that stopped the delivery has to reach the user the same
+    /// way the untrusted case does — which interference ended it and how much of
+    /// the dictation got through — instead of leaving a truncated paste with no
+    /// explanation. Both kinds are driven, because each one has its own sentence
+    /// in the report.
+    func testInterruptedInjectionIsReportedToTheUser() async throws {
+        let store = try makeStore()
+        let sources = makeSourceFiles(count: 2)
+
+        let restoreAutoPaste = pinAutoPasteOn()
+        defer { restoreAutoPaste() }
+
+        let cases: [(KeyboardSimulator.DeliveryInterruption, String)] = [
+            (.focusChanged, "Another application came to the front"),
+            (.userTyping, "You started typing"),
+        ]
+
+        for (interruption, whatHappened) in cases {
+            var injected: [String] = []
+            let viewModel = IndicatorViewModel(
+                transcriptionService: TranscriptionService(
+                    engine: ScriptedTranscriptionEngine(transcripts: ["a dictation that was stopped"])
+                ),
+                recordingStore: store,
+                stopRecording: {
+                    guard let url = sources.next() else { return nil }
+                    return RecordedAudio(url: url, samples: [])
+                },
+                cancelAudioRecording: {},
+                injectText: { text in
+                    injected.append(text)
+                    return KeyboardSimulator.InjectionResult(
+                        trusted: true,
+                        eventsPosted: 6,
+                        interruptedBy: interruption,
+                        deliveredCharacters: 3
+                    )
+                },
+                transformText: Self.passthroughTransform
+            )
+            defer { viewModel.cleanup() }
+            AppErrorCenter.shared.issue = nil
+
+            try await dictate(viewModel)
+            try await waitForInjections(1, { injected })
+
+            let issue = try XCTUnwrap(
+                AppErrorCenter.shared.issue,
+                "a delivery stopped by \(interruption) must be reported, never left looking truncated"
+            )
+            XCTAssertTrue(
+                issue.title.contains("not typed in full"),
+                "unexpected title: \(issue.title)"
+            )
+            XCTAssertTrue(
+                issue.message.contains(whatHappened),
+                "the report must say which interference ended the delivery: \(issue.message)"
+            )
+            XCTAssertTrue(
+                issue.message.contains("3 of the dictation's"),
+                "the report must say how much of the dictation was delivered: \(issue.message)"
+            )
+            XCTAssertTrue(
+                issue.message.contains("History"),
+                "the report must say where the rest of the dictation is: \(issue.message)"
+            )
+        }
+    }
+
     /// The pipeline, made visible. After a dictation the app has to be able to
     /// show which language the engine heard, the raw transcript it saved, what
     /// the clean-up removed, and what was actually pasted — the captain could

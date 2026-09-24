@@ -63,7 +63,9 @@ class IndicatorViewModel: ObservableObject {
             AudioRecorder.shared.cancelRecording()
         },
         injectText: @escaping (String) -> KeyboardSimulator.InjectionResult = {
-            KeyboardSimulator.typeText($0)
+            // The live watch captures the delivery target as the delivery
+            // begins and stops it if the target changes or the user types.
+            KeyboardSimulator.typeText($0, watch: .live())
         },
         transformText: @escaping (String, String?) async -> TranslationService.TransformOutcome = {
             await TranslationService.shared.transformDetailed($0, sourceLanguage: $1)
@@ -422,10 +424,21 @@ class IndicatorViewModel: ObservableObject {
                 trusted: result.trusted,
                 characters: finalText.count,
                 injected: result.injected,
-                eventsPosted: result.eventsPosted
+                eventsPosted: result.eventsPosted,
+                deliveredCharacters: result.deliveredCharacters,
+                interruptedBy: result.interruptedBy
             )
             if !result.trusted {
                 reportInjectionWithoutAccessibilityTrust()
+            } else if let interruption = result.interruptedBy {
+                // The delivery stopped itself to keep the transcript out of the
+                // wrong place; say which interference did it and how much got
+                // through instead of leaving the short text unexplained.
+                reportInterruptedInjection(
+                    interruption,
+                    delivered: result.deliveredCharacters,
+                    total: finalText.count
+                )
             }
         } else {
             KeyboardSimulator.logDictation(
@@ -460,6 +473,33 @@ class IndicatorViewModel: ObservableObject {
         } else {
             AppErrorCenter.shared.report(conflict.title, message: conflict.message)
         }
+    }
+
+    /// The delivery stopped itself to keep the transcript out of the wrong
+    /// place, so the user gets told what happened to the rest of it rather than
+    /// finding a truncated dictation and no reason for it. The whole
+    /// transcription is in the History tab either way, which is where the
+    /// message points.
+    private func reportInterruptedInjection(
+        _ interruption: KeyboardSimulator.DeliveryInterruption,
+        delivered: Int,
+        total: Int
+    ) {
+        let whatHappened: String
+        switch interruption {
+        case .focusChanged:
+            whatHappened = "Another application came to the front while OpenSuperWhisper was typing, so "
+                + "the rest of the transcription would have been typed into that window."
+        case .userTyping:
+            whatHappened = "You started typing while OpenSuperWhisper was typing, so the rest of the "
+                + "transcription would have been mixed into your own keystrokes."
+        }
+        AppErrorCenter.shared.report(
+            "Transcription was not typed in full",
+            message: "\(whatHappened)\n\n"
+                + "Typing stopped after \(delivered) of the dictation's \(total) characters, and nothing "
+                + "else was typed. The whole transcription is in the History tab."
+        )
     }
 
     /// macOS drops every event an untrusted process posts, so a dictation that
