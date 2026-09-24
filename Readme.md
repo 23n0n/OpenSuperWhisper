@@ -2,6 +2,17 @@
 
 OpenSuperWhisper is a macOS application that provides real-time audio transcription using the Whisper model. It offers a seamless way to record and transcribe audio with customizable settings and keyboard shortcuts.
 
+> **This tree is a fork of [Starmel/OpenSuperWhisper](https://github.com/Starmel/OpenSuperWhisper) (MIT).**
+> Everything the original does is still here; on top of it this fork adds local translation and tone, language-aware
+> gating, a dictation clean-up pass, keystroke delivery that never touches the clipboard, and a repaired long-form
+> decode path. Section [What this fork changes](#what-this-fork-changes) describes every difference in detail, and
+> [What is unchanged](#what-is-unchanged) lists what is inherited verbatim.
+>
+> **The `brew install` line and the release links below install the *original* app, not this build.** This fork
+> publishes no downloads: it is built from source ([Building locally](#building-locally)), and its work lives at
+> `main` in this fork's own repository ([23n0n/OpenSuperWhisper](https://github.com/23n0n/OpenSuperWhisper)) —
+> nothing has been sent upstream, and no pull request is open against it.
+
 <p align="center">
 <img src="docs/image.png" width="400" /> <img src="docs/image_indicator.png" width="400" />
 </p>
@@ -17,6 +28,202 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 - 🎤 Microphone selection — switch between built-in, external, Bluetooth and iPhone (Apple Continuity) mics from the menu bar
 - 🌍 Support for multiple languages with auto-detection
 - 🇯🇵🇨🇳🇰🇷 Asian language autocorrect ([autocorrect](https://github.com/huacnlee/autocorrect))
+
+### Added by this fork
+
+- 🌐 **Local translation and tone** — an instruction-tuned model runs inside the app (llama.cpp linked in, no
+  server, no port); two independent switches plus a target-language picker, off by default
+- 🧭 **Language-aware gating** — speech already in the target language is never sent to the model; English is
+  never translated while the target is English; an unknown language passes through raw
+- 🛡️ **English-only model guard** — an English-only model with a non-English language is refused with a notice
+  instead of silently hallucinating
+- 🧹 **Dictation clean-up** — filler words, `hmm`, `aaa` and stutters are scrubbed, the sentence language repaired,
+  through the same single transform call
+- 📚 **Reference / glossary field** — names and terms fed into the transform prompt
+- ⌨️ **Keystroke delivery** — the transcript is typed into the focused app; the clipboard is never written to
+- 🔒 **Accessibility only** — Input Monitoring is no longer used or required anywhere, and no permission screen
+  blocks the app
+- 📊 **Last-dictation card** — the detected language and the raw, cleaned and final text of the last dictation
+- 🗂️ **Model storage controls** — installed models listed with the one in use, SHA-256 verification against the
+  digest each publisher reports, removal with the space it frees
+- 🧯 **Long-form audio fix** — dictation longer than 30 s no longer skips audio
+- 🧾 **Readable settings, reachable settings** — the Settings sheet lays out correctly, and the status-bar menu
+  reaches it even with the main window closed
+- 📦 **One-package install, one-operation uninstall** — from inside the app
+- 🛠️ **Developer tooling** — identity-signed builds whose permission grants survive rebuilds, one build script for
+  the vendored engines, contract checks for the transform endpoint and the installer
+
+## What this fork changes
+
+Written against the delivery branch `feat/local-translate-tone`, merge tip `319f3a3` (2026-09-24; this section
+is its own commit). Every claim below was
+checked against that tree, and the numbers were produced by running the code, not by reading it. To see the whole
+delta yourself:
+
+```shell
+git fetch upstream        # upstream = https://github.com/Starmel/OpenSuperWhisper.git, already a remote here
+git diff upstream/develop...feat/local-translate-tone
+```
+
+**Scale.** 54 commits of its own on top of `upstream/develop` (69 including merges), touching 78 files:
+**+12,995 / −715** lines. 42 files are new, 35 are upstream files with changes, and one file moved
+(`ggml-tiny.en.bin` into the app bundle directory). Those 42 new files — app sources, tests, build scripts,
+packaging and the vendored `libllama/` — are the fork's own; everything else in the tree — the two engines, the
+shortcuts, the queue, the model catalogue, the onboarding — is upstream's, edited where a feature required it.
+
+Paths below are relative to `OpenSuperWhisper/` unless they start with `Scripts/`, `packaging/` or `libllama/`.
+
+### 1. Translation and tone, inside the app
+
+Upstream transcribes; it does not translate, and it has no notion of tone. This fork adds both, driven by two
+independent switches in **Settings → Transcription** ("Translate into …" and "Apply tone"), each carrying a
+**Target language** picker (English by default, Polish as the reverse direction). Both default to off.
+
+The transform is performed by `Qwen2.5-1.5B-Instruct-Q4_K_M` (~986 MB), which the app downloads into its own
+Application Support folder and verifies against the published checksum. It runs **in-process**: llama.cpp is
+vendored as `libllama/` and linked into the app exactly like whisper.cpp, so there is no background server and no
+listening port. The runtime lives in `OpenSuperWhisper/Llama/{Llama,TransformRuntime}.swift`, the model's
+lifecycle and verification in `TransformModelManager.swift`, and the prompt/request layer in
+`TranslationService.swift`. A user who prefers their own backend can set an OpenAI-compatible endpoint in
+**Settings → Advanced**; `Scripts/transform-server.sh` can serve one and `Scripts/verify-transform.sh` checks any
+endpoint against the app's request/response contract.
+
+### 2. Language awareness: what gets translated, and when
+
+The decision is a table (`TransformPolicy` in `TranslationService.swift`), not a per-call guess, and it is fed by
+the language the speech engine reports *for that same utterance* — whisper's own detection under **Auto-detect**
+with a multilingual model, a fixed language setting when set, or the text heuristic in
+`Utils/LanguageDetector.swift` (Polish diacritics, function words, bigrams) for engines that cannot report one,
+such as Parakeet. The rules that matter:
+
+- Speech already in the **target** language is pasted unchanged — **no model call at all**, even with tone on.
+- With the default target (English), **English dictation is never translated**, so the original's behaviour is
+  preserved for English users and the transform only ever engages on foreign speech.
+- Tone rides on a translation: it describes the output of a direction change, so it does nothing without one.
+- When the language cannot be determined, the raw transcript is pasted and nothing is sent to a model.
+
+The full switch table is in [Translation and tone](#translation-and-tone-towards-a-target-language) below.
+
+### 3. English-only model guard
+
+A `.en` whisper model cannot detect a language; pairing one with a Polish utterance made whisper *translate into
+English* and hallucinate before the transform ever ran. `Utils/SpeechModelLanguageGate.swift` now refuses that
+combination with an inline notice (and a remedy button) instead of producing confident nonsense.
+
+### 4. Dictation clean-up and the reference field
+
+Two more controls in **Settings → Transcription**. **Clean up dictation** removes filler sounds, drawn-out
+vowel runs, stutters and false starts, and repairs the sentence language (Polish affixes, casing, diacritics) —
+deterministically in `Utils/DictationScrubber.swift`, and where grammar is at stake through the *same* single
+transform call the translation already uses: measured on the captain's own recordings with the bundled model,
+clean-up **adds no model call** where a translation or tone rewrite is already happening (the clean-up wording
+travels inside that prompt), and it adds exactly **one** call — median 0.17–0.38 s — where the app previously made
+none, which is target-language speech with clean-up on. The deterministic scrub itself costs ~0.13 ms. **Reference** takes free text — names, product
+terms, jargon — and passes it into that prompt so the model stops mangling them.
+
+The last dictation is inspectable in the app: `DictationReport.swift` records the detected language plus the raw,
+cleaned and final text, and the main window shows them side by side. History always keeps the raw transcript.
+
+### 5. Delivery by synthetic keystrokes — the clipboard is never used
+
+Upstream types the transcript by putting it on the system pasteboard and sending ⌘V
+(`ClipboardUtil.insertText` / `sendCmdV`), which overwrites whatever the user had copied. This fork delivers by
+synthesising the keystrokes instead (`Utils/KeyboardSimulator.swift`; it is the only delivery path —
+`Indicator/IndicatorWindow.swift:65-66`, and no `ClipboardUtil` paste call site remains in the app). The clipboard
+is not read or written by the delivery path at all, and the layout-dependent keycode translation is covered by
+`KeyboardSimulatorTests`. Keystrokes that the system refuses to
+deliver are reported instead of being dropped silently. This also means Accessibility — not Input Monitoring — is
+the grant that matters; see the next point.
+
+### 6. Permissions: Accessibility only, and nothing blocks on it
+
+Upstream's modifier monitor installs a `.listenOnly` event tap (`ModifierKeyMonitor.swift:142` in upstream's
+tree), which is what made macOS demand **Input Monitoring**. This fork's tree contains no `IOHID` reference and no
+listen-only tap: the event-related grant is Accessibility alone, and recording and typing work without a
+permission screen. The app never
+gates on permissions: missing ones surface as inline notices with a button that opens the right System Settings
+pane, onboarding can be skipped, and **Settings → Shortcuts → Permissions** shows the state of both grants at any
+time. A build left in Xcode's split debug-dylib layout — the state that makes a recorded grant stop matching — is
+now detected and refused rather than launched.
+
+### 7. Long-form dictation no longer loses audio
+
+The most consequential bug fixed here, because it silently destroyed text in the path the app is used for. The
+decoder was configured with `noTimestamps = !showTimestamps`, which is `true` by default, and without timestamps
+whisper.cpp advanced its seek a full 30 s per window — discarding whatever it had not transcribed. A dictation
+longer than a window therefore arrived with holes. The fork keeps the decoder's timestamps unconditionally
+(`params.noTimestamps = false`, `Engines/WhisperEngine.swift:415`, with the rationale in place), so the seek
+follows the audio the decoder actually covered.
+
+Measured on the delivery tip against `large-v3-turbo`, in `LongFormTranscriptionTests`: **unique-word recall
+0.9932 English** and **0.9873 Russian**, tail recall **1.0** in both languages, **0 replayed four-word runs**.
+The transcripts are captured verbatim next to the measurement, and four independent derivations of the numbers
+agree to the last printed digit.
+
+### 8. Settings, models and diagnostics made visible
+
+Several of these are the difference between a feature existing and a feature being *findable*:
+
+- **Settings is reachable from the status-bar menu**, so it works with the main window closed — previously the
+  only entries were inside a window that could be closed, and features appeared not to exist.
+- **The Settings sheet lays out correctly.** macOS lays a `TabView`'s strip out 0×0 inside a sheet, which made
+  the tabs unclickable; the strip is a segmented picker now, and a snapshot test asserts the sheet is not clipped.
+- **Model management.** Every whisper model file on disk — downloaded or placed by hand — is listed with the one
+  in use, can be verified against the publisher's published SHA-256 (the bundled model included) or removed with
+  the space it frees reported, and a missing selection is reported instead of silently switching models.
+- **Debug Mode** is wired through to whisper.cpp's verbose decode trace, and **Show the welcome screen again**
+  re-runs the first-run flow without disturbing the existing choices.
+- **The indicator is honest.** With no microphone it says so, instead of showing "Processing…" forever, and a
+  dictation whose transcript was lost says why.
+
+### 9. Packaging and uninstall
+
+Upstream ships a package built from its own release process and has no uninstaller. This fork adds
+`packaging/{build-pkg.sh,distribution.xml,scripts/preinstall,uninstall.sh}` plus `UninstallService.swift`: one
+package installs the app with everything it needs inside it, and one operation — **Settings → Advanced → Uninstall
+OpenSuperWhisper…**, the same item in the menu-bar menu, or `/Applications/Uninstall OpenSuperWhisper.command` if
+the app is already gone — removes the app, the dictation history, the downloaded models and the installer receipt,
+leaving other applications' data alone. Running it twice is harmless, and `Scripts/verify-packaging.sh` checks the
+path list, the idempotence and a built package's payload rather than trusting them.
+
+### 10. Developer tooling
+
+Local Debug builds are signed with a stable self-signed identity (`Scripts/dev-signing-identity.sh`,
+`dev-sign.sh`) so the Accessibility grant survives rebuilds, and `Scripts/dev-run.sh` is the single entry point
+that builds with the debug dylib disabled, signs, and can run the unit suite *and re-sign afterwards* — a bare
+`xcodebuild test` leaves an ad-hoc signed bundle and is exactly the failure the script exists to prevent.
+`Scripts/build-native.sh` builds the two vendored engines in the one order that works (llama.cpp installs the
+single ggml package that whisper.cpp then links against). Crew worktrees build under a different bundle id, and
+each test process gets its own preference store, so parallel development cannot poison the app someone is using.
+The suite on the merged tip is **420 tests: 367 passing, 0 failing, 53 skipped**, where the skips are all
+environmental: 50 gated on this machine's input sources or on Accessibility automation, 2 behind
+`OSW_TEST_TURBO_MODEL` and 1 behind a microphone opt-in. That 50 is why the daily delivery path is the least
+covered part of the suite.
+
+### What is unchanged
+
+Inherited from upstream, unmodified in behaviour: the whisper.cpp and Parakeet (FluidAudio) transcription
+engines and their model downloads, key-combination and single-modifier triggers, the mouse-button trigger,
+hold-to-record, drag & drop with the transcription queue, microphone selection (including iPhone/Continuity),
+auto language detection, Asian-language autocorrect, the Hebrew (ivrit.ai) model entry, onboarding, and the MIT
+licence. Upstream's own README sections — Installation, Requirements, Support, Building locally, Contributing,
+Whisper Models — are kept as they are, apart from the notes this fork needed.
+
+### Known limits and what is not built yet
+
+- **Polish *output* from the bundled 1.5B model is best-effort.** It was measured on English→Polish dictation and
+  it drops content, invents details and is unstable between identical runs. English output is the reliable
+  direction; see the honest note in [Translation and tone](#translation-and-tone-towards-a-target-language).
+- **A larger model for Polish output is decided but not implemented.** `Qwen3-8B-Q4_K_M` is the chosen backend
+  for that direction (it was measured at 11/15 clean, never inventing) and is not wired into the app yet.
+- **In-process transform determinism is an open question.** The sampling chain is fully seed-pinned already
+  (`Llama.swift:270-278`, `dist(seed = 0)`, a fresh chain per request), so identical inputs *should* give
+  identical outputs; observed differences on this machine point at backend reduction nondeterminism rather than
+  seeding. Unresolved, and not a claim this fork makes.
+- **The delivery path is the least covered by tests** (see the skip breakdown above), which is the next test work
+  queued.
+- This fork has **no releases**: it is built from source, and its permission grants are tied to a locally created
+  signing identity. The code itself is at `main` in this fork's own repository; upstream has received nothing.
 
 ## Installation
 
