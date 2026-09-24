@@ -1,0 +1,6 @@
+develop c8e6fe7
+feat/local-translate-tone 58d3744
+fleet-state 086243f
+fm/keypress-streamline 407821f
+fm/shortcut-recorder ffda358
+main ffda358
