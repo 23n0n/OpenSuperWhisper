@@ -137,6 +137,15 @@ class ShortcutManager {
         } else {
             useMouseButtonHotkey = false
             useModifierOnlyHotkey = false
+            // A stored `false` — what the library writes when a combination is
+            // cleared — also stops `Name.init` from ever applying the initial
+            // this app declares for `toggleRecord`, so this mode could be
+            // selected with no shortcut behind it: no trigger at all, and
+            // nothing on screen saying so. The mode is the one the user picked,
+            // so it gets its declared combination instead of silence.
+            if KeyboardShortcuts.getShortcut(for: .toggleRecord) == nil {
+                KeyboardShortcuts.reset(.toggleRecord)
+            }
             KeyboardShortcuts.enable(.toggleRecord)
             print("ShortcutManager: Using regular keyboard shortcut")
         }
