@@ -21,6 +21,9 @@ final class TransformBackendTests: XCTestCase {
     private final class LocalRecorder {
         var systemPrompts: [String] = []
         var userTexts: [String] = []
+        /// The backend each call was routed to, so a test can assert which model
+        /// a direction resolved to — by name, without loading any weights.
+        var models: [TransformModel] = []
         var result: Result<String, Error> = .success("Hello from the app.")
     }
 
@@ -51,9 +54,10 @@ final class TransformBackendTests: XCTestCase {
         configuration.protocolClasses = [StubURLProtocol.self]
         return TranslationService(
             urlSession: URLSession(configuration: configuration),
-            localTransform: { systemPrompt, userText in
+            localTransform: { systemPrompt, userText, model in
                 local.systemPrompts.append(systemPrompt)
                 local.userTexts.append(userText)
+                local.models.append(model)
                 return try local.result.get()
             },
             usesExternalEndpoint: { externalEndpoint },
@@ -108,7 +112,7 @@ final class TransformBackendTests: XCTestCase {
         // gate inputs pinned so the test does not depend on the shared switches.
         let service = TranslationService(
             urlSession: URLSession(configuration: configuration),
-            localTransform: { _, _ in local.systemPrompts.append("called"); return "in process" },
+            localTransform: { _, _, _ in local.systemPrompts.append("called"); return "in process" },
             gateSettings: {
                 GateSettings(translate: true, tone: false, cleanUp: false, toneMode: .neutral, target: .english)
             }
@@ -129,7 +133,7 @@ final class TransformBackendTests: XCTestCase {
 
     func testBuiltInRuntime_failureReturnsTheRawTranscript() async {
         let local = LocalRecorder()
-        local.result = .failure(TransformModelError.notInstalled)
+        local.result = .failure(TransformModelError.notInstalled("Test Model"))
         let service = service(local: local, externalEndpoint: false)
 
         let result = await service.transformIfEnabled("Cześć", sourceLanguage: "pl")
@@ -211,6 +215,119 @@ final class TransformBackendTests: XCTestCase {
         XCTAssertEqual(
             local.systemPrompts,
             [TranslationService.systemPrompt(for: .translate(from: .english, to: .polish), cleanUp: false)]
+        )
+    }
+
+    // MARK: - Routing by output direction
+
+    /// Polish output — the direction the shipped 1.5B was measured unreliable
+    /// on — must resolve to the larger backend, by name.
+    func testPolishOutputResolvesToThePolishBackend() async {
+        let local = LocalRecorder()
+        local.result = .success("Proszę wysłać raport.")
+        let service = service(
+            local: local,
+            externalEndpoint: false,
+            settings: GateSettings(translate: true, tone: false, cleanUp: false, toneMode: .neutral, target: .polish)
+        )
+
+        _ = await service.transformIfEnabled("Please send the report.", sourceLanguage: "en")
+
+        XCTAssertEqual(
+            local.models.map(\.id),
+            [TransformModelManager.polishOutputModelID],
+            "English→Polish must run on the Polish backend"
+        )
+        TestFixtures.report("[routing] en→pl backend: \(local.models.map(\.id).joined(separator: ", "))")
+    }
+
+    /// The daily direction keeps the shipped model: Polish→English was measured
+    /// 8/8 correct at ~0.3 s and ~1.1 GB, and this change must not move it.
+    func testEnglishOutputKeepsTheShippedBackend() async {
+        let local = LocalRecorder()
+        local.result = .success("Please send the report.")
+        let service = service(
+            local: local,
+            externalEndpoint: false,
+            settings: GateSettings(translate: true, tone: false, cleanUp: false, toneMode: .neutral, target: .english)
+        )
+
+        let result = await service.transformIfEnabled("Proszę wysłać raport.", sourceLanguage: "pl")
+
+        XCTAssertEqual(result, "Please send the report.")
+        XCTAssertEqual(
+            local.models.map(\.id),
+            [TransformModelManager.defaultModelID],
+            "Polish→English must stay on the shipped 1.5B"
+        )
+        TestFixtures.report("[routing] pl→en backend: \(local.models.map(\.id).joined(separator: ", "))")
+    }
+
+    /// A same-language clean-up writes the language that was spoken, so a Polish
+    /// dictation cleaned up with a Polish target is Polish output and takes the
+    /// Polish backend.
+    func testPolishCleanUpResolvesToThePolishBackend() async {
+        let local = LocalRecorder()
+        local.result = .success("Proszę wysłać raport.")
+        let service = service(
+            local: local,
+            externalEndpoint: false,
+            settings: GateSettings(translate: true, tone: false, cleanUp: true, toneMode: .neutral, target: .polish)
+        )
+
+        _ = await service.transformIfEnabled("Prosze wyslac raport", sourceLanguage: "pl")
+
+        XCTAssertEqual(
+            local.models.map(\.id),
+            [TransformModelManager.polishOutputModelID],
+            "a Polish clean-up is Polish output"
+        )
+    }
+
+    /// Speech already in the target language is pasted untouched — no model is
+    /// even resolved, so no weights are loaded, for either target.
+    func testSpokenLanguageEqualToTargetResolvesNoModelAtAll() async {
+        for target in TransformLanguage.allCases {
+            let local = LocalRecorder()
+            let service = service(
+                local: local,
+                externalEndpoint: false,
+                settings: GateSettings(translate: true, tone: true, cleanUp: false, toneMode: .formal, target: target)
+            )
+
+            let result = await service.transformIfEnabled(
+                target == .polish ? "Proszę wysłać raport." : "Please send the report.",
+                sourceLanguage: target == .polish ? "pl" : "en"
+            )
+
+            XCTAssertEqual(result, target == .polish ? "Proszę wysłać raport." : "Please send the report.")
+            XCTAssertTrue(local.models.isEmpty, "\(target): spoken == target must not resolve a backend")
+            XCTAssertTrue(local.systemPrompts.isEmpty, "\(target): spoken == target must not call a model")
+            XCTAssertEqual(StubURLProtocol.requestCount, 0)
+        }
+    }
+
+    /// The Polish backend is not installed: the call fails and the raw
+    /// transcript is delivered. The small model is never asked to stand in for
+    /// it — the routing recorder shows the only backend that was ever requested.
+    func testMissingPolishBackendIsNeverSwappedForTheShippedOne() async {
+        let local = LocalRecorder()
+        local.result = .failure(
+            TransformModelError.notInstalled(TransformModelManager.shared.model(forOutputLanguage: .polish).displayName)
+        )
+        let service = service(
+            local: local,
+            externalEndpoint: false,
+            settings: GateSettings(translate: true, tone: false, cleanUp: false, toneMode: .neutral, target: .polish)
+        )
+
+        let result = await service.transformIfEnabled("Please send the report.", sourceLanguage: "en")
+
+        XCTAssertEqual(result, "Please send the report.", "a missing backend must still deliver the transcript")
+        XCTAssertEqual(local.models.map(\.id), [TransformModelManager.polishOutputModelID])
+        XCTAssertFalse(
+            local.models.contains { $0.id == TransformModelManager.defaultModelID },
+            "the 1.5B must never be substituted for Polish"
         )
     }
 }

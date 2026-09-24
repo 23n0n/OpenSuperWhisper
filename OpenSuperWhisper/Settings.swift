@@ -265,60 +265,125 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Built-in transform model
+    // MARK: - Built-in transform models
 
-    @Published var transformModelInstalled = false
-    @Published var isDownloadingTransformModel = false
+    /// The catalogue ids whose weights verify on disk. Both directions are
+    /// checked, because both can be asked for by one set of switches.
+    @Published var installedTransformModelIDs: Set<String> = []
     @Published var transformModelDownloadProgress: Double = 0
     @Published var transformModelError: String?
+    /// The model whose download is in flight, so only its row shows the
+    /// progress and the Cancel button.
+    @Published var downloadingTransformModelID: String?
 
     private var transformDownloadTask: Task<Void, Never>?
 
-    /// The catalogue entry for the stored id, resolved to the built-in default
-    /// when the stored id is not one this build ships.
-    var resolvedTransformModel: TransformModel {
-        TransformModelManager.shared.resolvedModel(forID: transformModel)
+    /// The manager the card reads installed state from and downloads through.
+    /// Injecting it is how a test proves the card's words against a real
+    /// directory layout — the app's own, or one a test stages — instead of
+    /// against the user's Application Support.
+    let transformModelManager: TransformModelManager
+
+    /// Both backends, as the card lists them: the shipped small one, then the
+    /// one Polish output needs.
+    var transformModels: [TransformModel] { TransformModelManager.availableModels }
+
+    /// The backend that writes English — the shipped small model.
+    var englishOutputTransformModel: TransformModel {
+        transformModelManager.model(forOutputLanguage: .english)
     }
 
-    var transformModelStateDescription: String {
-        if isDownloadingTransformModel {
-            return "Downloading \(resolvedTransformModel.sizeDescription)…"
+    /// The backend that writes Polish. Loaded only when Polish is written, and
+    /// never replaced by the small one.
+    var polishOutputTransformModel: TransformModel {
+        transformModelManager.model(forOutputLanguage: .polish)
+    }
+
+    /// The backends the current switches can ask for.
+    ///
+    /// With translation on, the output language is the target, so exactly that
+    /// one can run. With translation off, the output language is whatever was
+    /// spoken and both can. Nothing is needed while the external endpoint is
+    /// the backend.
+    var neededTransformModels: [TransformModel] {
+        guard !transformUseExternalEndpoint else { return [] }
+        if translateEnabled {
+            return [transformModelManager.model(forOutputLanguage: transformTargetLanguage)]
         }
-        if transformModelInstalled {
-            return "Installed — \(resolvedTransformModel.sizeDescription)"
+        return [englishOutputTransformModel, polishOutputTransformModel]
+    }
+
+    func isTransformModelInstalled(_ model: TransformModel) -> Bool {
+        installedTransformModelIDs.contains(model.id)
+    }
+
+    func isDownloading(_ model: TransformModel) -> Bool {
+        downloadingTransformModelID == model.id
+    }
+
+    /// Which direction a backend writes. The app routes by output language, so
+    /// naming that on the row is the whole of the model choice.
+    func transformModelRoleDescription(_ model: TransformModel) -> String {
+        "\(model.id == polishOutputTransformModel.id ? "Polish" : "English") output — \(model.displayName)"
+    }
+
+    /// What a row says about its backend: download state, disk and RAM.
+    func transformModelStateDescription(_ model: TransformModel) -> String {
+        let cost = "\(model.sizeDescription) on disk, about \(model.memoryDescription) of RAM while loaded"
+        if isDownloading(model) {
+            return "Downloading \(model.sizeDescription)…"
         }
-        return "Not downloaded — \(resolvedTransformModel.sizeDescription)"
+        return isTransformModelInstalled(model) ? "Installed — \(cost)" : "Not downloaded — \(cost)"
     }
 
-    var transformModelSourceDescription: String {
-        "\(resolvedTransformModel.displayName), \(resolvedTransformModel.licence), from \(resolvedTransformModel.source)"
+    /// What stays unchanged while `model` is missing, or `nil` when it is
+    /// installed or nothing currently asks for it.
+    func transformMissingNotice(for model: TransformModel) -> String? {
+        guard neededTransformModels.contains(where: { $0.id == model.id }),
+              !isTransformModelInstalled(model) else {
+            return nil
+        }
+        if model.id == polishOutputTransformModel.id {
+            return "Without it, dictation that would come out in Polish is pasted unchanged — the app does not "
+                + "fall back to \(englishOutputTransformModel.displayName) for Polish, whose English→Polish output "
+                + "is what this backend exists to replace."
+        }
+        return "Without it, dictation that would come out in English is pasted unchanged."
     }
 
-    /// True when a switch wants the transform but nothing could run it yet.
-    var transformNeedsModel: Bool {
-        (translateEnabled || toneEnabled)
-            && !transformUseExternalEndpoint
-            && !transformModelInstalled
-            && !isDownloadingTransformModel
+    /// The cost of each direction, shown next to the target picker: what the
+    /// choice costs in RAM while loaded, and in disk to download.
+    var transformBackendCostDescription: String {
+        let english = englishOutputTransformModel
+        let polish = polishOutputTransformModel
+        return "English output runs on \(english.displayName) — about \(english.memoryDescription) of RAM while "
+            + "loaded, \(english.sizeDescription) to download. Polish output runs on \(polish.displayName) — about "
+            + "\(polish.memoryDescription) of RAM while loaded, \(polish.sizeDescription) to download."
     }
 
-    /// Recomputes the installed state off the main thread: the first check of a
-    /// hand-placed model hashes ~1 GB.
+    /// Recomputes the installed state of every backend off the main thread: the
+    /// first check of a hand-placed file hashes it, which is a 986 MB or 5 GB
+    /// read. The cached stamp means only that first check pays it.
     func refreshTransformModelState() {
-        let model = resolvedTransformModel
-        let usesExternal = transformUseExternalEndpoint
+        let catalogue = TransformModelManager.availableModels
+        let manager = transformModelManager
         Task.detached(priority: .utility) { [weak self] in
-            let installed = TransformModelManager.shared.verifiedPath(for: model) != nil
-            await MainActor.run {
-                guard let self else { return }
-                self.transformModelInstalled = installed || usesExternal
+            var installed: Set<String> = []
+            for model in catalogue where manager.verifiedPath(for: model) != nil {
+                installed.insert(model.id)
+            }
+            let verified = installed
+            await MainActor.run { [weak self] in
+                self?.installedTransformModelIDs = verified
             }
         }
     }
 
+    /// Fetches one backend's weights, with the pinned digest the manager
+    /// verifies before the file is installed.
     @MainActor
-    func downloadTransformModel() async {
-        guard !isDownloadingTransformModel else { return }
+    func downloadTransformModel(_ model: TransformModel) async {
+        guard downloadingTransformModelID == nil else { return }
         transformModelError = nil
 
         do {
@@ -328,18 +393,18 @@ class SettingsViewModel: ObservableObject {
             return
         }
 
-        let model = resolvedTransformModel
-        isDownloadingTransformModel = true
+        downloadingTransformModelID = model.id
         transformModelDownloadProgress = 0
         defer {
-            isDownloadingTransformModel = false
+            downloadingTransformModelID = nil
             transformModelDownloadProgress = 0
         }
 
         do {
-            try await TransformModelManager.shared.download(model: model) { progress in
+            try await transformModelManager.download(model: model) { progress in
                 Task { @MainActor [weak self] in
-                    self?.transformModelDownloadProgress = progress
+                    guard let self, self.downloadingTransformModelID == model.id else { return }
+                    self.transformModelDownloadProgress = progress
                 }
             }
             await MainActor.run { self.refreshTransformModelState() }
@@ -348,17 +413,19 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
-    func cancelTransformModelDownload() {
-        TransformModelManager.shared.cancelDownload(modelID: resolvedTransformModel.id)
-        isDownloadingTransformModel = false
-        transformModelDownloadProgress = 0
+    @MainActor
+    func cancelTransformModelDownload(_ model: TransformModel) {
+        transformModelManager.cancelDownload(modelID: model.id)
     }
 
-    func removeTransformModel() {
+    /// Removes one backend's weights. The runtime lets go of that model first,
+    /// so the memory is back before the file is.
+    @MainActor
+    func removeTransformModel(_ model: TransformModel) {
         transformModelError = nil
         do {
-            try TransformModelManager.shared.remove(resolvedTransformModel)
-            TransformRuntime.shared.unload()
+            TransformRuntime.shared.unloadIfResident(modelID: model.id)
+            try transformModelManager.remove(model)
             refreshTransformModelState()
         } catch {
             transformModelError = error.localizedDescription
@@ -373,7 +440,8 @@ class SettingsViewModel: ObservableObject {
         try await WhisperModelManager.shared.downloadModel(url: $0, name: $1, progressCallback: $2)
     }, downloadFluid: @escaping (AsrModelVersion, ProgressHandler?) async throws -> AsrModels = {
         try await AsrModels.downloadAndLoad(version: $0, progressHandler: $1)
-    }) {
+    }, transformModelManager: TransformModelManager = .shared) {
+        self.transformModelManager = transformModelManager
         self.downloadFluid = downloadFluid
         self.downloadWhisper = downloadWhisper
         let prefs = AppPreferences.shared
@@ -1561,6 +1629,12 @@ struct SettingsView: View {
                             .pickerStyle(.menu)
                             .labelsHidden()
                             .disabled(!viewModel.translateEnabled)
+                            // What each direction costs before it is paid: the
+                            // Polish backend is 5 GB and 5 GB of RAM.
+                            Text(viewModel.transformBackendCostDescription)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
 
                         HStack {
@@ -1624,69 +1698,92 @@ struct SettingsView: View {
                         }
 
                         // Built-in runtime: the weights the app downloads and
-                        // runs itself. The endpoint fields live in Advanced,
-                        // because they are the override, not the default.
+                        // runs itself, one per output direction. The endpoint
+                        // fields live in Advanced, because they are the
+                        // override, not the default.
                         Divider()
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(alignment: .top) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Transform model")
-                                        .font(.subheadline)
-                                    Text(viewModel.transformModelStateDescription)
-                                        .font(.caption)
-                                        .foregroundColor(viewModel.transformModelInstalled ? .secondary : .orange)
-                                }
-                                Spacer()
-                                if viewModel.isDownloadingTransformModel {
-                                    Button("Cancel") {
-                                        viewModel.cancelTransformModelDownload()
-                                    }
+                        VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Transform models")
                                     .font(.subheadline)
-                                } else if viewModel.transformModelInstalled {
-                                    Button("Remove") {
-                                        viewModel.removeTransformModel()
-                                    }
-                                    .font(.subheadline)
-                                } else {
-                                    Button("Download model") {
-                                        Task { await viewModel.downloadTransformModel() }
-                                    }
-                                    .font(.subheadline)
-                                    .buttonStyle(.borderedProminent)
-                                    .disabled(viewModel.transformUseExternalEndpoint)
-                                }
-                            }
-
-                            if viewModel.isDownloadingTransformModel {
-                                ProgressView(value: viewModel.transformModelDownloadProgress)
-                                Text(String(
-                                    format: "%.0f%% of %@",
-                                    viewModel.transformModelDownloadProgress * 100,
-                                    viewModel.resolvedTransformModel.sizeDescription
-                                ))
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                            }
-
-                            if viewModel.transformNeedsModel {
-                                Text("Until this model is downloaded, dictation is pasted unchanged.")
+                                Text("One backend per output direction, downloaded into the app's own folder so uninstalling takes them with it. A backend that is not installed is never swapped for the other one.")
                                     .font(.caption)
-                                    .foregroundColor(.orange)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            ForEach(viewModel.transformModels) { model in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack(alignment: .top) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(viewModel.transformModelRoleDescription(model))
+                                                .font(.subheadline)
+                                            Text(viewModel.transformModelStateDescription(model))
+                                                .font(.caption)
+                                                .foregroundColor(
+                                                    viewModel.isTransformModelInstalled(model) ? .secondary : .orange
+                                                )
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        Spacer()
+                                        if viewModel.isDownloading(model) {
+                                            Button("Cancel") {
+                                                viewModel.cancelTransformModelDownload(model)
+                                            }
+                                            .font(.subheadline)
+                                        } else if viewModel.isTransformModelInstalled(model) {
+                                            Button("Remove") {
+                                                viewModel.removeTransformModel(model)
+                                            }
+                                            .font(.subheadline)
+                                        } else {
+                                            Button("Download model") {
+                                                Task { await viewModel.downloadTransformModel(model) }
+                                            }
+                                            .font(.subheadline)
+                                            .buttonStyle(.borderedProminent)
+                                            .disabled(
+                                                viewModel.transformUseExternalEndpoint
+                                                    || viewModel.downloadingTransformModelID != nil
+                                            )
+                                        }
+                                    }
+
+                                    if viewModel.isDownloading(model) {
+                                        ProgressView(value: viewModel.transformModelDownloadProgress)
+                                        Text(String(
+                                            format: "%.0f%% of %@",
+                                            viewModel.transformModelDownloadProgress * 100,
+                                            model.sizeDescription
+                                        ))
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    }
+
+                                    if let notice = viewModel.transformMissingNotice(for: model) {
+                                        Text(notice)
+                                            .font(.caption)
+                                            .foregroundColor(.orange)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+
+                                    Text("Runs inside the app: \(model.sourceDescription).")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                             }
 
                             if let error = viewModel.transformModelError {
                                 Text(error)
                                     .font(.caption)
                                     .foregroundColor(.red)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-
-                            Text("Runs inside the app: \(viewModel.transformModelSourceDescription). Downloaded into the app's own folder, so uninstalling takes it with it.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
                         }
 
-                        Text("The pasted text depends on the spoken language, the target language and the three switches: raw by default, translated into the target when the spoken language differs from it and the translation switch is on, toned with the tone switch on, and cleaned up — filler removed and grammar repaired — with the clean-up switch on. Speech already in the target language is pasted untouched unless clean-up asks the model to repair it. Every dictation reports the detected language and shows the raw transcript beside the cleaned and transformed text. Dictation history always keeps the raw transcript, and recordings transcribed from the list are never transformed. Language awareness needs a multilingual whisper model in Auto-detect; with a fixed language the app trusts your setting. Polish output is best-effort with the bundled model — English output is the reliable direction.")
+                        Text("The pasted text depends on the spoken language, the target language and the three switches: raw by default, translated into the target when the spoken language differs from it and the translation switch is on, toned with the tone switch on, and cleaned up — filler removed and grammar repaired — with the clean-up switch on. Speech already in the target language is pasted untouched unless clean-up asks the model to repair it. Every dictation reports the detected language and shows the raw transcript beside the cleaned and transformed text. Dictation history always keeps the raw transcript, and recordings transcribed from the list are never transformed. Language awareness needs a multilingual whisper model in Auto-detect; with a fixed language the app trusts your setting. The backend follows the output language: Polish output runs on the larger model above — the shipped 1.5B's English→Polish output was measured dropping content and inventing details, so it is never used for Polish — and English output stays on the 1.5B, which is the measured-reliable, ~1.1 GB direction.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -1884,7 +1981,7 @@ struct SettingsView: View {
                                 .disabled(!viewModel.transformUseExternalEndpoint)
                             Text(viewModel.transformUseExternalEndpoint
                                  ? "The id the endpoint reports in /v1/models."
-                                 : "The model the built-in engine loads: \(viewModel.resolvedTransformModel.displayName).")
+                                 : "Only the external endpoint reads this. The built-in engine picks its backend by output direction — Polish on \(viewModel.polishOutputTransformModel.displayName), everything else on \(viewModel.englishOutputTransformModel.displayName).")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }

@@ -223,7 +223,10 @@ enum TransformPolicy: Equatable {
 /// linked in-process, weights in app-owned storage) is the default, and an
 /// OpenAI-compatible local endpoint stays available as an advanced override.
 /// Either way the prompts, the temperature and the response handling are the
-/// same code.
+/// same code. The built-in one picks its weights **by output language**
+/// (`localModel`): Polish output is the direction the shipped small model was
+/// measured unreliable on, so it runs on the larger one — and when that is not
+/// installed the call fails instead of falling back.
 final class TranslationService {
     static let shared = TranslationService()
 
@@ -233,7 +236,7 @@ final class TranslationService {
     let urlSession: URLSession
 
     /// The built-in runtime, injectable for the same reason: a test can drive
-    /// the dispatch without loading 986 MB of weights.
+    /// the dispatch without loading any weights.
     let localTransform: LocalTransform
 
     /// Whether the transform goes to the external endpoint. Read on every call,
@@ -248,21 +251,34 @@ final class TranslationService {
     /// `usesExternalEndpoint`.
     let gateSettings: () -> GateSettings
 
-    typealias LocalTransform = (_ systemPrompt: String, _ userText: String) async throws -> String
+    /// The local backend for the language the answer must be written in. Passed
+    /// to `localTransform` so the runtime loads the right weights — and so a
+    /// test can see which backend a direction resolved to without loading any.
+    let localModel: (TransformLanguage) -> TransformModel
+
+    typealias LocalTransform = (_ systemPrompt: String, _ userText: String, _ model: TransformModel) async throws -> String
 
     init(
         urlSession: URLSession = .shared,
-        localTransform: @escaping LocalTransform = { systemPrompt, userText in
-            try await TransformRuntime.shared.transform(systemPrompt: systemPrompt, userText: userText)
+        localTransform: @escaping LocalTransform = { systemPrompt, userText, model in
+            try await TransformRuntime.shared.transform(
+                systemPrompt: systemPrompt,
+                userText: userText,
+                model: model
+            )
         },
         usesExternalEndpoint: @escaping () -> Bool = {
             AppPreferences.shared.transformUseExternalEndpoint
+        },
+        localModel: @escaping (TransformLanguage) -> TransformModel = {
+            TransformModelManager.shared.model(forOutputLanguage: $0)
         },
         gateSettings: @escaping () -> GateSettings = { .current }
     ) {
         self.urlSession = urlSession
         self.localTransform = localTransform
         self.usesExternalEndpoint = usesExternalEndpoint
+        self.localModel = localModel
         self.gateSettings = gateSettings
     }
 
@@ -374,15 +390,23 @@ final class TranslationService {
     /// system prompt and, in `LlamaModel`, the same temperature the HTTP path
     /// sends. The response is cleaned exactly like an HTTP one, so a reasoning
     /// trace or an empty reply is rejected the same way.
+    ///
+    /// The backend follows the **output language**, not a preference: Polish
+    /// output runs on the model the measurement selected for it, everything
+    /// else on the shipped small one. When that backend is not installed this
+    /// throws — the small model is never substituted for Polish, whose
+    /// English→Polish output is the unreliable direction this exists to fix.
     func transformInProcess(
         _ text: String,
         policy: TransformPolicy,
         cleanUp: Bool,
         reference: String = ""
     ) async throws -> String {
+        let model = localModel(policy.outputLanguage)
         let raw = try await localTransform(
             Self.systemPrompt(for: policy, cleanUp: cleanUp, reference: reference),
-            text
+            text,
+            model
         )
         let stripped = Self.stripReasoning(from: raw)
             .trimmingCharacters(in: .whitespacesAndNewlines)
