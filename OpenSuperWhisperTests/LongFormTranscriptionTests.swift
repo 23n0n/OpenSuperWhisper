@@ -58,7 +58,6 @@ final class WhisperLongFormSegmentAssemblyTests: XCTestCase {
 
     func testLongFormParametersPreserveRollingContext() {
         var settings = Settings()
-        settings.selectedLanguage = "ru"
         settings.initialPrompt = "short vocabulary hint"
 
         let params = WhisperEngine.makeFullParams(
@@ -228,7 +227,6 @@ final class WhisperLongFormLanguageIntegrationTests: XCTestCase {
             let reference = try String(contentsOf: referenceURL, encoding: .utf8)
 
             var settings = Settings()
-            settings.selectedLanguage = fixture.language
             settings.showTimestamps = false
             settings.initialPrompt = ""
             settings.useBeamSearch = false
@@ -445,7 +443,6 @@ final class WhisperLongFormLanguageIntegrationTests: XCTestCase {
         let audioURL = try fixtureURL("long_en", fileExtension: "m4a")
 
         var settings = Settings()
-        settings.selectedLanguage = "en"
         settings.showTimestamps = false
         settings.initialPrompt = ""
         settings.useBeamSearch = false
@@ -462,9 +459,17 @@ final class WhisperLongFormLanguageIntegrationTests: XCTestCase {
         }
 
         var nativeDecodeStarted = false
-        // Other model-backed tests may run in parallel and make conversion/VAD
-        // slower, so allow enough time to reach the native decoder under load.
-        for _ in 0..<1_000 {
+        // Reaching the native decoder is a load-dependent event: conversion, the
+        // VAD pass and whisper.cpp's own initialization all run first, and other
+        // model-backed cases in the same run compete for the machine. This used
+        // to be a fixed number of polls (1_000 × 20 ms ≈ 20 s), which turned
+        // load into a red test: the case failed in a full-suite run and passed
+        // alone in 159.5 s. The wait is therefore a wall-clock budget — waiting
+        // longer cannot make a wrong result pass, because the assertion below is
+        // still "the decoder really started", and cancelling before it starts
+        // would prove nothing — it only stops the *wait* from failing the case.
+        let decodeStartDeadline = Date().addingTimeInterval(600)
+        while Date() < decodeStartDeadline {
             if service.progress > 0.12 {
                 nativeDecodeStarted = true
                 break

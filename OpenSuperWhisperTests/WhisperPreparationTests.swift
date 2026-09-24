@@ -111,7 +111,6 @@ final class WhisperPreparationTests: XCTestCase {
         let engine = WhisperEngine(modelPath: model.path)
         try await engine.initialize()
         var settings = Settings()
-        settings.selectedLanguage = "en"
         settings.initialPrompt = ""
         settings.useBeamSearch = false
         settings.temperature = 0

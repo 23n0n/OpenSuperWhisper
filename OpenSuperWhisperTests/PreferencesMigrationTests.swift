@@ -89,36 +89,4 @@ final class PreferencesMigrationTests: XCTestCase {
         XCTAssertEqual(first, second, "running the migration twice must not move anything twice")
         XCTAssertEqual(first, modelsDirectory.appendingPathComponent("ggml-small.bin").path)
     }
-
-    // MARK: - Transform model ids
-
-    func testMigratedTransformModelID_dropsAStaleIdForTheBuiltInRuntime() {
-        XCTAssertNil(
-            AppPreferences.migratedTransformModelID(
-                stored: "Qwen/Qwen3-14B-MLX-6bit",
-                externalEndpointEnabled: false
-            ),
-            "the built-in runtime only knows models the app ships"
-        )
-    }
-
-    func testMigratedTransformModelID_keepsAShippedId() {
-        XCTAssertEqual(
-            AppPreferences.migratedTransformModelID(
-                stored: TransformModelManager.defaultModelID,
-                externalEndpointEnabled: false
-            ),
-            TransformModelManager.defaultModelID
-        )
-    }
-
-    func testMigratedTransformModelID_keepsAnythingAnExternalEndpointMayServe() {
-        XCTAssertEqual(
-            AppPreferences.migratedTransformModelID(
-                stored: "some-other-gguf-alias",
-                externalEndpointEnabled: true
-            ),
-            "some-other-gguf-alias"
-        )
-    }
 }

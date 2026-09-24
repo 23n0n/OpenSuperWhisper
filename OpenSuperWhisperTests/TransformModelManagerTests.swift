@@ -151,70 +151,28 @@ final class TransformModelManagerTests: XCTestCase {
 
     // MARK: - Model ids
 
-    func testResolvedModel_fallsBackForAnIdTheCatalogueDoesNotKnow() {
-        XCTAssertEqual(manager.resolvedModel(forID: "test-model").id, "test-model")
-        XCTAssertEqual(manager.resolvedModel(forID: "nope").id, "test-model")
-        XCTAssertEqual(manager.resolvedModel(forID: nil).id, "test-model")
-        XCTAssertEqual(manager.resolvedModel(forID: "").id, "test-model")
+    func testModelLooksUpACatalogueEntryByID() {
+        XCTAssertEqual(manager.model(forID: "test-model")?.id, "test-model")
+        XCTAssertNil(manager.model(forID: "nope"), "an id this build does not ship is not a model")
     }
 
-    func testResolvedModel_turnsAStaleStoredIdIntotheShippedDefault() {
-        XCTAssertEqual(
-            TransformModelManager.shared.resolvedModel(forID: "Qwen/Qwen3-14B-MLX-6bit").id,
-            TransformModelManager.defaultModelID,
-            "a stored id this build does not ship must resolve to the default, not to nothing"
-        )
-    }
+    /// The shipped entry is what the app falls back to, and the 8B is the
+    /// larger of the two — which is what the card states.
+    func testTheCatalogueHoldsTheShippedModelAndTheLargerPolishOne() throws {
+        let shipped = TransformModelManager.shared.defaultModel
+        let eightBee = TransformModelManager.shared.polishModel
 
-    func testShippedCatalogue_pinsTheHashTheRepositoryAlreadyCarries() throws {
-        let shipped = try XCTUnwrap(
-            TransformModelManager.availableModels.first { $0.id == TransformModelManager.defaultModelID }
-        )
-
-        // The same weights and the same hash Scripts/transform-server.sh pins.
-        let script = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("Scripts/transform-server.sh"),
-            encoding: .utf8
-        )
-        XCTAssertTrue(
-            script.contains(shipped.sha256),
-            "the app and Scripts/transform-server.sh must pin the same weights"
-        )
-        XCTAssertTrue(script.contains(shipped.fileName))
-    }
-
-    // MARK: - Routing by output direction
-
-    func testOutputLanguageSelectsTheBackend() {
-        XCTAssertEqual(TransformModelManager.modelID(forOutputLanguage: .polish), "qwen3-8b-q4_k_m")
-        XCTAssertEqual(TransformModelManager.modelID(forOutputLanguage: .english), "qwen2.5-1.5b-instruct-q4_k_m")
-        XCTAssertEqual(
-            TransformModelManager.modelID(forOutputLanguage: .english),
-            TransformModelManager.defaultModelID,
-            "English output keeps the shipped model"
-        )
-    }
-
-    func testOutputLanguageResolvesWithinTheCatalogue() throws {
-        let manager = TransformModelManager.shared
-        XCTAssertEqual(manager.model(forOutputLanguage: .polish).id, TransformModelManager.polishOutputModelID)
-        XCTAssertEqual(manager.model(forOutputLanguage: .english).id, TransformModelManager.defaultModelID)
-        XCTAssertNotEqual(
-            manager.model(forOutputLanguage: .polish).id,
-            manager.model(forOutputLanguage: .english).id,
-            "the two directions must not resolve to the same weights"
-        )
+        XCTAssertEqual(shipped.id, TransformModelManager.defaultModelID)
+        XCTAssertEqual(eightBee.id, TransformModelManager.polishOutputModelID)
+        XCTAssertNotEqual(shipped.id, eightBee.id, "Polish's preferred model is not the shipped one")
+        XCTAssertGreaterThan(eightBee.memoryBytes, shipped.memoryBytes,
+                             "the Polish backend is the larger one, and the UI states that")
     }
 
     /// The Polish entry is pinned by the brief: the URL, the size and the
     /// digest the download is verified against, with no second source of truth.
-    func testPolishBackendIsPinned() throws {
-        let polish = try XCTUnwrap(
-            TransformModelManager.availableModels.first { $0.id == TransformModelManager.polishOutputModelID }
-        )
+    func testTheEightBeeIsPinned() throws {
+        let polish = TransformModelManager.shared.polishModel
 
         XCTAssertEqual(
             polish.downloadURL.absoluteString,
@@ -224,26 +182,54 @@ final class TransformModelManagerTests: XCTestCase {
         XCTAssertEqual(polish.sizeBytes, 5_027_783_488)
         XCTAssertEqual(polish.fileName, "qwen3-8b-q4_k_m.gguf")
         XCTAssertEqual(polish.licence, "Apache-2.0")
-        XCTAssertGreaterThan(
-            polish.memoryBytes,
-            TransformModelManager.shared.model(forOutputLanguage: .english).memoryBytes,
-            "the Polish backend is the larger one, and the UI states that"
+    }
+
+    /// The shipped model is pinned too: it is the one every language can run on,
+    /// so its digest is the floor the whole feature stands on.
+    func testTheShippedModelIsPinned() throws {
+        let shipped = TransformModelManager.shared.defaultModel
+
+        XCTAssertEqual(
+            shipped.downloadURL.absoluteString,
+            "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
+        )
+        XCTAssertEqual(shipped.sha256, "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370")
+        XCTAssertEqual(shipped.sizeBytes, 986_048_768)
+        XCTAssertEqual(shipped.fileName, "qwen2.5-1.5b-instruct-q4_k_m.gguf")
+    }
+
+    // MARK: - The model is a preference
+
+    /// The id a language prefers: Polish the 8B, everything else the shipped
+    /// model. What is *installed* is the caller's business
+    /// (`isPolishModelInstalled`), because the preference is allowed to miss.
+    func testThePreferredModelIDPerLanguage() {
+        XCTAssertEqual(TransformModelManager.modelID(forSpokenLanguage: .polish), "qwen3-8b-q4_k_m")
+        XCTAssertEqual(
+            TransformModelManager.modelID(forSpokenLanguage: .english),
+            TransformModelManager.defaultModelID,
+            "English always prefers the shipped model"
         )
     }
 
-    /// A stored id cannot move the built-in runtime: routing is by direction.
-    func testAStoredPreferenceCannotMoveTheBuiltInBackends() {
-        for stored in TransformModelManager.availableModels.map(\.id) + ["Qwen/Qwen3-14B-MLX-6bit"] {
-            XCTAssertEqual(
-                TransformModelManager.shared.model(forOutputLanguage: .polish).id,
-                TransformModelManager.polishOutputModelID,
-                "stored \(stored) must not change the Polish backend"
-            )
-            XCTAssertEqual(
-                TransformModelManager.shared.model(forOutputLanguage: .english).id,
-                TransformModelManager.defaultModelID,
-                "stored \(stored) must not change the English backend"
-            )
-        }
+    /// Nothing installed: Polish runs on the shipped model rather than being
+    /// refused, and English is unaffected.
+    func testWithoutTheEightBeePolishFallsBackToTheShippedModel() throws {
+        // The real catalogue, pointed at a directory with nothing in it — so
+        // "the 8B is not installed" is this test's fact and not the machine's.
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("osw-preference-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let manager = TransformModelManager(
+            directory: directory,
+            catalogue: TransformModelManager.availableModels
+        )
+
+        XCTAssertFalse(manager.isPolishModelInstalled)
+        XCTAssertEqual(manager.model(forSpokenLanguage: .polish).id, TransformModelManager.defaultModelID,
+                       "Polish runs on the shipped model instead of being refused")
+        XCTAssertEqual(manager.model(forSpokenLanguage: .english).id, TransformModelManager.defaultModelID)
+        XCTAssertNil(manager.verifiedPath(for: manager.polishModel), "nothing is staged, so nothing verifies")
     }
 }

@@ -45,7 +45,7 @@ final class LlamaModel {
 
     // MARK: - Tuning
 
-    /// The context size the HTTP backend this replaces was started with
+    /// The context size the baseline this replaces was started with
     /// (`llama-server --ctx-size 4096`). Dictation prompts are a few hundred
     /// tokens, so this is headroom, not a limit anyone hits.
     static let defaultContextSize: UInt32 = 4096
@@ -53,8 +53,8 @@ final class LlamaModel {
     /// `--n-gpu-layers 99`: every layer on the GPU, exactly like the baseline.
     static let gpuLayers: Int32 = 99
 
-    /// The temperature the app has always sent (`buildRequestBody`), reused
-    /// verbatim in-process so the two paths sample the same distribution.
+    /// The temperature every transform has always sampled at, unchanged by the
+    /// move in-process: the rewrite samples the same distribution it always did.
     static let temperature: Float = 0.2
 
     /// Never generate more than this in one transform. A dictation rewrite that

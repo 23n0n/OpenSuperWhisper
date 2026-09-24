@@ -1732,22 +1732,11 @@ final class HebrewIvritSupportTests: XCTestCase {
         XCTAssertTrue(ivrit?.url.absoluteString.contains("ivrit-ai/whisper-large-v3-turbo-ggml") ?? false)
     }
 
-    // MARK: Task 4 — preferred-language lookup
-    func testPreferredLanguageLookupForIvritModel() {
-        XCTAssertEqual(
-            SettingsDownloadableModels.preferredLanguage(forFilename: "ggml-ivrit-large-v3-turbo.bin"),
-            "he")
-    }
-
-    func testPreferredLanguageLookupForStandardModelIsNil() {
-        XCTAssertNil(SettingsDownloadableModels.preferredLanguage(forFilename: "ggml-large-v3-turbo.bin"))
-    }
-
-    func testPreferredLanguageLookupForUnknownFilenameIsNil() {
-        XCTAssertNil(SettingsDownloadableModels.preferredLanguage(forFilename: "does-not-exist.bin"))
-    }
-
     // MARK: Task 5 — conditional model visibility
+    //
+    // The transcription language is always auto-detected now, so the only thing
+    // left that can decide whether a language-specific model is worth offering
+    // is the machine's own language.
     private func makeLanguageModel(downloaded: Bool) -> SettingsDownloadableModel {
         SettingsDownloadableModel(
             name: "Turbo V3 Hebrew", isDownloaded: downloaded,
@@ -1756,24 +1745,19 @@ final class HebrewIvritSupportTests: XCTestCase {
             filename: "ggml-ivrit-large-v3-turbo.bin", preferredLanguage: "he")
     }
 
-    func testLanguageModelHiddenWhenNotDownloadedAndLanguageNotSelected() {
+    func testLanguageModelHiddenWhenNotDownloadedAndSystemLanguageDiffers() {
         let model = makeLanguageModel(downloaded: false)
-        XCTAssertFalse(SettingsDownloadableModels.isVisible(model, selectedLanguage: "en", systemLanguage: "en"))
-    }
-
-    func testLanguageModelVisibleWhenSelectedLanguageMatches() {
-        let model = makeLanguageModel(downloaded: false)
-        XCTAssertTrue(SettingsDownloadableModels.isVisible(model, selectedLanguage: "he", systemLanguage: "en"))
+        XCTAssertFalse(SettingsDownloadableModels.isVisible(model, systemLanguage: "en"))
     }
 
     func testLanguageModelVisibleWhenSystemLanguageMatches() {
         let model = makeLanguageModel(downloaded: false)
-        XCTAssertTrue(SettingsDownloadableModels.isVisible(model, selectedLanguage: "en", systemLanguage: "he"))
+        XCTAssertTrue(SettingsDownloadableModels.isVisible(model, systemLanguage: "he"))
     }
 
     func testLanguageModelVisibleWhenAlreadyDownloaded() {
         let model = makeLanguageModel(downloaded: true)
-        XCTAssertTrue(SettingsDownloadableModels.isVisible(model, selectedLanguage: "en", systemLanguage: "en"))
+        XCTAssertTrue(SettingsDownloadableModels.isVisible(model, systemLanguage: "en"))
     }
 
     func testStandardModelAlwaysVisible() {
@@ -1781,7 +1765,7 @@ final class HebrewIvritSupportTests: XCTestCase {
             name: "Turbo V3 large", isDownloaded: false,
             url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin?download=true")!,
             size: 1, description: "d")
-        XCTAssertTrue(SettingsDownloadableModels.isVisible(model, selectedLanguage: "en", systemLanguage: "en"))
+        XCTAssertTrue(SettingsDownloadableModels.isVisible(model, systemLanguage: "en"))
     }
 
     // MARK: Task 6 — Hugging Face page URL

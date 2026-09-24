@@ -96,11 +96,6 @@ final class LanguageSupportTests: XCTestCase {
             XCTAssertNotNil(LanguageUtil.languageNames[code], "Missing display name for \(code)")
         }
     }
-
-    func testFallbackLanguage() {
-        XCTAssertEqual(LanguageUtil.fallbackLanguage(engine: "fluidaudio"), "en")
-        XCTAssertEqual(LanguageUtil.fallbackLanguage(engine: "whisper"), "auto")
-    }
 }
 
 final class CountLabelTests: XCTestCase {

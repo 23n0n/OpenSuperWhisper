@@ -12,30 +12,35 @@ class TranscriptionService: ObservableObject {
     @Published private(set) var isConverting = false
     @Published private(set) var conversionProgress: Float = 0.0
     
-    /// The English-only-model conflict for this dictation, or `nil` when the
-    /// combination can work.
+    /// The English-only-model conflict for one transcript, or `nil` when there
+    /// is nothing to refuse.
     ///
     /// Only whisper can be wrong this way — the model's own context is asked
     /// (`whisper_is_multilingual() == 0`), and the file name stands in for a
-    /// model that is not loaded. The language setting is whatever this
-    /// dictation was configured with, which is the same value the engine is
-    /// conditioned on.
-    private func speechLanguageConflict(settings: Settings) -> SpeechLanguageConflict? {
-        guard let whisper = currentEngine as? WhisperEngine else { return nil }
+    /// model that is not loaded. The evidence is the transcript itself: the
+    /// manual language picker is gone, and an English-only model measures
+    /// nothing, so what the text looks like is all there is.
+    @MainActor
+    private func speechLanguageConflict(
+        engine: TranscriptionEngine,
+        transcript: String
+    ) -> SpeechLanguageConflict? {
+        guard let whisper = engine as? WhisperEngine else { return nil }
         let selectedPath = engineSelection?.modelPath
             ?? AppPreferences.shared.selectedWhisperModelPath
             ?? AppPreferences.shared.selectedModelPath
         return SpeechModelLanguageGate.conflict(
             modelPath: selectedPath,
             isMultilingual: whisper.isModelMultilingual,
-            languageCode: settings.selectedLanguage
+            transcript: transcript
         )
     }
 
     /// The result of one transcription: the text, plus the language the engine
-    /// saw. The language decides whether the transform gate translates, tones or
-    /// pastes the transcript as-is, so it travels with the text instead of
-    /// living in ambient state that concurrent operations could overwrite.
+    /// measured. The language decides whether the transform gate tones or
+    /// cleans up the transcript or pastes it as-is, and which model does the
+    /// work, so it travels with the text instead of living in ambient state
+    /// that concurrent operations could overwrite.
     struct TranscriptionOutput {
         let text: String
         /// Engine-reported language, or `nil` when the engine has no signal
@@ -290,14 +295,6 @@ class TranscriptionService: ObservableObject {
                 }
             }
         }
-        
-        // The one combination that cannot work is refused before any state is
-        // published: an impossible model/language pair must not look like a
-        // transcription in progress, must not write a transcript, and must not
-        // be pasted. See `SpeechModelLanguageGate`.
-        if let conflict = speechLanguageConflict(settings: settings) {
-            throw TranscriptionError.speechLanguageConflict(conflict)
-        }
 
         progress = 0.0
         conversionProgress = 0.0
@@ -385,7 +382,18 @@ class TranscriptionService: ObservableObject {
                 }
                 throw error
             }
-            
+
+            // The one combination that cannot work is refused before anything is
+            // published: an English-only model writing English over speech it
+            // never understood must not reach the paste path, and must not be
+            // saved as the record of what the user said. The transcript is the
+            // evidence — see `SpeechModelLanguageGate`.
+            if let conflict = await MainActor.run(body: {
+                self?.speechLanguageConflict(engine: engine, transcript: output.text)
+            }) {
+                throw TranscriptionError.speechLanguageConflict(conflict)
+            }
+
             try Task.checkCancellation()
             
             let finalCancelled = await MainActor.run {

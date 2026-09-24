@@ -17,7 +17,6 @@ final class WhisperTurboRegressionTests: XCTestCase {
             let fixture = Self.repoRoot.appendingPathComponent("OpenSuperWhisperTests/Fixtures/long_\(language)")
             let reference = try String(contentsOf: fixture.appendingPathExtension("txt"), encoding: .utf8)
             var settings = Settings()
-            settings.selectedLanguage = language
             settings.showTimestamps = false
             settings.initialPrompt = ""
             settings.useBeamSearch = true
@@ -62,7 +61,6 @@ final class WhisperTurboRegressionTests: XCTestCase {
             file: Self.repoRoot.appendingPathComponent("OpenSuperWhisperTests/Fixtures/long_ru.m4a"), output: output
         )
         var settings = Settings()
-        settings.selectedLanguage = "ru"
         settings.showTimestamps = false
         settings.initialPrompt = ""
         settings.useBeamSearch = true

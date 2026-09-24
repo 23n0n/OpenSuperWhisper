@@ -16,8 +16,8 @@ import XCTest
 /// like `LlamaRuntimeIntegrationTests`, so CI stays hermetic.
 final class TransformDeterminismIntegrationTests: XCTestCase {
 
-    /// The weights the app installs, as `Scripts/transform-server.sh` places
-    /// them. Read-only: nothing here writes to the user's model directory.
+    /// The weights the app installs. Read-only: nothing here writes to the
+    /// user's model directory.
     private static var home: URL { FileManager.default.homeDirectoryForCurrentUser }
     private static var englishWeights: URL { home.appendingPathComponent("models/qwen2.5-1.5b-instruct-q4_k_m.gguf") }
     private static var polishWeights: URL { home.appendingPathComponent("models/Qwen3-8B-Q4_K_M.gguf") }
@@ -28,10 +28,14 @@ final class TransformDeterminismIntegrationTests: XCTestCase {
 
     /// Runs one dictation `runs` times through the real in-process transform and
     /// requires every output to be identical to the first.
+    ///
+    /// The language never changes hands — the same dictation goes in and comes
+    /// back out in the language it was spoken in — so the only variation left to
+    /// pin is the model's own accumulation.
     private func assertOneInputGivesOneOutput(
         weights: URL,
-        from source: TransformLanguage,
-        to target: TransformLanguage,
+        language: TransformLanguage,
+        tone: ToneMode,
         input: String,
         runs: Int = 5,
         file: StaticString = #filePath,
@@ -46,9 +50,9 @@ final class TransformDeterminismIntegrationTests: XCTestCase {
         let model = try LlamaModel(modelPath: weights.path)
         defer { model.unload() }
 
-        let prompt = TranslationService.systemPrompt(
-            for: .translate(from: source, to: target),
-            cleanUp: false
+        let prompt = TransformService.systemPrompt(
+            for: .cleanUpWithTone(language: language, tone: tone),
+            cleanUp: true
         )
 
         let started = Date()
@@ -58,7 +62,7 @@ final class TransformDeterminismIntegrationTests: XCTestCase {
         let elapsed = Date().timeIntervalSince(started)
         let digests = outputs.map(Self.sha256)
 
-        TestFixtures.report("[determinism] \(source.rawValue)→\(target.rawValue) on "
+        TestFixtures.report("[determinism] \(language.rawValue)/\(tone.rawValue) on "
                     + "\(weights.lastPathComponent): \(runs) runs in \(String(format: "%.2f", elapsed))s, "
                     + "\(Set(digests).count) distinct output(s), sha256 \(digests[0]) "
                     + "(\(outputs[0].utf8.count) bytes)")
@@ -72,22 +76,33 @@ final class TransformDeterminismIntegrationTests: XCTestCase {
         }
     }
 
-    /// Polish → English: the shipped small model, the direction used every day.
-    func testPolishToEnglishIsIdenticalOnEveryRepeat() throws {
+    /// Polish, on the shipped model: the language the captain dictates in, on
+    /// the weights every install has.
+    func testPolishRewriteIsIdenticalOnEveryRepeat() throws {
         try assertOneInputGivesOneOutput(
             weights: Self.englishWeights,
-            from: .polish, to: .english,
-            input: "Nie mogę dzisiaj przyjść na spotkanie, przepraszam. "
-                 + "Czy możemy przełożyć je na przyszły tydzień?"
+            language: .polish, tone: .formal,
+            input: "nie mogę dzisiaj przyjść na spotkanie przepraszam "
+                 + "czy możemy przełożyć je na przyszły tydzień"
         )
     }
 
-    /// English → Polish: the direction the Polish-output backend serves, so the
-    /// 8B is the model whose accumulation this pins.
-    func testEnglishToPolishIsIdenticalOnEveryRepeat() throws {
+    /// Polish again, on the 8B — the model Polish prefers when it is installed —
+    /// so the larger backend's accumulation is pinned too.
+    func testPolishRewriteOnTheEightBeeIsIdenticalOnEveryRepeat() throws {
         try assertOneInputGivesOneOutput(
             weights: Self.polishWeights,
-            from: .english, to: .polish,
+            language: .polish, tone: .formal,
+            input: "nie mogę dzisiaj przyjść na spotkanie przepraszam "
+                 + "czy możemy przełożyć je na przyszły tydzień"
+        )
+    }
+
+    /// English, on the shipped model: the other language, rewritten in place.
+    func testEnglishRewriteIsIdenticalOnEveryRepeat() throws {
+        try assertOneInputGivesOneOutput(
+            weights: Self.englishWeights,
+            language: .english, tone: .casual,
             input: "I can't come to the meeting today, I'm sorry. "
                  + "Could we move it to next week?"
         )

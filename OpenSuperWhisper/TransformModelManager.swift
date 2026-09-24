@@ -3,8 +3,8 @@ import CryptoKit
 import Foundation
 
 enum TransformModelError: Error, LocalizedError {
-    /// Nothing installed for the direction that was asked for. Carries the
-    /// model's name: the app routes Polish output to its own backend, so "the
+    /// Nothing installed for the language that was asked for. Carries the
+    /// model's name: the shipped model is the floor for every language, so "the
     /// model is missing" has to say *which* one.
     case notInstalled(String)
     case checksumMismatch(expected: String, actual: String)
@@ -27,18 +27,14 @@ enum TransformModelError: Error, LocalizedError {
 
 /// One downloadable transform model.
 struct TransformModel: Equatable, Identifiable {
-    /// The id the built-in runtime loads this entry for
-    /// (`AppPreferences.transformModel` names it too when the external endpoint
-    /// override is on). It is the file's stem, which is also the alias
-    /// `Scripts/transform-server.sh` serves the same weights under.
+    /// The id the built-in runtime loads this entry for. It is the file's stem.
     let id: String
     let displayName: String
     let fileName: String
     let downloadURL: URL
-    /// Pinned by the repository, and the only place either backend's digest
-    /// lives: the download, the install and every later use are all checked
-    /// against this value. For the shipped small model it is also the hash
-    /// `Scripts/transform-server.sh` verifies its own copy of those weights with.
+    /// Pinned by the repository, and the only place the digest lives: the
+    /// download, the install and every later use are all checked against this
+    /// value.
     let sha256: String
     let sizeBytes: Int64
     /// What the model costs in wired memory while it is loaded — weights, KV
@@ -70,28 +66,32 @@ struct TransformModel: Equatable, Identifiable {
 /// is the wrong trade for a menu-bar utility). They live in
 /// `~/Library/Application Support/<bundle id>/transform-models/`, exactly like
 /// the whisper models next door, so uninstalling the app removes them and
-/// reinstalling fetches them again. The catalogue holds one entry per output
-/// direction; `model(forOutputLanguage:)` is what the runtime asks it for.
+/// reinstalling fetches them again. The catalogue holds the shipped model every
+/// language can run on, plus the larger one Polish prefers when it is installed;
+/// `model(forSpokenLanguage:)` is what the runtime asks it for.
 final class TransformModelManager {
     static let shared = TransformModelManager()
 
-    /// The id the built-in runtime falls back to when the stored preference
-    /// names something the app does not ship.
+    /// The model every language can run on, and the one the app ships: English
+    /// always runs on it, and Polish runs on it whenever the optional larger one
+    /// is not installed.
     static let defaultModelID = "qwen2.5-1.5b-instruct-q4_k_m"
 
-    /// The backend for **Polish output**, the one direction the shipped 1.5B was
+    /// **Polish's preferred** backend, the language the shipped 1.5B was
     /// measured unreliable on: 4/15 clean, 2 of them inventing content and 5
     /// with broken grammar, against this model's 11/15 clean and none invented
     /// (`fm-20260923-24/raw/verdicts.json`; a second scorer called the small
     /// model 1/15). It is 5×
     /// the weights and 5× the wired memory, so it is only loaded when Polish is
-    /// actually being written.
+    /// actually being written — and it is a *preference*: when it is not
+    /// installed, Polish work runs on the shipped model instead of being refused.
     static let polishOutputModelID = "qwen3-8b-q4_k_m"
 
-    /// The model that must write `language`. Routing is by **output direction**
-    /// and nothing else: the preference picks which direction the user wants,
-    /// never which backend serves it.
-    static func modelID(forOutputLanguage language: TransformLanguage) -> String {
+    /// The id of the model a dictation in `language` prefers.
+    ///
+    /// Read on the transform path through `model(forSpokenLanguage:)`, which
+    /// falls back to the shipped model when the preferred one is not installed.
+    static func modelID(forSpokenLanguage language: TransformLanguage) -> String {
         language == .polish ? polishOutputModelID : defaultModelID
     }
 
@@ -161,28 +161,34 @@ final class TransformModelManager {
         catalogue.first { $0.id == id }
     }
 
-    /// The model `id` names, or the default one when `id` is empty or names
-    /// something this build does not ship (a preference left over from an
-    /// older version, or a hand-typed id meant for an external endpoint).
-    func resolvedModel(forID id: String?) -> TransformModel {
-        if let id, !id.isEmpty, let match = model(forID: id) {
-            return match
-        }
-        return catalogue.first { $0.id == Self.defaultModelID } ?? catalogue[0]
-    }
-
+    /// The shipped model: the one entry in the catalogue every language can run
+    /// on, and the floor the transform falls back to.
     var defaultModel: TransformModel {
-        resolvedModel(forID: nil)
+        catalogue.first { $0.id == Self.defaultModelID } ?? catalogue[0]
     }
 
-    /// The backend for the language the model is about to write.
+    /// The optional larger backend Polish prefers.
+    var polishModel: TransformModel {
+        catalogue.first { $0.id == Self.polishOutputModelID } ?? defaultModel
+    }
+
+    /// Whether the optional Polish backend is installed and its bytes verified.
+    /// False is a normal state, not a problem: Polish work then runs on
+    /// `defaultModel` and nothing is refused.
+    var isPolishModelInstalled: Bool {
+        verifiedPath(for: polishModel) != nil
+    }
+
+    /// The backend a dictation in `language` runs on.
     ///
-    /// Resolved from the catalogue, not from a preference: the user picks the
-    /// *direction*, the app picks the weights for it. A build that does not ship
-    /// the Polish backend still resolves to the small one here — the caller
-    /// checks `verifiedPath(for:)` and reports the miss rather than substituting.
-    func model(forOutputLanguage language: TransformLanguage) -> TransformModel {
-        resolvedModel(forID: Self.modelID(forOutputLanguage: language))
+    /// A **preference**, resolved from the catalogue and from what is on disk:
+    /// Polish prefers the larger model and uses the shipped one when that is not
+    /// installed, and English always uses the shipped one. Nothing is refused
+    /// for a missing optional model, and nothing is substituted silently — the
+    /// caller is handed the model it will really run on, so Settings can say so.
+    func model(forSpokenLanguage language: TransformLanguage) -> TransformModel {
+        guard language == .polish else { return defaultModel }
+        return isPolishModelInstalled ? polishModel : defaultModel
     }
 
     func fileURL(for model: TransformModel) -> URL {

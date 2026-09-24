@@ -556,34 +556,34 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
 
     /// Every tab's cards have to lay out intact — nothing crushed, nothing
     /// running through an edge — whatever the switches are set to. The
-    /// Translation & Tone card grows rows with the transforms, so the tab's
-    /// height is not a constant this test may assume: the whole tab is drawn
-    /// from the scroll view's document view, and the assertions are the shape of
-    /// the stack rather than a card count for today's content.
+    /// Tone & Clean-up card grows rows with the tone picker and the models, so
+    /// the tab's height is not a constant this test may assume: the whole tab is
+    /// drawn from the scroll view's document view, and the assertions are the
+    /// shape of the stack rather than a card count for today's content.
     ///
     /// This is also where the tabs' contents are captured whole, so the PNGs
     /// show every section the Model, Shortcuts and Advanced tabs now carry.
     func testEveryTabLaysOutItsCardsWhateverTheSwitchesSay() throws {
-        let savedTranslate = AppPreferences.shared.translateEnabled
         let savedTone = AppPreferences.shared.toneEnabled
+        let savedCleanUp = AppPreferences.shared.cleanUpEnabled
         defer {
-            AppPreferences.shared.translateEnabled = savedTranslate
             AppPreferences.shared.toneEnabled = savedTone
+            AppPreferences.shared.cleanUpEnabled = savedCleanUp
         }
 
         // The transcription tab, in both switch states, plus every other tab.
-        let cases: [(tab: String, suffix: String, translate: Bool, tone: Bool)] = [
+        let cases: [(tab: String, suffix: String, tone: Bool, cleanUp: Bool)] = [
             ("transcription", "transforms-off", false, false),
-            ("transcription", "tone-only", false, true),
+            ("transcription", "tone-only", true, false),
             ("transcription", "transforms-on", true, true),
-            ("shortcuts", "default", savedTranslate, savedTone),
-            ("model", "default", savedTranslate, savedTone),
-            ("advanced", "default", savedTranslate, savedTone),
+            ("shortcuts", "default", savedTone, savedCleanUp),
+            ("model", "default", savedTone, savedCleanUp),
+            ("advanced", "default", savedTone, savedCleanUp),
         ]
 
         for state in cases {
-            AppPreferences.shared.translateEnabled = state.translate
             AppPreferences.shared.toneEnabled = state.tone
+            AppPreferences.shared.cleanUpEnabled = state.cleanUp
 
             let name = "tab-\(state.tab)-content-\(state.suffix)"
             let capture = try captureHosted(Self.body(state.tab, of: SettingsView()),

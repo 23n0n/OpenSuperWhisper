@@ -1,37 +1,41 @@
 import Foundation
 
-/// An English-only speech model paired with a language setting it cannot serve.
+/// An English-only speech model that produced a transcript it cannot have heard.
 ///
 /// This is the captain's first failure, made impossible to miss: his selected
-/// model was `ggml-tiny.en.bin` with the language on Auto-detect, so whisper
-/// could not hear the Polish he spoke and produced confident English instead
-/// ("There are some people who are going to go to the airport.") — and the
-/// transform, correctly, found nothing to translate in it. Nothing warned him;
-/// nothing named the model or the setting.
+/// model was `ggml-tiny.en.bin`, so whisper could not hear the Polish he spoke
+/// and produced confident English instead ("There are some people who are going
+/// to go to the airport."). Nothing warned him; nothing named the model.
+///
+/// There is no language setting left to compare against, so the evidence is the
+/// transcript itself: an `.en` model cannot detect anything, and when the text
+/// it produced is not English, what the user is looking at is a model writing
+/// English over speech it never understood.
 struct SpeechLanguageConflict: Equatable {
     /// The speech model's file name, e.g. `ggml-tiny.en.bin`.
     let modelName: String
-    /// The language setting that is being asked for, e.g. `auto` or `pl`.
-    let languageCode: String
-    /// That setting in words, e.g. "Auto-detect" or "Polish".
-    let languageName: String
+    /// The language the transcript itself looks like, e.g. `pl`.
+    let detectedLanguageCode: String
+    /// That language in words, e.g. "Polish".
+    let detectedLanguageName: String
     /// An already-installed multilingual model that fixes it, if there is one.
     let remedyModelName: String?
     let remedyModelPath: String?
 
-    var title: String { "This language needs a multilingual model" }
+    var title: String { "This dictation needs a multilingual model" }
 
-    /// The whole story in one paragraph: the model, the setting, what whisper
-    /// does instead, and the fix — the file that is already on this machine
-    /// when there is one.
+    /// The whole story in one paragraph: the model, what the transcript looks
+    /// like, what whisper did instead, and the fix — the file that is already on
+    /// this machine when there is one.
     var message: String {
-        var text = "\(modelName) understands English only, but the transcription language is set to "
-            + "\(languageName). Whisper cannot transcribe \(languageName) with that model — it invents "
-            + "English sentences instead. Dictation is blocked until this is fixed."
+        var text = "\(modelName) understands English only, but this dictation is "
+            + "\(detectedLanguageName). Whisper cannot transcribe \(detectedLanguageName) with that "
+            + "model — it writes English sentences instead of what was said. Dictation is blocked "
+            + "until this is fixed."
         if let remedyModelName {
-            text += " Select \(remedyModelName) (already on this machine), or set the language to English."
+            text += " Select \(remedyModelName) (already on this machine)."
         } else {
-            text += " Download a multilingual model in Settings → Model, or set the language to English."
+            text += " Download a multilingual model in Settings → Model."
         }
         return text
     }
@@ -42,17 +46,20 @@ struct SpeechLanguageConflict: Equatable {
     }
 }
 
-/// The rule that refuses to transcribe with a model that cannot hear the
-/// selected language.
+/// The rule that refuses to keep a transcript only an English-only model could
+/// have invented.
 ///
-/// Both halves are exactly what the brief names: the model is English-only when
-/// the loaded context says `whisper_is_multilingual() == 0`, and — for the
-/// window before a model is loaded, and for the Settings card, where there is no
-/// engine at all — when its file name declares it (`ggml-tiny.en.bin`,
-/// `ggml-base.en.bin`). The language setting must be something other than
-/// English; `en` is a combination that works and is never blocked, and Auto-detect
-/// on an English-only model is the captain's case, refused rather than passed
-/// through.
+/// The model is English-only when the loaded context says
+/// `whisper_is_multilingual() == 0`, and — for the window before a model is
+/// loaded, and for the Settings card, where there is no engine at all — when its
+/// file name declares it (`ggml-tiny.en.bin`, `ggml-base.en.bin`).
+///
+/// The language, now, is **read off the transcript**: with the manual language
+/// picker gone there is no setting to compare against, and an English-only model
+/// measures nothing — the text it produced is the only evidence in the app. The
+/// existing `LanguageDetector` heuristic supplies the verdict, so a transcript
+/// that looks Polish under a `.en` model is refused and named, and English
+/// dictation can never be caught by this guard.
 ///
 /// Nothing here changes a preference. The remedy is offered, and applied only
 /// when the user takes it.
@@ -62,18 +69,24 @@ enum SpeechModelLanguageGate {
     /// the machine and the download list both know.
     static let preferredMultilingualModelName = "ggml-large-v3-turbo.bin"
 
-    /// The conflict for this model, language setting and installed models, or
-    /// `nil` when there is nothing to refuse.
+    /// The conflict for this model and this transcript, or `nil` when there is
+    /// nothing to refuse.
     static func conflict(
         modelPath: String?,
         isMultilingual: Bool?,
-        languageCode: String,
+        transcript: String?,
         modelsDirectory: URL = WhisperModelManager.modelsDirectory,
         fileManager: FileManager = .default
     ) -> SpeechLanguageConflict? {
-        let language = languageCode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !language.isEmpty, language != "en" else { return nil }
         guard isEnglishOnlyModel(modelPath: modelPath, isMultilingual: isMultilingual) else { return nil }
+
+        // The transcript is the whole of the evidence, so no text — or text the
+        // heuristic cannot place — is not a conflict.
+        guard let transcript, !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let detected = LanguageDetector.detect(transcript).languageCode,
+              detected != "en" else {
+            return nil
+        }
 
         let remedy = installedMultilingualModel(in: modelsDirectory, fileManager: fileManager)
         let modelName = modelPath
@@ -82,8 +95,8 @@ enum SpeechModelLanguageGate {
 
         return SpeechLanguageConflict(
             modelName: modelName,
-            languageCode: language,
-            languageName: LanguageUtil.languageNames[language] ?? language,
+            detectedLanguageCode: detected,
+            detectedLanguageName: LanguageUtil.languageNames[detected] ?? detected,
             remedyModelName: remedy?.lastPathComponent,
             remedyModelPath: remedy?.path
         )

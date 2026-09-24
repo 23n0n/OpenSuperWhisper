@@ -48,7 +48,7 @@ class IndicatorViewModel: ObservableObject {
     private let stopRecordingOperation: () async -> RecordedAudio?
     private let cancelAudioRecordingOperation: () -> Void
     private let injectTextOperation: (String) -> KeyboardSimulator.InjectionResult
-    private let transformTextOperation: (String, String?) async -> TranslationService.TransformOutcome
+    private let transformTextOperation: (String, String?) async -> TransformService.TransformOutcome
     private let cleanUpOperation: (String) -> DictationScrubber.Result
     private let cleanUpEnabledOperation: () -> Bool
     private let reportCenter: DictationReportCenter
@@ -67,8 +67,8 @@ class IndicatorViewModel: ObservableObject {
             // begins and stops it if the target changes or the user types.
             KeyboardSimulator.typeText($0, watch: .live())
         },
-        transformText: @escaping (String, String?) async -> TranslationService.TransformOutcome = {
-            await TranslationService.shared.transformDetailed($0, sourceLanguage: $1)
+        transformText: @escaping (String, String?) async -> TransformService.TransformOutcome = {
+            await TransformService.shared.transformDetailed($0, sourceLanguage: $1)
         },
         cleanUp: @escaping (String) -> DictationScrubber.Result = { text in
             // The switch is read per dictation, so flipping it in Settings takes

@@ -86,11 +86,10 @@ final class DictationInjectionTests: XCTestCase {
     }
 
     /// These tests are about the injection hook, not about the transform gate.
-    /// An identity transform keeps them independent of the user's
-    /// translate/tone switches and of whether a local model endpoint happens to
-    /// be running — the real gate reaches the network.
-    private static let passthroughTransform: (String, String?) async -> TranslationService.TransformOutcome = { text, _ in
-        TranslationService.TransformOutcome(text: text, policy: nil, didRunModel: false)
+    /// An identity transform keeps them independent of the user's tone and
+    /// clean-up switches — and of whether any transform weights are installed.
+    private static let passthroughTransform: (String, String?) async -> TransformService.TransformOutcome = { text, _ in
+        TransformService.TransformOutcome(text: text, policy: nil, didRunModel: false)
     }
 
     /// Auto-paste must be on for the injection path to run. Pin it, but write
@@ -330,7 +329,7 @@ final class DictationInjectionTests: XCTestCase {
                 return KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 4)
             },
             transformText: { _, _ in
-                TranslationService.TransformOutcome(
+                TransformService.TransformOutcome(
                     text: pasted,
                     policy: .cleanUp(language: .english),
                     didRunModel: true

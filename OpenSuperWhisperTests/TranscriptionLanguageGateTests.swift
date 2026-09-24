@@ -5,8 +5,8 @@ import XCTest
 /// instead of running a model, so the plumbing from the engine's own
 /// `fullLangId` through `TranscriptionService` and into the transform gate can
 /// be tested without a model on disk. Also the engine
-/// `SpeechModelLanguageGateTests` pairs with an English-only model path, where
-/// the guard has to fire before any transcription happens.
+/// `SpeechModelLanguageGateTests` pairs with an English-only model path, because
+/// the guard decides on the transcript the engine produced.
 final class StubLanguageWhisperEngine: WhisperEngine {
     private let cannedText: String
     private let cannedLanguage: String?
@@ -43,26 +43,14 @@ private final class LanguageLessEngine: TranscriptionEngine {
     func getSupportedLanguages() -> [String] { ["en"] }
 }
 
-/// The wiring that decides whether a dictation is translated, toned or pasted
-/// as-is: the engine's language must travel with the text all the way into the
-/// gate. A dropped language here is the original bug (English reaching the
-/// Polish→English transform) coming back.
+/// The wiring that carries the spoken language with the text: the language the
+/// engine measured is what the transform gate rewrites in, what decides the
+/// model, and — when the model cannot have heard it — what the guard refuses on.
 @MainActor
 final class TranscriptionLanguageGateTests: XCTestCase {
 
     private let polishText = "Cześć, jak się masz?"
     private let englishText = "Please send the report."
-    private let translatedText = "Hello, how are you?"
-
-    override func setUp() {
-        super.setUp()
-        StubURLProtocol.reset()
-    }
-
-    override func tearDown() {
-        StubURLProtocol.reset()
-        super.tearDown()
-    }
 
     // MARK: - Helpers
 
@@ -75,30 +63,6 @@ final class TranscriptionLanguageGateTests: XCTestCase {
             settings: Settings(),
             operationID: UUID(),
             pcmSamples: pcmSamples
-        )
-    }
-
-    private func stubbedTranslationService() -> TranslationService {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [StubURLProtocol.self]
-        // The gate's HTTP path is what these tests stub, injected rather than
-        // read from the shared preferences (parallel test processes share one
-        // preference file).
-        return TranslationService(
-            urlSession: URLSession(configuration: configuration),
-            usesExternalEndpoint: { true },
-            gateSettings: {
-                GateSettings(translate: true, tone: false, cleanUp: false, toneMode: .neutral, target: .english)
-            }
-        )
-    }
-
-    private func stubContent(_ content: String) throws {
-        StubURLProtocol.outcome = .success(
-            statusCode: 200,
-            body: try JSONSerialization.data(
-                withJSONObject: ["choices": [["message": ["content": content]]]]
-            )
         )
     }
 
@@ -126,74 +90,86 @@ final class TranscriptionLanguageGateTests: XCTestCase {
         XCTAssertNil(output.language, "Only whisper reports a language")
     }
 
-    // MARK: - Output language drives the gate
+    // MARK: - The language drives the transform
 
-    func testEnglishDictation_isNeverSentToThePolishToEnglishTransform() async throws {
-        StubURLProtocol.reset()
-        try stubContent(translatedText)
-
-        let output = try await transcribe(
-            engine: StubLanguageWhisperEngine(text: polishText, language: "en"),
-            pcmSamples: [0.1, 0.2]
+    /// The Polish and English dictations of the same engine: each is rewritten
+    /// in its own language, and neither prompt asks for the other one.
+    func testEachSpokenLanguageIsRewrittenInItsOwnLanguage() async throws {
+        final class Recorder {
+            var prompts: [String] = []
+            var texts: [String] = []
+        }
+        let recorder = Recorder()
+        let service = TransformService(
+            localTransform: { prompt, text, _ in
+                recorder.prompts.append(prompt)
+                recorder.texts.append(text)
+                return text
+            },
+            gateSettings: { GateSettings(tone: true, cleanUp: false, toneMode: .formal) }
         )
-        let finalText = await stubbedTranslationService().transformIfEnabled(
-            output.text,
-            sourceLanguage: output.language
-        )
 
-        XCTAssertEqual(finalText, polishText, "English must be pasted unchanged")
-        XCTAssertEqual(StubURLProtocol.requestCount, 0)
-    }
-
-    func testPolishDictation_isTranslated() async throws {
-        StubURLProtocol.reset()
-        try stubContent(translatedText)
-
-        let output = try await transcribe(
+        let polish = try await transcribe(
             engine: StubLanguageWhisperEngine(text: polishText, language: "pl"),
             pcmSamples: [0.1, 0.2]
         )
-        let finalText = await stubbedTranslationService().transformIfEnabled(
-            output.text,
-            sourceLanguage: output.language
+        let english = try await transcribe(
+            engine: StubLanguageWhisperEngine(text: englishText, language: "en"),
+            pcmSamples: [0.1, 0.2]
         )
 
-        XCTAssertEqual(finalText, translatedText)
-        XCTAssertEqual(StubURLProtocol.requestCount, 1)
+        _ = await service.transformIfEnabled(polish.text, sourceLanguage: polish.language)
+        _ = await service.transformIfEnabled(english.text, sourceLanguage: english.language)
+
+        XCTAssertEqual(recorder.texts, [polishText, englishText], "each transcription is what the model is given")
+        XCTAssertEqual(recorder.prompts.count, 2, "both dictations are rewritten: tone is language-independent now")
+        XCTAssertTrue(recorder.prompts[0].contains("Polish text"), recorder.prompts[0])
+        XCTAssertTrue(recorder.prompts[1].contains("English text"), recorder.prompts[1])
     }
 
+    /// An engine that reports nothing leaves the transcript itself as the signal,
+    /// which is the Parakeet path.
     func testEngineWithNoLanguageSignal_fallsBackToTheTranscriptText() async throws {
-        StubURLProtocol.reset()
-        try stubContent(translatedText)
+        final class Recorder {
+            var prompts: [String] = []
+        }
+        let recorder = Recorder()
+        let service = TransformService(
+            localTransform: { prompt, text, _ in
+                recorder.prompts.append(prompt)
+                return text
+            },
+            gateSettings: { GateSettings(tone: false, cleanUp: true, toneMode: .formal) }
+        )
 
         let polish = try await transcribe(engine: LanguageLessEngine(text: polishText), pcmSamples: nil)
         XCTAssertNil(polish.language)
-        let translated = await stubbedTranslationService().transformIfEnabled(
-            polish.text,
-            sourceLanguage: polish.language
-        )
-        XCTAssertEqual(translated, translatedText, "Polish text must still be translated")
-        XCTAssertEqual(StubURLProtocol.requestCount, 1)
+        _ = await service.transformIfEnabled(polish.text, sourceLanguage: polish.language)
 
-        StubURLProtocol.reset()
+        XCTAssertEqual(recorder.prompts.count, 1, "Polish text is placed by the heuristic and cleaned up")
+        XCTAssertTrue(recorder.prompts[0].contains("Polish text"), recorder.prompts[0])
+
         let english = try await transcribe(engine: LanguageLessEngine(text: englishText), pcmSamples: nil)
-        let passthrough = await stubbedTranslationService().transformIfEnabled(
-            english.text,
-            sourceLanguage: english.language
-        )
-        XCTAssertEqual(passthrough, englishText, "English text must not be transformed")
-        XCTAssertEqual(StubURLProtocol.requestCount, 0)
+        _ = await service.transformIfEnabled(english.text, sourceLanguage: english.language)
+
+        XCTAssertEqual(recorder.prompts.count, 2)
+        XCTAssertTrue(recorder.prompts[1].contains("English text"), recorder.prompts[1])
     }
 }
 
-/// The English-only-model guard: the captain's combination — `ggml-tiny.en.bin`
-/// with the language on Auto-detect — must be refused, named, and offered a fix,
-/// instead of quietly producing invented English for the transform to fail on.
+/// The English-only-model guard, re-keyed to the transcript.
+///
+/// The captain's combination — `ggml-tiny.en.bin` writing English over Polish
+/// speech — must be refused, named, and offered a fix. With the manual language
+/// picker gone there is no setting left to compare against, and an `.en` model
+/// cannot detect anything, so the evidence is the text the model produced: the
+/// `LanguageDetector` heuristic decides, and English dictation can never be
+/// caught by it.
 ///
 /// The rule is asserted with no model at all (`SpeechModelLanguageGate.conflict`
-/// takes the model's verdict and its path as inputs), and the refusal is then
-/// driven through the real `TranscriptionService`, because "surfaced" is only
-/// true if nothing was transcribed.
+/// takes the model's verdict, its path and the transcript as inputs), and the
+/// refusal is then driven through the real `TranscriptionService`, because
+/// "surfaced" is only true if nothing was transcribed.
 @MainActor
 final class SpeechModelLanguageGateTests: XCTestCase {
 
@@ -221,36 +197,55 @@ final class SpeechModelLanguageGateTests: XCTestCase {
 
     // MARK: - The rule
 
-    /// The exact failure, and the story the user is told: the model, the
-    /// setting, what whisper does instead, and the model already on this machine
-    /// that fixes it.
-    func testEnglishOnlyModelWithAutoDetectIsRefusedWithTheModelAndSettingNamed() throws {
+    /// The exact failure, and the story the user is told: the model, what the
+    /// dictation looks like, what whisper did instead, and the model already on
+    /// this machine that fixes it.
+    func testEnglishOnlyModelWritingOverPolishIsRefusedWithBothNamed() throws {
         let conflict = try XCTUnwrap(SpeechModelLanguageGate.conflict(
             modelPath: "/models/ggml-tiny.en.bin",
             isMultilingual: false,
-            languageCode: "auto",
+            transcript: "Cześć, jak się masz? Chciałbym wysłać raport do klienta.",
             modelsDirectory: modelsDirectory
         ))
 
         XCTAssertEqual(conflict.modelName, "ggml-tiny.en.bin")
-        XCTAssertEqual(conflict.languageCode, "auto")
-        XCTAssertEqual(conflict.languageName, "Auto-detect")
+        XCTAssertEqual(conflict.detectedLanguageCode, "pl")
+        XCTAssertEqual(conflict.detectedLanguageName, "Polish")
         XCTAssertEqual(conflict.remedyModelName, "ggml-large-v3-turbo.bin")
         XCTAssertEqual(conflict.remedyButtonTitle, "Use ggml-large-v3-turbo.bin")
         XCTAssertTrue(conflict.message.contains("ggml-tiny.en.bin"))
-        XCTAssertTrue(conflict.message.contains("Auto-detect"))
+        XCTAssertTrue(conflict.message.contains("Polish"))
         XCTAssertTrue(conflict.message.contains("ggml-large-v3-turbo.bin"))
     }
 
-    /// English is the one language an English-only model can serve: the guard
-    /// must never stand between the user and plain English dictation.
+    /// English is what an English-only model is for: the guard must never stand
+    /// between the user and plain English dictation.
     func testEnglishIsNeverRefused() throws {
-        XCTAssertNil(SpeechModelLanguageGate.conflict(
-            modelPath: "/models/ggml-tiny.en.bin",
-            isMultilingual: false,
-            languageCode: "en",
-            modelsDirectory: modelsDirectory
-        ))
+        for transcript in [
+            "Please send the report to the client today.",
+            "The meeting is at three.",
+            "I sent it yesterday.",
+        ] {
+            XCTAssertNil(SpeechModelLanguageGate.conflict(
+                modelPath: "/models/ggml-tiny.en.bin",
+                isMultilingual: false,
+                transcript: transcript,
+                modelsDirectory: modelsDirectory
+            ), transcript)
+        }
+    }
+
+    /// Nothing to read is not a conflict: with no transcript yet, or text too
+    /// short for the heuristic to place, there is no evidence of anything.
+    func testNoTranscriptOrUnplaceableTextIsNotRefused() throws {
+        for transcript in [nil, "", "   \n ", "Do it", "Ok"] as [String?] {
+            XCTAssertNil(SpeechModelLanguageGate.conflict(
+                modelPath: "/models/ggml-tiny.en.bin",
+                isMultilingual: false,
+                transcript: transcript,
+                modelsDirectory: modelsDirectory
+            ), transcript ?? "nil")
+        }
     }
 
     /// A multilingual model hears every language, so nothing is refused —
@@ -260,13 +255,13 @@ final class SpeechModelLanguageGateTests: XCTestCase {
         XCTAssertNil(SpeechModelLanguageGate.conflict(
             modelPath: "/models/ggml-large-v3-turbo.bin",
             isMultilingual: true,
-            languageCode: "pl",
+            transcript: "Cześć, jak się masz?",
             modelsDirectory: modelsDirectory
         ))
         XCTAssertNil(SpeechModelLanguageGate.conflict(
             modelPath: "/models/ggml-tiny.en.bin",
             isMultilingual: true,
-            languageCode: "pl",
+            transcript: "Cześć, jak się masz?",
             modelsDirectory: modelsDirectory
         ))
     }
@@ -279,7 +274,7 @@ final class SpeechModelLanguageGateTests: XCTestCase {
                 SpeechModelLanguageGate.conflict(
                     modelPath: "/models/\(name)",
                     isMultilingual: nil,
-                    languageCode: "auto",
+                    transcript: "Cześć, jak się masz?",
                     modelsDirectory: modelsDirectory
                 ),
                 name
@@ -288,29 +283,27 @@ final class SpeechModelLanguageGateTests: XCTestCase {
     }
 
     /// Nothing selected is not this guard's business: there is no model to blame
-    /// and nothing to refuse.
+    /// and nothing to refuse — a multilingual model with the same transcript is
+    /// fine.
     func testNoModelIsNotRefused() throws {
         XCTAssertNil(SpeechModelLanguageGate.conflict(
             modelPath: nil,
             isMultilingual: nil,
-            languageCode: "auto",
+            transcript: "Cześć, jak się masz?",
             modelsDirectory: modelsDirectory
         ))
     }
 
-    /// Every non-English setting on an English-only model is refused, not just
-    /// Auto-detect.
-    func testEveryNonEnglishSettingIsRefused() throws {
-        for language in ["auto", "pl", "de", "zh"] {
-            XCTAssertNotNil(
-                SpeechModelLanguageGate.conflict(
-                    modelPath: "/models/ggml-tiny.en.bin",
-                    isMultilingual: false,
-                    languageCode: language,
-                    modelsDirectory: modelsDirectory
-                ),
-                language
-            )
+    /// A model that hears Polish does not need this guard, and a model whose
+    /// name is not the English-only family is never blamed.
+    func testOnlyEnglishOnlyModelsAreBlamed() throws {
+        for name in ["ggml-large-v3-turbo.bin", "ggml-medium.bin", "ggml-ivrit-large-v3-turbo.bin"] {
+            XCTAssertNil(SpeechModelLanguageGate.conflict(
+                modelPath: "/models/\(name)",
+                isMultilingual: nil,
+                transcript: "Cześć, jak się masz?",
+                modelsDirectory: modelsDirectory
+            ), name)
         }
     }
 
@@ -335,7 +328,7 @@ final class SpeechModelLanguageGateTests: XCTestCase {
 
     // MARK: - The refusal
 
-    private func englishOnlyService(text: String, language: String) -> TranscriptionService {
+    private func englishOnlyService(text: String, language: String?) -> TranscriptionService {
         TranscriptionService(
             selection: TranscriptionService.EngineSelection(
                 engine: "whisper",
@@ -346,54 +339,53 @@ final class SpeechModelLanguageGateTests: XCTestCase {
         )
     }
 
-    private func transcribe(
-        _ service: TranscriptionService,
-        language: String
-    ) async throws -> TranscriptionService.TranscriptionOutput {
-        var settings = Settings()
-        settings.selectedLanguage = language
-        return try await service.transcribeAudio(
+    private func transcribe(_ service: TranscriptionService) async throws -> TranscriptionService.TranscriptionOutput {
+        try await service.transcribeAudio(
             url: URL(fileURLWithPath: "/unused-dictation.wav"),
-            settings: settings,
+            settings: Settings(),
             operationID: UUID(),
             pcmSamples: nil
         )
     }
 
-    /// The captain's case, refused by the service rather than passed through: no
-    /// transcript, and nothing that looks like a transcription in progress.
-    func testEnglishOnlyModelWithAutoDetectIsRefusedInsteadOfTranscribed() async throws {
-        let service = englishOnlyService(text: "There are some people who are going to go to the airport.", language: "en")
+    /// The captain's case, refused by the service rather than kept: the model
+    /// wrote English over Polish speech, so no transcript is published and
+    /// nothing is pasted.
+    func testEnglishOnlyModelWritingOverPolishIsRefusedInsteadOfKept() async throws {
+        // What `ggml-tiny.en.bin` produced from Polish speech: whispered English
+        // ("There are some people..."), and — the case the guard can see — the
+        // Polish words it wrote instead of hearing.
+        let service = englishOnlyService(text: "Cześć, jak się masz? Proszę wysłać raport.", language: nil)
 
         do {
-            let output = try await transcribe(service, language: "auto")
-            XCTFail("An English-only model with Auto-detect must not transcribe; got \(output.text)")
+            let output = try await transcribe(service)
+            XCTFail("an English-only model over Polish speech must not publish a transcript; got \(output.text)")
         } catch let error as TranscriptionError {
             guard case .speechLanguageConflict(let conflict) = error else {
                 return XCTFail("expected speechLanguageConflict, got \(error)")
             }
             XCTAssertEqual(conflict.modelName, "ggml-tiny.en.bin")
-            XCTAssertEqual(conflict.languageCode, "auto")
+            XCTAssertEqual(conflict.detectedLanguageCode, "pl")
         }
 
-        XCTAssertFalse(service.isTranscribing, "A refused dictation must not look like one in progress")
-        XCTAssertEqual(service.transcribedText, "")
+        XCTAssertFalse(service.isTranscribing, "a refused dictation must not look like one in progress")
+        XCTAssertEqual(service.transcribedText, "", "nothing was published")
     }
 
-    /// The same model and engine, with the language on English: dictation works,
-    /// so the guard refuses the combination and not the model.
+    /// The same model and engine over English speech: dictation works, so the
+    /// guard refuses the impossible pair and not the model.
     func testEnglishOnlyModelStillTranscribesEnglish() async throws {
-        let service = englishOnlyService(text: "Please send the report.", language: "en")
+        let service = englishOnlyService(text: "Please send the report.", language: nil)
 
-        let output = try await transcribe(service, language: "en")
+        let output = try await transcribe(service)
 
         XCTAssertEqual(output.text, "Please send the report.")
-        XCTAssertEqual(output.language, "en")
+        XCTAssertNil(output.language, "an English-only model measures nothing")
     }
 
-    /// A multilingual model on disk — the remedy the alert offers — is not
-    /// refused, so taking the fix really does unblock the dictation.
-    func testTakingTheOfferedFixUnblocksTheDictation() async throws {
+    /// A multilingual model on disk — the remedy the alert offers — produces a
+    /// Polish transcript that is kept, because it could really have heard it.
+    func testAMultilingualModelKeepsThePolishTranscript() async throws {
         let service = TranscriptionService(
             selection: TranscriptionService.EngineSelection(
                 engine: "whisper",
@@ -403,7 +395,7 @@ final class SpeechModelLanguageGateTests: XCTestCase {
             engineLoader: { _ in StubLanguageWhisperEngine(text: "Cześć, jak się masz?", language: "pl") }
         )
 
-        let output = try await transcribe(service, language: "auto")
+        let output = try await transcribe(service)
 
         XCTAssertEqual(output.text, "Cześć, jak się masz?")
         XCTAssertEqual(output.language, "pl")
