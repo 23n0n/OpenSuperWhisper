@@ -1,0 +1,7 @@
+develop c8e6fe7
+feat/local-translate-tone ffda358
+fleet-state 466ba7c
+fm/fm-20260923-26 62eb921
+fm/fm-20260923-27 80d114c
+fm/fm-20260923-28 0a4f5f8
+main 23d873a
