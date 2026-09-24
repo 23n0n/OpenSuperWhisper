@@ -248,6 +248,23 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
+    /// The clean-up pass: the filler/stutter scrub plus the grammar repair folded
+    /// into the transform call. Read per dictation, so flipping it takes effect
+    /// on the next one.
+    @Published var cleanUpEnabled: Bool {
+        didSet {
+            AppPreferences.shared.cleanUpEnabled = cleanUpEnabled
+        }
+    }
+
+    /// Names, jargon and domain terms fed into the transform prompt. Empty means
+    /// no reference block at all.
+    @Published var transformReference: String {
+        didSet {
+            AppPreferences.shared.transformReference = transformReference
+        }
+    }
+
     // MARK: - Built-in transform model
 
     @Published var transformModelInstalled = false
@@ -389,6 +406,8 @@ class SettingsViewModel: ObservableObject {
         self.transformModel = prefs.transformModel
         self.transformTimeout = prefs.transformTimeout
         self.transformUseExternalEndpoint = prefs.transformUseExternalEndpoint
+        self.cleanUpEnabled = prefs.cleanUpEnabled
+        self.transformReference = prefs.transformReference
 
         if let savedPath = prefs.selectedWhisperModelPath ?? prefs.selectedModelPath {
             self.selectedModelURL = URL(fileURLWithPath: savedPath)
@@ -1233,7 +1252,7 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Translate into \(viewModel.transformTargetLanguage.displayName)")
                                     .font(.subheadline)
-                                Text("Translate dictation into the target language below; speech already in it is pasted unchanged")
+                                Text("Translate dictation into the target language below; speech already in that language is never translated")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -1281,6 +1300,39 @@ struct SettingsView: View {
                             .pickerStyle(.menu)
                             .labelsHidden()
                             .disabled(!viewModel.toneEnabled)
+                        }
+
+                        Divider()
+
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Clean up dictation")
+                                    .font(.subheadline)
+                                Text("Remove filler words, stutters and repeats, then fix punctuation, articles and word order in the language you spoke. The scrub needs no model; the grammar repair rides the transform call below.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $viewModel.cleanUpEnabled)
+                                .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
+                                .labelsHidden()
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Reference")
+                                .font(.subheadline)
+                            TextEditor(text: $viewModel.transformReference)
+                                .frame(height: 50)
+                                .padding(6)
+                                .background(Color(.textBackgroundColor))
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                )
+                            Text("Names, jargon and domain terms you say, one per line — the transform is told to keep these spellings. Optional, and inert while empty.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
 
                         // Built-in runtime: the weights the app downloads and
@@ -1346,7 +1398,7 @@ struct SettingsView: View {
                                 .foregroundColor(.secondary)
                         }
 
-                        Text("The pasted text depends on the spoken language, the target language and the two switches: raw by default, translated into the target when the spoken language differs from it and the translation switch is on, and toned with the tone switch on. Speech already in the target language is always pasted untouched — it never reaches the model. Dictation history always keeps the raw transcript, and recordings transcribed from the list are never transformed. Language awareness needs a multilingual whisper model in Auto-detect; with a fixed language the app trusts your setting. Polish output is best-effort with the bundled model — English output is the reliable direction.")
+                        Text("The pasted text depends on the spoken language, the target language and the three switches: raw by default, translated into the target when the spoken language differs from it and the translation switch is on, toned with the tone switch on, and cleaned up — filler removed and grammar repaired — with the clean-up switch on. Speech already in the target language is pasted untouched unless clean-up asks the model to repair it. Every dictation reports the detected language and shows the raw transcript beside the cleaned and transformed text. Dictation history always keeps the raw transcript, and recordings transcribed from the list are never transformed. Language awareness needs a multilingual whisper model in Auto-detect; with a fixed language the app trusts your setting. Polish output is best-effort with the bundled model — English output is the reliable direction.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

@@ -81,9 +81,14 @@ enum DictationScrubber {
             return Result(text: text, removedFillers: 0, removedRepetitions: 0, removedAnnotations: 0)
         }
 
-        let unannotated = removeAnnotations(text)
+        let (unannotated, removedAnnotations) = removeAnnotations(text)
         guard !unannotated.isEmpty else {
-            return Result(text: "", removedFillers: 0, removedRepetitions: 0, removedAnnotations: 1)
+            return Result(
+                text: "",
+                removedFillers: 0,
+                removedRepetitions: 0,
+                removedAnnotations: max(1, removedAnnotations)
+            )
         }
 
         let tokens = collapseFalseStarts(tokenize(unannotated))
@@ -100,7 +105,7 @@ enum DictationScrubber {
             text: cleaned,
             removedFillers: removedFillers,
             removedRepetitions: removedRepetitions,
-            removedAnnotations: 0
+            removedAnnotations: removedAnnotations
         )
     }
 
@@ -114,9 +119,10 @@ enum DictationScrubber {
     /// Drops bracketed phrases that are the recogniser describing the audio.
     /// A bracket that does not start with one of `annotationOpeners` is the
     /// speaker's own aside and is left alone.
-    private static func removeAnnotations(_ text: String) -> String {
+    private static func removeAnnotations(_ text: String) -> (text: String, removed: Int) {
         let characters = Array(text)
         var result = ""
+        var removed = 0
         var index = 0
 
         while index < characters.count {
@@ -146,9 +152,13 @@ enum DictationScrubber {
                 }
 
             index = isAnnotation ? closeOffset + 1 : index + 1
-            if !isAnnotation { result.append(character) }
+            if isAnnotation {
+                removed += 1
+            } else {
+                result.append(character)
+            }
         }
-        return result
+        return (result, removed)
     }
 
     // MARK: - Token model
@@ -250,7 +260,14 @@ enum DictationScrubber {
                tokens[index + 1].separator.contains("-"),
                isPrefix(token.word, of: tokens[index + 1].word) {
                 var next = tokens[index + 1]
-                next.separator = token.separator + next.separator
+                // The hyphen is the false-start mark itself: it arrived with
+                // the fragment ("pro- problem"), so taking the fragment has to
+                // take the mark with it, or a stray "-" is left where the
+                // stutter was. A dash the speaker meant is not in this
+                // separator — it would have to be followed by word characters
+                // to join a token, and this one is not.
+                next.separator = token.separator
+                    + next.separator.replacingOccurrences(of: "-", with: "")
                 result.append(next)
                 index += 2
                 continue
