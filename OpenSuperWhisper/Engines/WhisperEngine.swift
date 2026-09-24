@@ -394,6 +394,9 @@ class WhisperEngine: TranscriptionEngine {
         // A fresh state isolates recordings, while prompt_past must remain enabled
         // between the decoder's 30-second windows inside this recording.
         params.noContext = false
+        // Advanced → Debug Options. whisper.cpp prints its verbose decode trace
+        // to stdout when this is on; without it the toggle was inert.
+        params.debugMode = settings.debugMode
         let rollingContextCapacity = max(1, modelTextContext / 2)
         params.nMaxTextCtx = Int32(clamping: rollingContextCapacity)
         // The decoder keeps producing timestamps even when the transcript does

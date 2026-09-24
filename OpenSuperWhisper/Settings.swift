@@ -460,6 +460,198 @@ class SettingsViewModel: ObservableObject {
             selectedModelURL = availableModels.first
         }
         initializeDownloadableModels()
+        refreshInstalledModels()
+    }
+
+    // MARK: - What is on disk (G-04, G-05, G-06, G-07)
+
+    /// One model file in the models directory, catalogue entry or not.
+    struct InstalledWhisperModel: Identifiable, Equatable {
+        let url: URL
+        let name: String
+        let sizeBytes: Int64
+        let isSelected: Bool
+        /// Set when the catalogue knows this file: it is then also the digest the
+        /// publisher reports, which is what `Verify` compares against.
+        let pinnedSHA256: String?
+
+        var id: String { url.path }
+        var sizeDescription: String {
+            ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file)
+        }
+        var catalogueName: String? {
+            SettingsDownloadableModels.availableModels.first { $0.filename == name }?.name
+        }
+    }
+
+    @Published var installedWhisperModels: [InstalledWhisperModel] = []
+    /// The last thing that happened to the models on disk, as the Model tab says it.
+    @Published var modelStorageNotice: ModelStorageNotice?
+    /// What the last check said, per checked path, in the words the row shows.
+    @Published var checkSummaries: [String: String] = [:]
+    /// Paths whose check found something wrong, so the row can say so loudly.
+    @Published var checkProblems: Set<String> = []
+    /// The path currently being checked, if any.
+    @Published var checkingPath: String?
+    /// The typed result of the last whisper-file check, for callers that want
+    /// more than the sentence (the digest, and whether it matched).
+    @Published var verificationResults: [String: ModelVerification] = [:]
+    @Published var verificationError: String?
+
+    /// Every model file on disk, selected one marked, catalogue digests attached.
+    func refreshInstalledModels() {
+        let manager = WhisperModelManager.shared
+        let selectedPath = selectedModelURL?.path
+        installedWhisperModels = manager.getAvailableModels().map { url in
+            InstalledWhisperModel(url: url,
+                                  name: url.lastPathComponent,
+                                  sizeBytes: manager.fileSize(at: url),
+                                  isSelected: selectedPath.map { WhisperModelManager.isSameFile(url.path, $0) } ?? false,
+                                  pinnedSHA256: SettingsDownloadableModels.pinnedSHA256(forFilename: url.lastPathComponent))
+        }
+        modelStorageNotice = manager.lastNotice
+    }
+
+    /// How the Model tab names the model in use.
+    var selectedModelDescription: String {
+        guard let selectedModelURL else {
+            return installedWhisperModels.isEmpty ? "none — no model file is on disk" : "none"
+        }
+        return selectedModelURL.lastPathComponent
+    }
+
+    /// Deletes a model file and updates everything that described it.
+    func removeInstalledModel(_ model: InstalledWhisperModel) {
+        do {
+            modelStorageNotice = try WhisperModelManager.shared.removeModel(at: model.url)
+        } catch {
+            verificationError = error.localizedDescription
+            return
+        }
+        verificationResults[model.url.path] = nil
+        checkSummaries[model.url.path] = nil
+        checkProblems.remove(model.url.path)
+        loadAvailableModels()
+        if selectedModelURL?.path != model.url.path,
+           let reloadPath = selectedModelURL?.path {
+            Task { @MainActor in
+                TranscriptionService.shared.reloadModel(with: reloadPath)
+            }
+        }
+    }
+
+    /// Removes a catalogue row's downloaded file by name.
+    func removeDownloadedModel(named filename: String) {
+        let url = WhisperModelManager.shared.modelsDirectory.appendingPathComponent(filename)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        do {
+            modelStorageNotice = try WhisperModelManager.shared.removeModel(at: url)
+        } catch {
+            verificationError = error.localizedDescription
+            return
+        }
+        verificationResults[url.path] = nil
+        checkSummaries[url.path] = nil
+        checkProblems.remove(url.path)
+        loadAvailableModels()
+    }
+
+    /// Checks a model file against the digest the catalogue pins for it. The
+    /// digest of a 1.6 GB file takes seconds, so it runs off the main thread.
+    func verifyModel(at url: URL, pinnedSHA256: String?) {
+        guard checkingPath == nil else { return }
+        checkingPath = url.path
+        verificationError = nil
+        Task.detached(priority: .userInitiated) { [pinnedSHA256] in
+            let outcome = Result { try WhisperModelManager.shared.verifyModel(at: url, pinnedSHA256: pinnedSHA256) }
+            await MainActor.run {
+                self.checkingPath = nil
+                switch outcome {
+                case .success(let verification):
+                    self.verificationResults[url.path] = verification
+                    self.checkSummaries[url.path] = verification.summary
+                    if verification.matchesPinnedDigest == false { self.checkProblems.insert(url.path) }
+                    else { self.checkProblems.remove(url.path) }
+                case .failure(let error):
+                    self.verificationError = "\(url.lastPathComponent): \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    func verification(for url: URL) -> ModelVerification? {
+        verificationResults[url.path]
+    }
+
+    /// Checks a Parakeet model's files: FluidAudio publishes no digest for them,
+    /// so what is checked is that every file the engine needs is on disk and
+    /// none of them is empty, and the row says exactly that.
+    func verifyFluidAudioModel(version: String) {
+        let asrVersion: AsrModelVersion = version == "v2" ? .v2 : .v3
+        let directory = AsrModels.defaultCacheDirectory(for: asrVersion)
+        guard checkingPath == nil else { return }
+        checkingPath = directory.path
+        verificationError = nil
+
+        Task.detached(priority: .userInitiated) { [directory, asrVersion] in
+            let files = (try? FileManager.default.contentsOfDirectory(at: directory,
+                                                                      includingPropertiesForKeys: [.fileSizeKey]))
+                ?? []
+            let totalBytes = files.reduce(Int64(0)) { sum, url in
+                let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                return sum + Int64(size)
+            }
+            let empty = files.filter { ((try? $0.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) == 0 }
+            let complete = AsrModels.modelsExist(at: directory, version: asrVersion)
+            await MainActor.run {
+                self.checkingPath = nil
+                let sizeText = ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
+                if complete && empty.isEmpty {
+                    self.checkSummaries[directory.path] =
+                        "Verified ✓ — \(countLabel(files.count, singular: "file", plural: "files")), \(sizeText) on disk"
+                    self.checkProblems.remove(directory.path)
+                } else {
+                    self.checkSummaries[directory.path] =
+                        "Incomplete — \(countLabel(files.count, singular: "file", plural: "files")), \(sizeText) on disk"
+                        + (empty.isEmpty ? "" : ", \(empty.count) of them empty")
+                    self.checkProblems.insert(directory.path)
+                }
+            }
+        }
+    }
+
+    /// Size on disk of a Parakeet model, for the "Installed" line.
+    func fluidAudioModelSizeDescription(version: String) -> String {
+        let asrVersion: AsrModelVersion = version == "v2" ? .v2 : .v3
+        let directory = AsrModels.defaultCacheDirectory(for: asrVersion)
+        let files = (try? FileManager.default.contentsOfDirectory(at: directory,
+                                                                  includingPropertiesForKeys: [.fileSizeKey])) ?? []
+        let totalBytes = files.reduce(Int64(0)) { sum, url in
+            sum + Int64((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+        }
+        return ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
+    }
+
+    /// Deletes a Parakeet model's files. The engine downloads them again on
+    /// demand, and the row stops claiming to be installed.
+    func removeFluidAudioModel(version: String) {
+        let asrVersion: AsrModelVersion = version == "v2" ? .v2 : .v3
+        let directory = AsrModels.defaultCacheDirectory(for: asrVersion)
+        let freed = (try? FileManager.default.contentsOfDirectory(at: directory,
+                                                                  includingPropertiesForKeys: [.fileSizeKey]))?
+            .reduce(Int64(0)) { sum, url in
+                sum + Int64((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+            } ?? 0
+        do {
+            try FileManager.default.removeItem(at: directory)
+        } catch {
+            verificationError = error.localizedDescription
+            return
+        }
+        checkSummaries[directory.path] = nil
+        checkProblems.remove(directory.path)
+        modelStorageNotice = .removed(name: "Parakeet \(version)", bytesFreed: freed)
+        initializeFluidAudioModels()
     }
     
     @MainActor
@@ -726,6 +918,10 @@ struct SettingsDownloadableModel: Identifiable {
     var downloadProgress: Double = 0.0
     let filename: String
     let preferredLanguage: String?
+    /// The digest the model's publisher reports for this file. `Verify` in the
+    /// Model tab compares the file on disk against it, so "it downloaded" is not
+    /// the only thing the user has to go on.
+    let sha256: String?
 
     var sizeString: String {
         formatModelSize(megabytes: size)
@@ -736,7 +932,7 @@ struct SettingsDownloadableModel: Identifiable {
     }
 
     init(name: String, isDownloaded: Bool, url: URL, size: Int, description: String,
-         filename: String? = nil, preferredLanguage: String? = nil) {
+         filename: String? = nil, preferredLanguage: String? = nil, sha256: String? = nil) {
         self.name = name
         self.isDownloaded = isDownloaded
         self.url = url
@@ -744,6 +940,7 @@ struct SettingsDownloadableModel: Identifiable {
         self.description = description
         self.filename = filename ?? url.lastPathComponent
         self.preferredLanguage = preferredLanguage
+        self.sha256 = sha256
     }
 }
 
@@ -754,21 +951,24 @@ struct SettingsDownloadableModels {
             isDownloaded: false,
             url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin?download=true")!,
             size: 1624,
-            description: "High accuracy, best quality"
+            description: "High accuracy, best quality",
+            sha256: "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69"
         ),
         SettingsDownloadableModel(
             name: "Turbo V3 medium",
             isDownloaded: false,
             url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin?download=true")!,
             size: 874,
-            description: "Balanced speed and accuracy"
+            description: "Balanced speed and accuracy",
+            sha256: "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1"
         ),
         SettingsDownloadableModel(
             name: "Turbo V3 small",
             isDownloaded: false,
             url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin?download=true")!,
             size: 574,
-            description: "Fastest processing"
+            description: "Fastest processing",
+            sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2"
         ),
         SettingsDownloadableModel(
             name: "Turbo V3 Hebrew",
@@ -777,13 +977,31 @@ struct SettingsDownloadableModels {
             size: 1624,
             description: "Hebrew fine-tune of Turbo V3 by ivrit.ai. Sets the language to Hebrew.",
             filename: "ggml-ivrit-large-v3-turbo.bin",
-            preferredLanguage: "he"
+            preferredLanguage: "he",
+            sha256: "c8090411113357097bfafc2b8e228ec1639fa7f5fe4ecb5d054ac0ccef8641b1"
         )
     ]
 
     static func preferredLanguage(forFilename filename: String) -> String? {
         availableModels.first { $0.filename == filename }?.preferredLanguage
     }
+
+    /// The digest published for a file, or `nil` for one nobody publishes a
+    /// checksum for (a hand-placed model, say).
+    ///
+    /// The model the app ships with is not a catalogue entry — it comes from the
+    /// bundle, not a download — but its publisher does publish a digest for it,
+    /// so `Verify` can still compare it instead of shrugging.
+    static func pinnedSHA256(forFilename filename: String) -> String? {
+        if filename == WhisperModelManager.defaultModelName {
+            return bundledModelSHA256
+        }
+        return availableModels.first { $0.filename == filename }?.sha256
+    }
+
+    /// sha256 of `ggml-tiny.en.bin`, as published by the whisper.cpp repository
+    /// it is released from.
+    static let bundledModelSHA256 = "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f"
 
     static func isVisible(_ model: SettingsDownloadableModel,
                           selectedLanguage: String,
@@ -823,6 +1041,9 @@ struct Settings {
     static let asianLanguages: Set<String> = ["zh", "ja", "ko"]
     
     var selectedLanguage: String
+    /// Advanced → Debug Options. Whisper prints its verbose decode trace when
+    /// this is on; read here so the toggle takes effect on the next dictation.
+    var debugMode: Bool
     var suppressBlankAudio: Bool
     var showTimestamps: Bool
     var temperature: Double
@@ -851,12 +1072,16 @@ struct Settings {
         self.useBeamSearch = prefs.useBeamSearch
         self.beamSize = prefs.beamSize
         self.useAsianAutocorrect = prefs.useAsianAutocorrect
+        self.debugMode = prefs.debugMode
     }
 }
 
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @StateObject private var permissionsManager = PermissionsManager()
+    /// G-12: the Advanced tab resets the welcome flow through the same state the
+    /// app's root reads.
+    @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) var dismiss
     @State private var isRecordingNewShortcut = false
     @State private var selectedTab = 0
@@ -1036,6 +1261,52 @@ struct SettingsView: View {
                             }
                         }
                         
+                        // G-05: everything on disk, catalogue row or not, with
+                        // the file in use marked. G-07: what the app did about
+                        // the models last, including a fallback nobody asked for.
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text("Installed models (\(viewModel.installedWhisperModels.count))")
+                                    .font(.headline)
+                                Spacer()
+                                Button("Refresh") {
+                                    viewModel.loadAvailableModels()
+                                }
+                                .buttonStyle(.borderless)
+                                .font(.caption)
+                                .help("Re-read the models directory")
+                            }
+
+                            Text("Selected model: \(viewModel.selectedModelDescription)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                            if let notice = viewModel.modelStorageNotice {
+                                Text(notice.message)
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            if let error = viewModel.verificationError {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            ForEach(viewModel.installedWhisperModels) { model in
+                                InstalledWhisperModelView(model: model, viewModel: viewModel)
+                            }
+
+                            if viewModel.installedWhisperModels.isEmpty {
+                                Text("No model files on disk.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.top, 8)
+
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text("Models Directory:")
@@ -1076,6 +1347,20 @@ struct SettingsView: View {
                             }
                         }
                         
+                        if let notice = viewModel.modelStorageNotice {
+                            Text(notice.message)
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        if let error = viewModel.verificationError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text("Models Directory:")
@@ -1225,9 +1510,12 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Auto-paste Transcription")
                                     .font(.subheadline)
-                                Text("Automatically paste into the focused app")
+                                Text("Types the text into the focused app as keystrokes, not a paste "
+                                     + "— Accessibility is required for the keystrokes to land. "
+                                     + "The clipboard is left alone unless Copy to Clipboard above is on")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                             Spacer()
                             Toggle("", isOn: $viewModel.autoPasteTranscription)
@@ -1622,6 +1910,10 @@ struct SettingsView: View {
                 .background(Color(.controlBackgroundColor).opacity(0.3))
                 .cornerRadius(12)
 
+                // G-12: the welcome flow could only be re-shown by editing a
+                // DEBUG config file; this is the same reset, from the UI.
+                welcomeScreenSettings
+
                 // Uninstall
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Uninstall")
@@ -1658,13 +1950,20 @@ struct SettingsView: View {
                         .foregroundColor(.primary)
 
                     HStack {
-                        Text("Debug Mode")
-                            .font(.subheadline)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Debug Mode")
+                                .font(.subheadline)
+                            Text("Prints whisper.cpp's verbose decode trace while transcribing "
+                                 + "(temperatures, fallbacks, timings) — for bug reports")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         Spacer()
                         Toggle("", isOn: $viewModel.debugMode)
                             .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
                             .labelsHidden()
-                            .help("Enable additional logging and debugging information")
+                            .help("Print the decoder's verbose trace to the app's output")
                     }
                 }
                 .padding()
@@ -1706,9 +2005,119 @@ struct SettingsView: View {
         return .keyCombo
     }
     
+    /// G-12: show the welcome flow again.
+    ///
+    /// It sets the language, the shortcut and the model, and it was reachable
+    /// only once — resetting `hasCompletedOnboarding` needed a DEBUG
+    /// `dev_config.json`. This is the same reset, and it changes nothing until
+    /// something is picked in the flow.
+    private var welcomeScreenSettings: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Welcome Screen")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            Text("The welcome screen sets your dictation language, shortcut and speech model. "
+                 + "Showing it again changes none of them until you choose something there. "
+                 + "The main window shows it as soon as this sheet closes.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Show the welcome screen again") {
+                appState.hasCompletedOnboarding = false
+                dismiss()
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.controlBackgroundColor).opacity(0.3))
+        .cornerRadius(12)
+    }
+
+    /// G-02/G-03: the two grants this app needs, in Settings, where everything
+    /// else about its state lives.
+    ///
+    /// Both were invisible here before: the Accessibility warning existed only
+    /// inside two of the three trigger modes (never for the default key
+    /// combination), and the microphone was not mentioned in the sheet at all —
+    /// the only place it appeared was the main window, and only while something
+    /// was missing.
+    private var permissionsSettings: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Permissions")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            permissionSettingsRow(
+                title: "Keystrokes into other apps",
+                detail: "Accessibility. Needed to type a transcription into the app you are dictating into.",
+                granted: permissionsManager.isAccessibilityPermissionGranted,
+                action: { permissionsManager.requestAccessibilityPermissionOrOpenSystemPreferences() })
+
+            permissionSettingsRow(
+                title: "Microphone",
+                detail: "Needed to record your dictation.",
+                granted: permissionsManager.isMicrophonePermissionGranted,
+                action: { permissionsManager.requestMicrophonePermissionOrOpenSystemPreferences() })
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.controlBackgroundColor).opacity(0.3))
+        .cornerRadius(12)
+        // The manager reads both grants when it is created and again on every
+        // activation, but opening this tab reads nothing: re-read them here
+        // rather than showing whatever was true when the sheet was built.
+        .onAppear {
+            permissionsManager.checkAccessibilityPermission()
+            permissionsManager.checkMicrophonePermission()
+        }
+    }
+
+    @ViewBuilder
+    private func permissionSettingsRow(title: String, detail: String, granted: Bool,
+                                       action: @escaping () -> Void) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundColor(granted ? .green : .orange)
+                .imageScale(.medium)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+
+                Text(detail)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if permissionsManager.hasCompletedInitialCheck {
+                    Text(granted ? "Granted" : "Not granted")
+                        .font(.caption)
+                        .foregroundColor(granted ? .green : .orange)
+                } else {
+                    Text("Checking…")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+
+            if !granted {
+                Button("Open System Settings", action: action)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+        }
+    }
+
     var shortcutSettings: some View {
         ScrollView {
             VStack(spacing: 20) {
+                permissionsSettings
+
                 // Recording Trigger
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Recording Trigger")
@@ -2034,6 +2443,12 @@ struct FluidAudioModelDownloadItemView: View {
                 Text(model.description)
                     .font(.caption)
                     .foregroundColor(.secondary)
+
+                if model.isDownloaded {
+                    Text("Downloaded — \(viewModel.fluidAudioModelSizeDescription(version: model.version)) on disk")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
                 
                 if viewModel.isDownloading && viewModel.downloadingModelName == model.name {
                     ProgressView(value: model.downloadProgress)
@@ -2052,18 +2467,45 @@ struct FluidAudioModelDownloadItemView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             } else if model.isDownloaded {
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                        .imageScale(.large)
-                } else {
-                    Button(action: {
-                        viewModel.fluidAudioModelVersion = model.version
-                    }) {
-                        Text("Select")
+                VStack(alignment: .trailing, spacing: 6) {
+                    HStack(spacing: 6) {
+                        if isSelected {
+                            Label("In use", systemImage: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        } else {
+                            Button(action: {
+                                viewModel.fluidAudioModelVersion = model.version
+                            }) {
+                                Text("Select")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+
+                        Button("Remove") {
+                            viewModel.removeFluidAudioModel(version: model.version)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("Delete this model's files and free the space they take")
+
+                        Button("Verify") {
+                            viewModel.verifyFluidAudioModel(version: model.version)
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+
+                    if viewModel.checkingPath == AsrModels.defaultCacheDirectory(for: model.version == "v2" ? .v2 : .v3).path {
+                        ProgressView().controlSize(.small).scaleEffect(0.7)
+                    }
+                    if let summary = viewModel.checkSummaries[
+                        AsrModels.defaultCacheDirectory(for: model.version == "v2" ? .v2 : .v3).path] {
+                        Text(summary)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
             } else {
                 HStack(spacing: 8) {
@@ -2241,6 +2683,113 @@ struct RecordingStorageSettingsView: View {
     }
 }
 
+/// The verify control every model row shares: the button, a spinner while the
+/// file is hashed, and the sentence the check produced.
+struct ModelVerificationView: View {
+    let path: String
+    let pinnedSHA256: String?
+    @ObservedObject var viewModel: SettingsViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if viewModel.checkingPath == path {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.7)
+                    Text("Checking…")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            } else {
+                Button("Verify") {
+                    viewModel.verifyModel(at: URL(fileURLWithPath: path), pinnedSHA256: pinnedSHA256)
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
+                .help(pinnedSHA256 == nil
+                      ? "Read this file's sha256 — its publisher reports no checksum, so nothing is compared"
+                      : "Compare this file against the sha256 its publisher reports")
+            }
+
+            if let summary = viewModel.checkSummaries[path] {
+                Text(summary)
+                    .font(.caption2)
+                    .foregroundColor(viewModel.checkProblems.contains(path) ? .red : .secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+/// One speech model file that is on disk right now: a catalogue row or a file
+/// someone put there by hand, with the model in use marked.
+struct InstalledWhisperModelView: View {
+    let model: SettingsViewModel.InstalledWhisperModel
+    @ObservedObject var viewModel: SettingsViewModel
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(model.name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    if model.isSelected {
+                        Label("In use", systemImage: "checkmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundColor(.green)
+                    }
+
+                    if model.name == WhisperModelManager.defaultModelName {
+                        Text("shipped with the app")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .help("This is the model inside the app bundle, copied into the models directory on first run")
+                    } else if model.catalogueName == nil {
+                        Text("not in the catalogue")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .help("This file was not downloaded from the list above, so no publisher checksum is known for it")
+                    }
+                }
+
+                Text("\(model.sizeDescription) on disk")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                ModelVerificationView(path: model.url.path,
+                                      pinnedSHA256: model.pinnedSHA256,
+                                      viewModel: viewModel)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 6) {
+                if !model.isSelected {
+                    Button("Use") {
+                        viewModel.selectModel(model.url)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+
+                Button("Remove") {
+                    viewModel.removeInstalledModel(model)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Delete this file and free \(model.sizeDescription)")
+            }
+        }
+        .padding(12)
+        .background(model.isSelected ? Color(.controlBackgroundColor).opacity(0.7)
+                                     : Color(.controlBackgroundColor).opacity(0.5))
+        .cornerRadius(8)
+    }
+}
+
 struct ModelDownloadItemView: View {
     @Binding var model: SettingsDownloadableModel
     @ObservedObject var viewModel: SettingsViewModel
@@ -2276,6 +2825,12 @@ struct ModelDownloadItemView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
+                if model.isDownloaded {
+                    Text("Downloaded — \(model.sizeString) on disk")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
                 if viewModel.isDownloading && viewModel.downloadingModelName == model.name {
                     ProgressView(value: model.downloadProgress)
                         .progressViewStyle(LinearProgressViewStyle())
@@ -2293,19 +2848,37 @@ struct ModelDownloadItemView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             } else if model.isDownloaded {
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                        .imageScale(.large)
-                } else {
-                    Button(action: {
-                        let modelPath = WhisperModelManager.shared.modelsDirectory.appendingPathComponent(model.filename).path
-                        viewModel.selectModel(URL(fileURLWithPath: modelPath))
-                    }) {
-                        Text("Select")
+                VStack(alignment: .trailing, spacing: 6) {
+                    HStack(spacing: 6) {
+                        if isSelected {
+                            Label("In use", systemImage: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        } else {
+                            Button(action: {
+                                let modelPath = WhisperModelManager.shared.modelsDirectory.appendingPathComponent(model.filename).path
+                                viewModel.selectModel(URL(fileURLWithPath: modelPath))
+                            }) {
+                                Text("Select")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+
+                        Button("Remove") {
+                            viewModel.removeDownloadedModel(named: model.filename)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("Delete this model and free \(model.sizeString)")
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+
+                    // G-06: the file is on disk — this says whether it is the
+                    // file the publisher signed.
+                    ModelVerificationView(
+                        path: WhisperModelManager.shared.modelsDirectory.appendingPathComponent(model.filename).path,
+                        pinnedSHA256: model.sha256,
+                        viewModel: viewModel)
                 }
             } else {
                 HStack(spacing: 8) {

@@ -475,13 +475,16 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
         }
     }
 
-    /// Every card has to lay out intact, whatever the transforms are set to:
-    /// the Translation & Tone card grows rows and captions with the switches, so
-    /// the tab's height is not a constant this test may assume. The whole tab is
-    /// drawn from the scroll view's document view, and what is asserted is the
-    /// shape of the stack — page padding at both ends, real gaps between cards,
-    /// no card crushed to a sliver — not a card count for today's content.
-    func testEveryTranscriptionCardLaysOutWhateverTheSwitchesSay() throws {
+    /// Every tab's cards have to lay out intact — nothing crushed, nothing
+    /// running through an edge — whatever the switches are set to. The
+    /// Translation & Tone card grows rows with the transforms, so the tab's
+    /// height is not a constant this test may assume: the whole tab is drawn
+    /// from the scroll view's document view, and the assertions are the shape of
+    /// the stack rather than a card count for today's content.
+    ///
+    /// This is also where the tabs' contents are captured whole, so the PNGs
+    /// show every section the Model, Shortcuts and Advanced tabs now carry.
+    func testEveryTabLaysOutItsCardsWhateverTheSwitchesSay() throws {
         let savedTranslate = AppPreferences.shared.translateEnabled
         let savedTone = AppPreferences.shared.toneEnabled
         defer {
@@ -489,20 +492,32 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
             AppPreferences.shared.toneEnabled = savedTone
         }
 
-        let states: [(name: String, translate: Bool, tone: Bool)] = [
-            ("both-off", false, false),
-            ("tone-only", false, true),
-            ("both-on", true, true),
+        // The transcription tab, in both switch states, plus every other tab.
+        let cases: [(tab: String, suffix: String, translate: Bool, tone: Bool)] = [
+            ("transcription", "transforms-off", false, false),
+            ("transcription", "tone-only", false, true),
+            ("transcription", "transforms-on", true, true),
+            ("shortcuts", "default", savedTranslate, savedTone),
+            ("model", "default", savedTranslate, savedTone),
+            ("advanced", "default", savedTranslate, savedTone),
         ]
 
-        for state in states {
+        for state in cases {
             AppPreferences.shared.translateEnabled = state.translate
             AppPreferences.shared.toneEnabled = state.tone
 
-            let name = "tab-transcription-content-\(state.name)"
-            let capture = try captureHosted(Self.body("transcription", of: SettingsView()),
+            let name = "tab-\(state.tab)-content-\(state.suffix)"
+            let capture = try captureHosted(Self.body(state.tab, of: SettingsView()),
                                             size: CGSize(width: 520, height: 600),
                                             named: name, fullContent: true)
+
+            // The Model tab is one card with rows inside it rather than a stack
+            // of separate cards, so the shape checked below does not describe it.
+            // Its layout is covered by the three-size sweep in
+            // testSettingsTabsLayOutAsSeparateCards; the capture above is for the
+            // images.
+            guard Self.stackShapedTabs.contains(state.tab) else { continue }
+
             let bands = try assertCardsSeparated(in: capture.image, name: name)
 
             // The page padding has to be there at both ends of the stack, which
@@ -518,7 +533,7 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
 
             // A settings tab with a handful of cards; the count is only here to
             // catch a stack that collapsed to one or two bands.
-            XCTAssertGreaterThanOrEqual(bands.count, 5,
+            XCTAssertGreaterThanOrEqual(bands.count, 3,
                                         "\(name): only \(bands.count) card bands are drawn")
 
             for band in bands {
@@ -660,6 +675,10 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
     /// still look inset. Anything less means the content is running through it.
     private static let minimumPagePaddingPoints: CGFloat = 4
 
+    /// The tabs whose content is a stack of separate cards. The Model tab is a
+    /// single card holding rows, so the stack shape does not apply to it.
+    private static let stackShapedTabs: Set<String> = ["transcription", "shortcuts", "advanced"]
+
     /// The page padding the tab bodies put around their card stack.
     private static let pagePadding: CGFloat = 16
 
@@ -677,8 +696,10 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
          ("advanced", AnyView(sheet.advancedSettings))]
     }
 
+    /// The Advanced tab reads the app state (it can reset the welcome flow), so
+    /// every rendered view is given one, as the app's window does.
     private static func body(_ name: String, of sheet: SettingsView) -> AnyView {
-        tabBodies(of: sheet).first { $0.0 == name }!.1
+        AnyView(tabBodies(of: sheet).first { $0.0 == name }!.1.environmentObject(AppState()))
     }
 }
 
@@ -691,6 +712,7 @@ private struct SettingsSheetHost: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .sheet(isPresented: .constant(true)) {
                 SettingsView(selectedTab: tabIndex)
+                    .environmentObject(AppState())
             }
     }
 }
