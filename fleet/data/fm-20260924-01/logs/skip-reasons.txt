@@ -1,0 +1,144 @@
+# Every skip on the delivery tip 5e51124, from MY run
+#   command: Scripts/dev-run.sh test > fleet/data/fm-20260924-01/logs/suite.log 2>&1  (2026-09-24 08:36-08:41 local)
+#   source:  xcrun xcresulttool get test-results tests --path <xcresult>
+#            -> Test Case (result Skipped) -> child node 'Skip Message'
+# total skipped: 54
+
+[5] Test skipped - US layout not available
+    ClipboardUtilKeyboardLayoutTests/testFindKeycodeForV_USLayout()
+    ClipboardUtilKeyboardLayoutTests/testIsQwertyCommandLayout_USLayout()
+    ClipboardUtilPasteIntegrationTests/testPasteWithUSLayout()
+    KeyboardLayoutProviderTests/testResolveInfo_USLayout_returnsInfo()
+    KeyboardLayoutProviderTests/testResolveLabels_USLayout_hasExpectedKeys()
+
+[4] Test skipped - Russian layout not available
+    ClipboardUtilKeyboardLayoutTests/testFindKeycodeForV_RussianLayout()
+    ClipboardUtilPasteIntegrationTests/testPasteWithRussianLayout()
+    KeyboardLayoutProviderTests/testResolveInfo_RussianLayout_returnsInfo()
+    KeyboardLayoutProviderTests/testResolveLabels_RussianLayout_hasCyrillicKeys()
+
+[2] Test skipped - Set OSW_TEST_TURBO_MODEL to large-v3-turbo
+    WhisperTurboRegressionTests/testPreparedPCMMatchesTurboFileTranscription()
+    WhisperTurboRegressionTests/testTurboBeamSearchPreservesLongDictation()
+
+[2] Test skipped - German layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithGermanLayout()
+    KeyboardLayoutProviderTests/testResolveInfo_GermanLayout_returnsInfo()
+
+[2] Test skipped - Dvorak Left-Handed layout not available
+    ClipboardUtilKeyboardLayoutTests/testFindKeycodeForV_DvorakLeftHand()
+    ClipboardUtilKeyboardLayoutTests/testIsQwertyCommandLayout_DvorakLeftHand()
+
+[2] Test skipped - Dvorak-QWERTY layout not available
+    ClipboardUtilKeyboardLayoutTests/testFindKeycodeForV_DvorakQwertyLayout()
+    ClipboardUtilKeyboardLayoutTests/testIsQwertyCommandLayout_DvorakQwerty()
+
+[2] Test skipped - Dvorak Right-Handed layout not available
+    ClipboardUtilKeyboardLayoutTests/testFindKeycodeForV_DvorakRightHand()
+    ClipboardUtilKeyboardLayoutTests/testIsQwertyCommandLayout_DvorakRightHand()
+
+[1] Test skipped - This machine has ANSI keyboard, cannot test non-ANSI rejection
+    KeyboardLayoutProviderTests/testResolveInfo_nonANSI_returnsNil()
+
+[1] Test skipped - ABC layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithABCLayout()
+
+[1] Test skipped - Arabic layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithArabicLayout()
+
+[1] Test skipped - British layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithBritishLayout()
+
+[1] Test skipped - Pinyin layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithChinesePinyinLayout()
+
+[1] Test skipped - Traditional layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithChineseTraditionalLayout()
+
+[1] Test skipped - Colemak layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithColemakLayout()
+
+[1] Test skipped - Czech layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithCzechLayout()
+
+[1] Test skipped - Danish layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithDanishLayout()
+
+[1] Test skipped - Dutch layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithDutchLayout()
+
+[1] Test skipped - Dvorak-Left layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithDvorakLeftHandLayout()
+
+[1] Test skipped - DVORAK-QWERTYCMD layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithDvorakQwertyLayout()
+
+[1] Test skipped - Dvorak-Right layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithDvorakRightHandLayout()
+
+[1] Test skipped - Finnish layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithFinnishLayout()
+
+[1] Test skipped - French layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithFrenchLayout()
+
+[1] Test skipped - Greek layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithGreekLayout()
+
+[1] Test skipped - Hebrew layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithHebrewLayout()
+
+[1] Test skipped - Hungarian layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithHungarianLayout()
+
+[1] Test skipped - Italian layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithItalianLayout()
+
+[1] Test skipped - Japanese layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithJapaneseLayout()
+
+[1] Test skipped - Romaji layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithJapaneseRomajiLayout()
+
+[1] Test skipped - Korean layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithKoreanLayout()
+
+[1] Test skipped - Norwegian layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithNorwegianLayout()
+
+[1] Test skipped - Persian layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithPersianLayout()
+
+[1] Test skipped - Portuguese layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithPortugueseLayout()
+
+[1] Test skipped - Romanian layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithRomanianLayout()
+
+[1] Test skipped - Spanish layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithSpanishLayout()
+
+[1] Test skipped - Swedish layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithSwedishLayout()
+
+[1] Test skipped - Swiss German layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithSwissGermanLayout()
+
+[1] Test skipped - Thai layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithThaiLayout()
+
+[1] Test skipped - Turkish layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithTurkishLayout()
+
+[1] Test skipped - Ukrainian layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithUkrainianLayout()
+
+[1] Test skipped - USInternational layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithUSInternationalLayout()
+
+[1] Test skipped - Vietnamese layout not available
+    ClipboardUtilPasteIntegrationTests/testPasteWithVietnameseLayout()
+
+[1] Test skipped
+    PCMRecordingTests/testMicrophoneCaptureProducesPCMAndWAV()
+

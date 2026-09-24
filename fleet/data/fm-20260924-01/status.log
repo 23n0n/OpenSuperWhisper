@@ -1,0 +1,37 @@
+[2026-09-24T08:56:00Z] done: measurement executed and recorded; the fm-20260923-23 EVIDENCE GAP is CLOSED.
+Deliverable: data/fm-20260924-01/report.md. Evidence: data/fm-20260924-01/logs/. Worktree
+  worktrees/OpenSuperWhisper-fm-fm-20260924-01, clean at 5e51124 throughout, no source change, nothing pushed.
+LONG-FORM RECALL, re-measured (the flagship claim). Model: ggml-large-v3-turbo, offered to the tests as
+  .build/test-models/ggml-tiny.bin - a real HARD LINK (same inode 11309254, link count 2, 1624555275 bytes),
+  verified, not replaced. Fixtures unmodified (long_en.m4a 34c051c0..., long_ru.m4a 6af9e64b..., 97.106 s / 106.577 s).
+  - long_en: overallUniqueWordRecall=0.9932432432432432, tailUniqueWordRecall=1.0, replayedWordRuns=[], 32 decoder segments
+  - long_ru: overallUniqueWordRecall=0.9873417721518988, tailUniqueWordRecall=1.0, replayedWordRuns=[], 22 decoder segments
+  The handoff's 0.9932 EN / 0.9873 RU are confirmed to every printed digit. Numbers come from the test's own
+  .keepAlways XCTAttachment (xcrun xcresulttool export attachments), cross-checked by recomputation from the
+  captured transcript with the test's own definition (logs/recall-recompute.py): both agree exactly. Reproduced
+  by a focused second run (7/7, exit 0) and BIT-IDENTICALLY by the fm-16 crew's independent run (I read their bundle).
+SUITE, re-executed: rm -rf libllama/build libwhisper/build && Scripts/dev-run.sh test (log logs/suite.log).
+  Mine, delivery tip, under four concurrent crews' suites: 381 total / 326 passed / 1 failed / 54 skipped,
+  result Failed (logs/suite-summary.json). Only red case:
+  SettingsLayoutSnapshotTests.testEveryTranscriptionCardLaysOutWhateverTheSwitchesSay (top padding 0 vs 16 +/-2;
+  4 card bands vs >=5). It passed 3/3 when that class ran alone (logs/snapshot-rerun-{1,2,3}.log, exit 0 each),
+  and OpenSuperWhisperTests/SettingsLayoutSnapshotTests.swift is untouched by the delta. The fm-16 crew's
+  uncontended run of the same tip: 381 / 327 / 0 / 54, Passed, TEST SUCCEEDED (verified by reading their
+  result bundle myself). So the tip is green when the machine is not shared and has one contention-induced
+  snapshot failure when it is.
+DELTA vs the recorded 379/325/0/54 at 32aacc0: +2 total, +2 passed, skips unchanged at 54. Exactly three
+  commits separate the runs - aaddc83 (fix + rewritten long-form tests), ce1619e (deletes dev-run.sh's
+  skip_calibrated block), 5e51124 (merge) - and only WhisperEngine.swift, LongFormTranscriptionTests.swift and
+  Scripts/dev-run.sh differ. ce1619e removed -skip-testing:OpenSuperWhisperTests/WhisperLongFormLanguageIntegrationTests,
+  which applied whenever the model was not named ggml-tiny.bin; an EXCLUDED case counts in neither the total nor
+  the skip count, so removing the exclusion adds exactly those two cases, and both execute and pass.
+SKIPS, enumerated from the result bundle (logs/skip-reasons.txt): 51 input-layout-gated (36
+  ClipboardUtilPasteIntegrationTests + 9 ClipboardUtilKeyboardLayoutTests + 6 KeyboardLayoutProviderTests; only
+  Polish Pro is enabled on this machine) + 2 WhisperTurboRegressionTests (OSW_TEST_TURBO_MODEL unset) + 1
+  PCMRecordingTests (microphone opt-in). The older "50 of the 54" was one short.
+RECORDS CORRECTED IN PLACE: RESUME.md section 4 (suite-state paragraph + item 6) and section 8 ("layout-gated
+  50" -> measured 51); FLEET-STATE.md both suite-number paragraphs + a new dated measurement block; state/tasks.json
+  fm-20260923-23 EVIDENCE GAP note REMOVED and fm-20260924-01 status -> done (file re-parsed as valid JSON, 32 rows).
+Headless throughout: Scripts/dev-run.sh test only, never the GUI app, no open/osascript/screencapture, no bare
+  xcodebuild test. Not done because it needs the captain's screen: any GUI/Accessibility exercise, and the 51
+  layout-gated paste cases (no input sources installed for them).

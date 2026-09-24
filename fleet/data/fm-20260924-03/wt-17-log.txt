@@ -1,0 +1,3 @@
+32aacc0 test(prefs): read the target-language stores through the test seam
+a8c2f2a Merge fm-20260923-15 (follow-up): snapshot test renders the scroll document, not a guessed window
+4080abc test(settings): make the card layout assertion state-independent

@@ -1,0 +1,38 @@
+### host load at start:  8:42  up 20:46, 2 users, load averages: 14,00 24,83 17,19
+### A1 snapshot class, isolated run 1 at 2026-09-24T06:42:54Z
+### A1 exit=0
+Test case 'SettingsLayoutSnapshotTests.testEveryTranscriptionCardLaysOutWhateverTheSwitchesSay()' passed
+Test case 'SettingsLayoutSnapshotTests.testSettingsSheetIsNotClippedByItsParentWindow()' passed
+Test case 'SettingsLayoutSnapshotTests.testSettingsTabsLayOutAsSeparateCards()' passed
+Test case 'SettingsLayoutSnapshotTests.testSheetPresentedFromContentView()' passed
+Test case 'SettingsLayoutSnapshotTests.testTheTabStripIsUsableInThePresentedSheet()' passed
+Test case 'SettingsLayoutSnapshotTests.testTheToneCardComesUpWhenTheSheetIsScrolled()' passed
+Test case 'SettingsLayoutSnapshotTests.testTranscriptionTabScrollsToItsLastCard()' passed
+### A2 snapshot class, isolated run 2 at 2026-09-24T06:44:12Z
+### A2 exit=0
+Test case 'SettingsLayoutSnapshotTests.testEveryTranscriptionCardLaysOutWhateverTheSwitchesSay()' passed
+Test case 'SettingsLayoutSnapshotTests.testSettingsSheetIsNotClippedByItsParentWindow()' passed
+Test case 'SettingsLayoutSnapshotTests.testSettingsTabsLayOutAsSeparateCards()' passed
+Test case 'SettingsLayoutSnapshotTests.testSheetPresentedFromContentView()' passed
+Test case 'SettingsLayoutSnapshotTests.testTheTabStripIsUsableInThePresentedSheet()' passed
+Test case 'SettingsLayoutSnapshotTests.testTheToneCardComesUpWhenTheSheetIsScrolled()' passed
+Test case 'SettingsLayoutSnapshotTests.testTranscriptionTabScrollsToItsLastCard()' passed
+### A3 snapshot class, isolated run 3 at 2026-09-24T06:45:17Z
+### A3 exit=0
+Test case 'SettingsLayoutSnapshotTests.testEveryTranscriptionCardLaysOutWhateverTheSwitchesSay()' passed
+Test case 'SettingsLayoutSnapshotTests.testSettingsSheetIsNotClippedByItsParentWindow()' passed
+Test case 'SettingsLayoutSnapshotTests.testSettingsTabsLayOutAsSeparateCards()' passed
+Test case 'SettingsLayoutSnapshotTests.testSheetPresentedFromContentView()' passed
+Test case 'SettingsLayoutSnapshotTests.testTheTabStripIsUsableInThePresentedSheet()' passed
+Test case 'SettingsLayoutSnapshotTests.testTheToneCardComesUpWhenTheSheetIsScrolled()' passed
+Test case 'SettingsLayoutSnapshotTests.testTranscriptionTabScrollsToItsLastCard()' passed
+### B long-form classes at 2026-09-24T06:46:34Z
+### B exit=0
+Test case 'WhisperLongFormSegmentAssemblyTests.testDecoderSegmentsDoNotBecomeParagraphs()' passed
+Test case 'WhisperLongFormSegmentAssemblyTests.testLongEnglishAndRussianTextIsNotLostAtSegmentBoundaries()' passed
+Test case 'WhisperLongFormSegmentAssemblyTests.testLongFormParametersPreserveRollingContext()' passed
+Test case 'WhisperLongFormSegmentAssemblyTests.testTimestampModeKeepsOneSegmentPerLine()' passed
+Test case 'WhisperLongFormMediaFixtureTests.testEnglishAndRussianFixturesAreLongEnoughToCrossWhisperWindows()' passed
+Test case 'WhisperLongFormLanguageIntegrationTests.testCancellingLongWhisperDecodeStopsNativeOperation()' passed
+Test case 'WhisperLongFormLanguageIntegrationTests.testLongEnglishAndRussianAudioKeepsLanguageContextAndTail()' passed
+### done at 2026-09-24T06:47:52Z

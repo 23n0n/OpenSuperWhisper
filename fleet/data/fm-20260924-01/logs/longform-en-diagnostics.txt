@@ -1,0 +1,39 @@
+language=en
+overallUniqueWordRecall=0.9932432432432432
+tailUniqueWordRecall=1.0
+replayedWordRuns=[]
+decoderSegments:
+segment[0] end=3.5s text= Today I am testing a long English dictation in open super whisper.
+segment[1] end=8.12s text= The purpose of this recording is to make sure that a continuous thought remains continuous
+segment[2] end=10.16s text= after more than one minute of speech.
+segment[3] end=12.94s text= At the beginning I will describe a simple project.
+segment[4] end=16.16s text= A small team is preparing a report about a city park.
+segment[5] end=21.08s text= They count the old trees, check the walking paths, and speak with neighbors who visit
+segment[6] end=22.16s text= the park every morning.
+segment[7] end=25.74s text= The report should be clear, calm, and easy to read.
+segment[8] end=28.38s text= The first checkpoint phrase is Amber Lighthouse.
+segment[9] end=33.0s text= It appears before the middle of the recording and should survive transcription without losing
+segment[10] end=34.22s text= the nearby context.
+segment[11] end=38.78s text= The team notices that the northern path needs better lighting, while the southern garden
+segment[12] end=39.84s text= needs more benches.
+segment[13] end=43.74s text= They also decide that the playground should remain open during the repairs.
+segment[14] end=49.3s text= Nobody wants the transcript to start a new paragraph merely because the speech model created another
+segment[15] end=50.18s text= internal segment.
+segment[16] end=54.24s text= Now the recording continues beyond a typical 30-second window.
+segment[17] end=56.7s text= The same report is still being discussed.
+segment[18] end=59.84s text= So the words that follow belong to the same dictation.
+segment[19] end=62.38s text= The second checkpoint phrase is Quiet River.
+segment[20] end=64.22s text= It marks the middle of the sample.
+segment[21] end=68.82s text= After reviewing the measurements, the team estimates that the work can be completed in
+segment[22] end=69.54s text= three weeks.
+segment[23] end=74.44s text= Rain may delay the painting, but it should not affect the replacement of signs or the planting
+segment[24] end=75.12s text= of flowers.
+segment[25] end=78.9s text= Near the end, the team reads the complete report one more time.
+segment[26] end=82.84s text= They verify every date, every number, and every recommendation.
+segment[27] end=85.56s text= The final checkpoint phrase is Silver Compass.
+segment[28] end=90.36s text= If this phrase is present, the last part of the audio was not clipped during conversion
+segment[29] end=91.12s text= or decoding.
+segment[30] end=96.26s text= This concludes the Long English Dictation Test with one continuous passage and no artificial
+segment[31] end=97.44s text= paragraph breaks.
+transcription:
+Today I am testing a long English dictation in open super whisper. The purpose of this recording is to make sure that a continuous thought remains continuous after more than one minute of speech. At the beginning I will describe a simple project. A small team is preparing a report about a city park. They count the old trees, check the walking paths, and speak with neighbors who visit the park every morning. The report should be clear, calm, and easy to read. The first checkpoint phrase is Amber Lighthouse. It appears before the middle of the recording and should survive transcription without losing the nearby context. The team notices that the northern path needs better lighting, while the southern garden needs more benches. They also decide that the playground should remain open during the repairs. Nobody wants the transcript to start a new paragraph merely because the speech model created another internal segment. Now the recording continues beyond a typical 30-second window. The same report is still being discussed. So the words that follow belong to the same dictation. The second checkpoint phrase is Quiet River. It marks the middle of the sample. After reviewing the measurements, the team estimates that the work can be completed in three weeks. Rain may delay the painting, but it should not affect the replacement of signs or the planting of flowers. Near the end, the team reads the complete report one more time. They verify every date, every number, and every recommendation. The final checkpoint phrase is Silver Compass. If this phrase is present, the last part of the audio was not clipped during conversion or decoding. This concludes the Long English Dictation Test with one continuous passage and no artificial paragraph breaks.

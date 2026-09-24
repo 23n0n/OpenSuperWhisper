@@ -1,0 +1,3 @@
+ f7b76763a0ed78b088ac2bf45a18192e6e58bc03 asian-autocorrect (v1.0.0-812-gf7b7676)
+ 4e416ee7308dd6b581796f1a6241276cd5982691 libllama/llama.cpp (v0.4.1-174-g4e416ee73)
+ 371b5a7561823ab2bb32142d2751e35e7534727b libwhisper/whisper.cpp (v1.9.3)

@@ -1,0 +1,8 @@
+[2026-09-23T08:02:21Z] in-flight: crew implementing local PL->EN translate + tone (5 files) in worktree /Volumes/home/zenon/Projects/OpenSuperWhisper-fork/worktrees/OpenSuperWhisper-fm-fm-20260923-01
+[2026-09-23T08:09:55Z] round-1 green but review found blocking reasoning-strip bug; relaunching crew with remediation-02 (retries=1)
+[2026-09-23T08:46:20Z] round-2 review clean (0 critical); launching round-3 hardening (bare terminator strip, race-free seam, test tightening)
+[2026-09-23T08:49:53Z] ready: branch fm/fm-20260923-01 @ e428306, 5 files, build green, TranslationServiceTests pass, 3 review rounds clean. Awaiting merge approval.
+[2026-09-23T08:59:26Z] captain directive: output must be keypress simulation (no clipboard paste); reopening for change K1-K3
+[2026-09-23T09:03:21Z] keypress review found flag-inheritance + autoCopy + over-cap grapheme; round-4 fix dispatched
+[2026-09-23T09:06:12Z] ready: keypress-simulation output complete. branch fm/fm-20260923-01 @ 92fc012, build green, KeyboardSimulatorTests+TranslationServiceTests pass, review 0 critical/0 warning.
+[2026-09-23T12:03:03Z] done: merged fast-forward into feat/local-translate-tone at 92fc012. Verified on the merged tree: xcodebuild build SUCCEEDED, OpenSuperWhisperTests TEST SUCCEEDED — 230 cases, 0 failures (40 TranslationServiceTests, 17 KeyboardSimulatorTests). Worktree torn down.

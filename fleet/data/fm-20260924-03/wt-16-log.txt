@@ -1,0 +1,3 @@
+8e8b92a feat(menu): add Settings… to the status-bar menu
+847d1e9 Merge fm-20260923-12: no permission gate, split-layout guard
+4d1e281 Never gate the app on a permission screen; fail loudly on a split build layout

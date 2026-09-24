@@ -1,0 +1,2 @@
+[2026-09-23T17:23:52Z] captain blocked: the built app still gates on Accessibility even though he grants it. Task: make the app non-blocking (inline state + guided fix, never a dead-end screen) and determine with evidence why an identity-signed app cannot hold the grant on this macOS build.
+[2026-09-23T17:40:58Z] merged into feat/local-translate-tone as 4d1e281 + merge 847d1e9 (work was left uncommitted in the worktree; committed by the first mate). Rebuilding the primary app and running the unit suite.

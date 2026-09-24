@@ -1,0 +1,5 @@
+The contract has not been signed.
+Do not send the invoice until Friday.
+The migration timed out, so the deployment failed.
+My password is correct, but the login still fails.
+We will not be able to deliver the package tomorrow.

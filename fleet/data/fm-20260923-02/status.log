@@ -1,0 +1,6 @@
+[2026-09-23T09:08:05Z] scout registered: small PL->EN translation model feasibility
+[2026-09-23T09:08:18Z] in-flight: crew running opus-mt smoke test + candidate report
+[2026-09-23T09:11:18Z] in-flight: crew evaluating Ant Labs on-device models vs opus-mt (addendum)
+[2026-09-23T09:16:34Z] done: addendum appended to report.md — Ant Labs has 0 translation models; verdict worse/not-applicable vs opus-mt; Voz smoke-tested (Polish->Polish)
+[2026-09-23T09:16:59Z] in-flight: crew re-examining desertant.com/models for any translation path
+[2026-09-23T09:20:18Z] done: scout report complete. Ant Labs has no translation model; opus-mt-pl-en CT2 (154MB, ~62ms) remains the recommendation. Report: /Volumes/home/zenon/Projects/OpenSuperWhisper-fork/fleet/data/fm-20260923-02/report.md

@@ -1,0 +1,247 @@
+{
+ "1.5B": {
+  "mine": [
+   "c",
+   "c",
+   "b",
+   "c",
+   "w",
+   "i",
+   "i",
+   "b",
+   "b",
+   "w",
+   "c",
+   "w",
+   "b",
+   "b",
+   "w"
+  ],
+  "judge": [
+   "c",
+   "w",
+   "b",
+   "i",
+   "w",
+   "w",
+   "i",
+   "b",
+   "b",
+   "w",
+   "w",
+   "w",
+   "w",
+   "b",
+   "w"
+  ],
+  "mine_counts": {
+   "correct": 4,
+   "wrong_word": 4,
+   "broken_grammar": 5,
+   "invented_content": 2
+  },
+  "judge_counts": {
+   "correct": 1,
+   "wrong_word": 8,
+   "broken_grammar": 4,
+   "invented_content": 2
+  },
+  "agree": 10
+ },
+ "4B": {
+  "mine": [
+   "c",
+   "c",
+   "b",
+   "c",
+   "c",
+   "b",
+   "b",
+   "c",
+   "c",
+   "c",
+   "c",
+   "w",
+   "b",
+   "b",
+   "c"
+  ],
+  "judge": [
+   "c",
+   "w",
+   "w",
+   "c",
+   "c",
+   "w",
+   "w",
+   "w",
+   "c",
+   "c",
+   "c",
+   "w",
+   "b",
+   "w",
+   "c"
+  ],
+  "mine_counts": {
+   "correct": 9,
+   "wrong_word": 1,
+   "broken_grammar": 5,
+   "invented_content": 0
+  },
+  "judge_counts": {
+   "correct": 7,
+   "wrong_word": 7,
+   "broken_grammar": 1,
+   "invented_content": 0
+  },
+  "agree": 9
+ },
+ "7B": {
+  "mine": [
+   "c",
+   "c",
+   "c",
+   "c",
+   "c",
+   "b",
+   "i",
+   "b",
+   "c",
+   "c",
+   "b",
+   "c",
+   "c",
+   "b",
+   "c"
+  ],
+  "judge": [
+   "c",
+   "c",
+   "c",
+   "c",
+   "c",
+   "b",
+   "i",
+   "b",
+   "c",
+   "c",
+   "w",
+   "c",
+   "c",
+   "b",
+   "c"
+  ],
+  "mine_counts": {
+   "correct": 10,
+   "wrong_word": 0,
+   "broken_grammar": 4,
+   "invented_content": 1
+  },
+  "judge_counts": {
+   "correct": 10,
+   "wrong_word": 1,
+   "broken_grammar": 3,
+   "invented_content": 1
+  },
+  "agree": 14
+ },
+ "8B": {
+  "mine": [
+   "c",
+   "c",
+   "b",
+   "c",
+   "c",
+   "c",
+   "b",
+   "c",
+   "w",
+   "c",
+   "c",
+   "c",
+   "w",
+   "c",
+   "c"
+  ],
+  "judge": [
+   "c",
+   "c",
+   "b",
+   "c",
+   "c",
+   "c",
+   "w",
+   "c",
+   "w",
+   "c",
+   "c",
+   "w",
+   "w",
+   "c",
+   "c"
+  ],
+  "mine_counts": {
+   "correct": 11,
+   "wrong_word": 2,
+   "broken_grammar": 2,
+   "invented_content": 0
+  },
+  "judge_counts": {
+   "correct": 10,
+   "wrong_word": 4,
+   "broken_grammar": 1,
+   "invented_content": 0
+  },
+  "agree": 13
+ },
+ "30B": {
+  "mine": [
+   "c",
+   "c",
+   "c",
+   "c",
+   "c",
+   "c",
+   "w",
+   "c",
+   "c",
+   "c",
+   "c",
+   "c",
+   "w",
+   "c",
+   "w"
+  ],
+  "judge": [
+   "c",
+   "w",
+   "c",
+   "c",
+   "c",
+   "w",
+   "w",
+   "c",
+   "c",
+   "c",
+   "c",
+   "c",
+   "w",
+   "c",
+   "w"
+  ],
+  "mine_counts": {
+   "correct": 12,
+   "wrong_word": 3,
+   "broken_grammar": 0,
+   "invented_content": 0
+  },
+  "judge_counts": {
+   "correct": 10,
+   "wrong_word": 5,
+   "broken_grammar": 0,
+   "invented_content": 0
+  },
+  "agree": 13
+ }
+}

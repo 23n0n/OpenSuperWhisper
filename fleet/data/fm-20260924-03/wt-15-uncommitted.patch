@@ -1,0 +1,376 @@
+diff --git a/OpenSuperWhisper/Engines/WhisperEngine.swift b/OpenSuperWhisper/Engines/WhisperEngine.swift
+index 3a46dfc..3565d92 100644
+--- a/OpenSuperWhisper/Engines/WhisperEngine.swift
++++ b/OpenSuperWhisper/Engines/WhisperEngine.swift
+@@ -386,6 +386,9 @@ class WhisperEngine: TranscriptionEngine {
+         // A fresh state isolates recordings, while prompt_past must remain enabled
+         // between the decoder's 30-second windows inside this recording.
+         params.noContext = false
++        // Advanced → Debug Options. whisper.cpp prints its verbose decode trace
++        // to stdout when this is on; without it the toggle was inert.
++        params.debugMode = settings.debugMode
+         let rollingContextCapacity = max(1, modelTextContext / 2)
+         params.nMaxTextCtx = Int32(clamping: rollingContextCapacity)
+         params.noTimestamps = !settings.showTimestamps
+diff --git a/OpenSuperWhisper/Settings.swift b/OpenSuperWhisper/Settings.swift
+index 86c079a..345b97f 100644
+--- a/OpenSuperWhisper/Settings.swift
++++ b/OpenSuperWhisper/Settings.swift
+@@ -967,12 +967,23 @@ struct SettingsDownloadableModels {
+         availableModels.first { $0.filename == filename }?.preferredLanguage
+     }
+ 
+-    /// The digest published for a catalogue file, or `nil` for a file the
+-    /// catalogue does not know (a hand-placed model, say).
++    /// The digest published for a file, or `nil` for one nobody publishes a
++    /// checksum for (a hand-placed model, say).
++    ///
++    /// The model the app ships with is not a catalogue entry — it comes from the
++    /// bundle, not a download — but its publisher does publish a digest for it,
++    /// so `Verify` can still compare it instead of shrugging.
+     static func pinnedSHA256(forFilename filename: String) -> String? {
+-        availableModels.first { $0.filename == filename }?.sha256
++        if filename == WhisperModelManager.defaultModelName {
++            return bundledModelSHA256
++        }
++        return availableModels.first { $0.filename == filename }?.sha256
+     }
+ 
++    /// sha256 of `ggml-tiny.en.bin`, as published by the whisper.cpp repository
++    /// it is released from.
++    static let bundledModelSHA256 = "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f"
++
+     static func isVisible(_ model: SettingsDownloadableModel,
+                           selectedLanguage: String,
+                           systemLanguage: String) -> Bool {
+@@ -1011,6 +1022,9 @@ struct Settings {
+     static let asianLanguages: Set<String> = ["zh", "ja", "ko"]
+     
+     var selectedLanguage: String
++    /// Advanced → Debug Options. Whisper prints its verbose decode trace when
++    /// this is on; read here so the toggle takes effect on the next dictation.
++    var debugMode: Bool
+     var suppressBlankAudio: Bool
+     var showTimestamps: Bool
+     var temperature: Double
+@@ -1039,12 +1053,16 @@ struct Settings {
+         self.useBeamSearch = prefs.useBeamSearch
+         self.beamSize = prefs.beamSize
+         self.useAsianAutocorrect = prefs.useAsianAutocorrect
++        self.debugMode = prefs.debugMode
+     }
+ }
+ 
+ struct SettingsView: View {
+     @StateObject private var viewModel = SettingsViewModel()
+     @StateObject private var permissionsManager = PermissionsManager()
++    /// G-12: the Advanced tab resets the welcome flow through the same state the
++    /// app's root reads.
++    @EnvironmentObject private var appState: AppState
+     @Environment(\.dismiss) var dismiss
+     @State private var isRecordingNewShortcut = false
+     @State private var selectedTab = 0
+@@ -1473,9 +1491,12 @@ struct SettingsView: View {
+                             VStack(alignment: .leading, spacing: 2) {
+                                 Text("Auto-paste Transcription")
+                                     .font(.subheadline)
+-                                Text("Automatically paste into the focused app")
++                                Text("Types the text into the focused app as keystrokes — "
++                                     + "the clipboard is not used, and Accessibility is required "
++                                     + "for the keystrokes to land")
+                                     .font(.caption)
+                                     .foregroundColor(.secondary)
++                                    .fixedSize(horizontal: false, vertical: true)
+                             }
+                             Spacer()
+                             Toggle("", isOn: $viewModel.autoPasteTranscription)
+@@ -1837,6 +1858,10 @@ struct SettingsView: View {
+                 .background(Color(.controlBackgroundColor).opacity(0.3))
+                 .cornerRadius(12)
+ 
++                // G-12: the welcome flow could only be re-shown by editing a
++                // DEBUG config file; this is the same reset, from the UI.
++                welcomeScreenSettings
++
+                 // Uninstall
+                 VStack(alignment: .leading, spacing: 16) {
+                     Text("Uninstall")
+@@ -1873,13 +1898,20 @@ struct SettingsView: View {
+                         .foregroundColor(.primary)
+ 
+                     HStack {
+-                        Text("Debug Mode")
+-                            .font(.subheadline)
++                        VStack(alignment: .leading, spacing: 2) {
++                            Text("Debug Mode")
++                                .font(.subheadline)
++                            Text("Prints whisper.cpp's verbose decode trace while transcribing "
++                                 + "(temperatures, fallbacks, timings) — for bug reports")
++                                .font(.caption)
++                                .foregroundColor(.secondary)
++                                .fixedSize(horizontal: false, vertical: true)
++                        }
+                         Spacer()
+                         Toggle("", isOn: $viewModel.debugMode)
+                             .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
+                             .labelsHidden()
+-                            .help("Enable additional logging and debugging information")
++                            .help("Print the decoder's verbose trace to the app's output")
+                     }
+                 }
+                 .padding()
+@@ -1921,9 +1953,119 @@ struct SettingsView: View {
+         return .keyCombo
+     }
+     
++    /// G-12: show the welcome flow again.
++    ///
++    /// It sets the language, the shortcut and the model, and it was reachable
++    /// only once — resetting `hasCompletedOnboarding` needed a DEBUG
++    /// `dev_config.json`. This is the same reset, and it changes nothing until
++    /// something is picked in the flow.
++    private var welcomeScreenSettings: some View {
++        VStack(alignment: .leading, spacing: 16) {
++            Text("Welcome Screen")
++                .font(.headline)
++                .foregroundColor(.primary)
++
++            Text("The welcome screen sets your dictation language, shortcut and speech model. "
++                 + "Showing it again changes none of them until you choose something there. "
++                 + "The main window shows it as soon as this sheet closes.")
++                .font(.caption)
++                .foregroundColor(.secondary)
++                .fixedSize(horizontal: false, vertical: true)
++
++            Button("Show the welcome screen again") {
++                appState.hasCompletedOnboarding = false
++                dismiss()
++            }
++            .buttonStyle(.bordered)
++        }
++        .padding()
++        .frame(maxWidth: .infinity, alignment: .leading)
++        .background(Color(.controlBackgroundColor).opacity(0.3))
++        .cornerRadius(12)
++    }
++
++    /// G-02/G-03: the two grants this app needs, in Settings, where everything
++    /// else about its state lives.
++    ///
++    /// Both were invisible here before: the Accessibility warning existed only
++    /// inside two of the three trigger modes (never for the default key
++    /// combination), and the microphone was not mentioned in the sheet at all —
++    /// the only place it appeared was the main window, and only while something
++    /// was missing.
++    private var permissionsSettings: some View {
++        VStack(alignment: .leading, spacing: 16) {
++            Text("Permissions")
++                .font(.headline)
++                .foregroundColor(.primary)
++
++            permissionSettingsRow(
++                title: "Keystrokes into other apps",
++                detail: "Accessibility. Needed to type a transcription into the app you are dictating into.",
++                granted: permissionsManager.isAccessibilityPermissionGranted,
++                action: { permissionsManager.requestAccessibilityPermissionOrOpenSystemPreferences() })
++
++            permissionSettingsRow(
++                title: "Microphone",
++                detail: "Needed to record your dictation.",
++                granted: permissionsManager.isMicrophonePermissionGranted,
++                action: { permissionsManager.requestMicrophonePermissionOrOpenSystemPreferences() })
++        }
++        .padding()
++        .frame(maxWidth: .infinity, alignment: .leading)
++        .background(Color(.controlBackgroundColor).opacity(0.3))
++        .cornerRadius(12)
++        // The sheet is not the main window, so the manager's own poll does not
++        // run here: read both grants when the tab is opened, and again when the
++        // app comes back from System Settings (the manager watches activation).
++        .onAppear {
++            permissionsManager.checkAccessibilityPermission()
++            permissionsManager.checkMicrophonePermission()
++        }
++    }
++
++    @ViewBuilder
++    private func permissionSettingsRow(title: String, detail: String, granted: Bool,
++                                       action: @escaping () -> Void) -> some View {
++        HStack(alignment: .top, spacing: 10) {
++            Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
++                .foregroundColor(granted ? .green : .orange)
++                .imageScale(.medium)
++
++            VStack(alignment: .leading, spacing: 2) {
++                Text(title)
++                    .font(.subheadline)
++
++                Text(detail)
++                    .font(.caption)
++                    .foregroundColor(.secondary)
++                    .fixedSize(horizontal: false, vertical: true)
++
++                if permissionsManager.hasCompletedInitialCheck {
++                    Text(granted ? "Granted" : "Not granted")
++                        .font(.caption)
++                        .foregroundColor(granted ? .green : .orange)
++                } else {
++                    Text("Checking…")
++                        .font(.caption)
++                        .foregroundColor(.secondary)
++                }
++            }
++
++            Spacer()
++
++            if !granted {
++                Button("Open System Settings", action: action)
++                    .buttonStyle(.bordered)
++                    .controlSize(.small)
++            }
++        }
++    }
++
+     var shortcutSettings: some View {
+         ScrollView {
+             VStack(spacing: 20) {
++                permissionsSettings
++
+                 // Recording Trigger
+                 VStack(alignment: .leading, spacing: 16) {
+                     Text("Recording Trigger")
+@@ -2548,7 +2690,12 @@ struct InstalledWhisperModelView: View {
+                             .foregroundColor(.green)
+                     }
+ 
+-                    if model.catalogueName == nil {
++                    if model.name == WhisperModelManager.defaultModelName {
++                        Text("shipped with the app")
++                            .font(.caption2)
++                            .foregroundColor(.secondary)
++                            .help("This is the model inside the app bundle, copied into the models directory on first run")
++                    } else if model.catalogueName == nil {
+                         Text("not in the catalogue")
+                             .font(.caption2)
+                             .foregroundColor(.secondary)
+diff --git a/OpenSuperWhisper/Utils/AppPreferences.swift b/OpenSuperWhisper/Utils/AppPreferences.swift
+index 8ecdf1a..f76575d 100644
+--- a/OpenSuperWhisper/Utils/AppPreferences.swift
++++ b/OpenSuperWhisper/Utils/AppPreferences.swift
+@@ -187,8 +187,6 @@ final class AppPreferences {
+     @UserDefault(key: "fluidAudioModelVersion", defaultValue: "v3")
+     var fluidAudioModelVersion: String
+     
+-    @UserDefault(key: "qwen3Variant", defaultValue: "f32")
+-    var qwen3Variant: String
+     
+     @UserDefault(key: "whisperLanguage", defaultValue: "en")
+     var whisperLanguage: String
+diff --git a/OpenSuperWhisperTests/SettingsLayoutSnapshotTests.swift b/OpenSuperWhisperTests/SettingsLayoutSnapshotTests.swift
+index c519863..34b71ca 100644
+--- a/OpenSuperWhisperTests/SettingsLayoutSnapshotTests.swift
++++ b/OpenSuperWhisperTests/SettingsLayoutSnapshotTests.swift
+@@ -475,13 +475,16 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
+         }
+     }
+ 
+-    /// Every card has to lay out intact, whatever the transforms are set to:
+-    /// the Translation & Tone card grows rows and captions with the switches, so
+-    /// the tab's height is not a constant this test may assume. The whole tab is
+-    /// drawn from the scroll view's document view, and what is asserted is the
+-    /// shape of the stack — page padding at both ends, real gaps between cards,
+-    /// no card crushed to a sliver — not a card count for today's content.
+-    func testEveryTranscriptionCardLaysOutWhateverTheSwitchesSay() throws {
++    /// Every tab's cards have to lay out intact — nothing crushed, nothing
++    /// running through an edge — whatever the switches are set to. The
++    /// Translation & Tone card grows rows with the transforms, so the tab's
++    /// height is not a constant this test may assume: the whole tab is drawn
++    /// from the scroll view's document view, and the assertions are the shape of
++    /// the stack rather than a card count for today's content.
++    ///
++    /// This is also where the tabs' contents are captured whole, so the PNGs
++    /// show every section the Model, Shortcuts and Advanced tabs now carry.
++    func testEveryTabLaysOutItsCardsWhateverTheSwitchesSay() throws {
+         let savedTranslate = AppPreferences.shared.translateEnabled
+         let savedTone = AppPreferences.shared.toneEnabled
+         defer {
+@@ -489,20 +492,32 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
+             AppPreferences.shared.toneEnabled = savedTone
+         }
+ 
+-        let states: [(name: String, translate: Bool, tone: Bool)] = [
+-            ("both-off", false, false),
+-            ("tone-only", false, true),
+-            ("both-on", true, true),
++        // The transcription tab, in both switch states, plus every other tab.
++        let cases: [(tab: String, suffix: String, translate: Bool, tone: Bool)] = [
++            ("transcription", "transforms-off", false, false),
++            ("transcription", "tone-only", false, true),
++            ("transcription", "transforms-on", true, true),
++            ("shortcuts", "default", savedTranslate, savedTone),
++            ("model", "default", savedTranslate, savedTone),
++            ("advanced", "default", savedTranslate, savedTone),
+         ]
+ 
+-        for state in states {
++        for state in cases {
+             AppPreferences.shared.translateEnabled = state.translate
+             AppPreferences.shared.toneEnabled = state.tone
+ 
+-            let name = "tab-transcription-content-\(state.name)"
+-            let capture = try captureHosted(Self.body("transcription", of: SettingsView()),
++            let name = "tab-\(state.tab)-content-\(state.suffix)"
++            let capture = try captureHosted(Self.body(state.tab, of: SettingsView()),
+                                             size: CGSize(width: 520, height: 600),
+                                             named: name, fullContent: true)
++
++            // The Model tab is one card with rows inside it rather than a stack
++            // of separate cards, so the shape checked below does not describe it.
++            // Its layout is covered by the three-size sweep in
++            // testSettingsTabsLayOutAsSeparateCards; the capture above is for the
++            // images.
++            guard Self.stackShapedTabs.contains(state.tab) else { continue }
++
+             let bands = try assertCardsSeparated(in: capture.image, name: name)
+ 
+             // The page padding has to be there at both ends of the stack, which
+@@ -518,7 +533,7 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
+ 
+             // A settings tab with a handful of cards; the count is only here to
+             // catch a stack that collapsed to one or two bands.
+-            XCTAssertGreaterThanOrEqual(bands.count, 5,
++            XCTAssertGreaterThanOrEqual(bands.count, 3,
+                                         "\(name): only \(bands.count) card bands are drawn")
+ 
+             for band in bands {
+@@ -660,6 +675,10 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
+     /// still look inset. Anything less means the content is running through it.
+     private static let minimumPagePaddingPoints: CGFloat = 4
+ 
++    /// The tabs whose content is a stack of separate cards. The Model tab is a
++    /// single card holding rows, so the stack shape does not apply to it.
++    private static let stackShapedTabs: Set<String> = ["transcription", "shortcuts", "advanced"]
++
+     /// The page padding the tab bodies put around their card stack.
+     private static let pagePadding: CGFloat = 16
+ 
+@@ -677,8 +696,10 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
+          ("advanced", AnyView(sheet.advancedSettings))]
+     }
+ 
++    /// The Advanced tab reads the app state (it can reset the welcome flow), so
++    /// every rendered view is given one, as the app's window does.
+     private static func body(_ name: String, of sheet: SettingsView) -> AnyView {
+-        tabBodies(of: sheet).first { $0.0 == name }!.1
++        AnyView(tabBodies(of: sheet).first { $0.0 == name }!.1.environmentObject(AppState()))
+     }
+ }
+ 
+@@ -691,6 +712,7 @@ private struct SettingsSheetHost: View {
+             .frame(maxWidth: .infinity, maxHeight: .infinity)
+             .sheet(isPresented: .constant(true)) {
+                 SettingsView(selectedTab: tabIndex)
++                    .environmentObject(AppState())
+             }
+     }
+ }

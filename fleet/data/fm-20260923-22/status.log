@@ -1,0 +1,29 @@
+[2026-09-23T20:20:00Z] done: committed fm/fm-20260923-22 (`2a2c213`). The case was never a flake.
+Diagnosis: `IndicatorViewModel.startRecording()` asked `isTranscriptionBusy` before its microphone guard
+(`IndicatorWindow.swift:141-144` ahead of `:148-151` at the tip), and `TranscriptionService.init`
+(`TranscriptionService.swift:122-126`) starts a real whisper model load the moment the singleton is first
+touched, so the app-hosted test process had `isLoading == true` and `startRecording()` returned `.busy`
+without ever reading the microphone. Measured on the failing run: `state=busy busy=true loading=true
+transcribing=false queue=false mic=nil recorder=false` — `mic=nil` proves the test's injection does reach
+the app's `MicrophoneService.shared` (`MicrophoneService.swift:175-176`); the guard was unreachable, not
+missed. `ContentViewModel.startRecording()` (`ContentView.swift:169-170`) has no busy check, which is why
+only the indicator entry point failed. The same window exists for a real user: the first hotkey press
+after launch happens while the engine loads (`ShortcutManager.swift:156` calls `startRecording()`
+directly), and with no input device the indicator said "Processing..." (`.busy` renders at
+`IndicatorWindow.swift:573-581`) instead of "No microphone".
+
+Fix: the microphone is checked first, the busy guard sits directly behind it and is otherwise unchanged.
+Tests: `NoMicrophoneGuardTests` pins both halves of the precedence with an engine load held open by
+`EngineLoadGate` — no microphone + loading reports `.noMicrophone` (fails before the change), a microphone
++ loading still reports `.busy` and records nothing (control, passes both ways).
+
+Evidence: the previously failing case passed 5/5 consecutive runs (0.003-0.004 s each); the whole
+`OpenSuperWhisperTests` target 368 total / 314 passed / 0 failed / 54 skipped (the multilingual and
+long-form cases skip: `ggml-tiny.bin` is absent by design and the turbo model routes through the script's
+calibrated skip); bundle identity-signed and single-binary after `Scripts/dev-run.sh test` —
+`designated => identifier "ru.starmel.OpenSuperWhisper.dev" and certificate leaf = H"32266bcc…"`.
+
+Label purge: `Readme.md` and `Scripts/dev-run.sh` never carried it (checked every ref and every worktree);
+the FLEET-STATE.md, backlog.md, the fm-08/13/15/16/17 briefs, fm-08's status.log and the fork plan
+(`voice-keyboard-fork-plan.md`) now say deterministic red test, fixed — not "known flake".
+[2026-09-23T18:16:37Z] done: verdict = the test was right and the app was wrong. IndicatorViewModel.startRecording checked isTranscriptionBusy before the microphone guard (IndicatorWindow.swift:140-151), so with no input device during engine load the user got "Processing..." and .noMicrophone was unreachable through the hotkey path (ShortcutManager.swift:156 calls startRecording directly). Fixed by reordering; original assertion kept; regression + control tests added; pre-fix failure reproduced by reverting only IndicatorWindow.swift. Merged 62882f2.

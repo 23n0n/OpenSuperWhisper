@@ -1,0 +1,5 @@
+ M OpenSuperWhisper/Engines/WhisperEngine.swift
+ M OpenSuperWhisper/Settings.swift
+ M OpenSuperWhisper/Utils/AppPreferences.swift
+ M OpenSuperWhisperTests/SettingsLayoutSnapshotTests.swift
+?? OpenSuperWhisperTests/SettingsExposureTests.swift

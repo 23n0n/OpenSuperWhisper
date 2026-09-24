@@ -1,0 +1,1 @@
+[2026-09-24T09:47:19Z] dispatched at 09:47 UTC, CANCELLED at 09:50 UTC: 09:46 UTC falls inside the provider's peak window (01:00-04:00 and 06:00-10:00 UTC, Mon-Fri). No work lost - only the worktree and branch existed (fm/fm-20260923-28 @ 23d873a, clean, submodules pinned). Relaunching off-peak after 10:00 UTC.

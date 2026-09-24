@@ -1,0 +1,35 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008132-001E61282283001C",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "088FC9A4-F7B2-40A4-A458-070199FFC053.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "long_ru-transcription_0_CECAD611-5DA4-4C02-B227-2F405073483C.txt",
+        "timestamp" : 1790232070.558
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008132-001E61282283001C",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "A6C6A973-8BF9-4C9A-99A4-9CD5EA410D79.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "long_en-transcription_0_63578ADD-EB59-4527-9BF0-5ED7AA25109F.txt",
+        "timestamp" : 1790232070.557
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "00008132-001E61282283001C",
+        "deviceName" : "My Mac",
+        "exportedFileName" : "FCC098A6-71B2-41A9-8121-9288117BC555.ips",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Crash Log 2026-09-24 at 08.41.02 AM.ips",
+        "timestamp" : 1790232062.157
+      }
+    ],
+    "testIdentifier" : "WhisperLongFormLanguageIntegrationTests/testLongEnglishAndRussianAudioKeepsLanguageContextAndTail()",
+    "testIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperLongFormLanguageIntegrationTests/testLongEnglishAndRussianAudioKeepsLanguageContextAndTail"
+  }
+]

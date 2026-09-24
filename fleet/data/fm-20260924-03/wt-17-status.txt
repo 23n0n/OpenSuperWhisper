@@ -1,0 +1,10 @@
+ M OpenSuperWhisper/AppErrorCenter.swift
+ M OpenSuperWhisper/ContentView.swift
+ M OpenSuperWhisper/Engines/WhisperEngine.swift
+ M OpenSuperWhisper/Indicator/IndicatorWindow.swift
+ M OpenSuperWhisper/TranscriptionService.swift
+ M OpenSuperWhisper/TranslationService.swift
+ M OpenSuperWhisper/Utils/AppPreferences.swift
+?? OpenSuperWhisper/DictationReport.swift
+?? OpenSuperWhisper/Utils/DictationScrubber.swift
+?? OpenSuperWhisper/Utils/SpeechModelLanguageGate.swift

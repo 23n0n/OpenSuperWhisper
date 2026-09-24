@@ -1,0 +1,2 @@
+[2026-09-23T17:25:42Z] captain directive: every feature must be explicitly visible in the UI. Scout registered to inventory all preferences/behaviours against the UI and produce an ordered gap list for a follow-up ship task.
+[2026-09-23T17:30:57Z] done: 80-entry inventory, 51 exposed, 17 gaps. Root cause found: the status-bar menu has no Settings item, so with the window hidden there is no way into Settings at all — the reason the captain concluded features do not exist.
