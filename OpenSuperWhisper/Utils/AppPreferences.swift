@@ -276,9 +276,12 @@ final class AppPreferences {
     /// The language the transform writes. Speech already in this language is
     /// pasted untouched and never reaches the model; speech in the other
     /// language is translated into it. Defaults to English — the direction the
-    /// app shipped and the one the staged model holds — so an install that
-    /// never touches the picker behaves exactly as before. Polish output is
-    /// best-effort with that model.
+    /// app shipped, and the one whose model is staged in the checkout — so an
+    /// install that never touches the picker behaves exactly as before.
+    ///
+    /// The picker chooses a *direction*, not a backend: the weights are routed
+    /// from this value (`TransformModelManager.modelID(forOutputLanguage:)`),
+    /// Polish output to its own larger model.
     @UserDefault(key: "transformTargetLanguage", defaultValue: TransformLanguage.english.rawValue)
     private var transformTargetLanguageRaw: String
 

@@ -3,15 +3,18 @@ import CryptoKit
 import Foundation
 
 enum TransformModelError: Error, LocalizedError {
-    case notInstalled
+    /// Nothing installed for the direction that was asked for. Carries the
+    /// model's name: the app routes Polish output to its own backend, so "the
+    /// model is missing" has to say *which* one.
+    case notInstalled(String)
     case checksumMismatch(expected: String, actual: String)
     case downloadFailed(String)
     case cancellation
 
     var errorDescription: String? {
         switch self {
-        case .notInstalled:
-            return "The transform model is not downloaded yet."
+        case .notInstalled(let name):
+            return "The \(name) transform model is not downloaded yet."
         case .checksumMismatch(let expected, let actual):
             return "The downloaded transform model does not match the pinned checksum (expected \(expected.prefix(12))…, got \(actual.prefix(12))…)."
         case .downloadFailed(let reason):
@@ -24,17 +27,25 @@ enum TransformModelError: Error, LocalizedError {
 
 /// One downloadable transform model.
 struct TransformModel: Equatable, Identifiable {
-    /// The id stored in `AppPreferences.transformModel`, i.e. the model the
-    /// built-in runtime loads. It is the file's stem, which is also the alias
+    /// The id the built-in runtime loads this entry for
+    /// (`AppPreferences.transformModel` names it too when the external endpoint
+    /// override is on). It is the file's stem, which is also the alias
     /// `Scripts/transform-server.sh` serves the same weights under.
     let id: String
     let displayName: String
     let fileName: String
     let downloadURL: URL
-    /// Pinned by the repository: the same hash `Scripts/transform-server.sh`
-    /// verifies with, so the app and that script cannot drift apart.
+    /// Pinned by the repository, and the only place either backend's digest
+    /// lives: the download, the install and every later use are all checked
+    /// against this value. For the shipped small model it is also the hash
+    /// `Scripts/transform-server.sh` verifies its own copy of those weights with.
     let sha256: String
     let sizeBytes: Int64
+    /// What the model costs in wired memory while it is loaded — weights, KV
+    /// cache and compute buffer on the Metal device, measured in-process for
+    /// this machine family (`fm-20260923-24`). Shown next to the switch, so the
+    /// footprint is visible before it is paid.
+    let memoryBytes: Int64
     /// Shown before anything is fetched.
     let licence: String
     let source: String
@@ -42,21 +53,47 @@ struct TransformModel: Equatable, Identifiable {
     var sizeDescription: String {
         ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file)
     }
+
+    var memoryDescription: String {
+        ByteCountFormatter.string(fromByteCount: memoryBytes, countStyle: .memory)
+    }
+
+    /// One line naming the weights, their licence and where they come from.
+    var sourceDescription: String {
+        "\(displayName), \(licence), from \(source)"
+    }
 }
 
 /// Owns the transform weights: app-owned storage, pinned hash, atomic install.
 ///
-/// Weights are NOT shipped in the app bundle (a ~1 GB payload in every update
+/// Weights are NOT shipped in the app bundle (a 1–5 GB payload in every update
 /// is the wrong trade for a menu-bar utility). They live in
 /// `~/Library/Application Support/<bundle id>/transform-models/`, exactly like
 /// the whisper models next door, so uninstalling the app removes them and
-/// reinstalling fetches them again.
+/// reinstalling fetches them again. The catalogue holds one entry per output
+/// direction; `model(forOutputLanguage:)` is what the runtime asks it for.
 final class TransformModelManager {
     static let shared = TransformModelManager()
 
     /// The id the built-in runtime falls back to when the stored preference
     /// names something the app does not ship.
     static let defaultModelID = "qwen2.5-1.5b-instruct-q4_k_m"
+
+    /// The backend for **Polish output**, the one direction the shipped 1.5B was
+    /// measured unreliable on: 4/15 clean, 2 of them inventing content and 5
+    /// with broken grammar, against this model's 11/15 clean and none invented
+    /// (`fm-20260923-24/raw/verdicts.json`; a second scorer called the small
+    /// model 1/15). It is 5×
+    /// the weights and 5× the wired memory, so it is only loaded when Polish is
+    /// actually being written.
+    static let polishOutputModelID = "qwen3-8b-q4_k_m"
+
+    /// The model that must write `language`. Routing is by **output direction**
+    /// and nothing else: the preference picks which direction the user wants,
+    /// never which backend serves it.
+    static func modelID(forOutputLanguage language: TransformLanguage) -> String {
+        language == .polish ? polishOutputModelID : defaultModelID
+    }
 
     static let availableModels: [TransformModel] = [
         TransformModel(
@@ -66,8 +103,22 @@ final class TransformModelManager {
             downloadURL: URL(string: "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf")!,
             sha256: "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370",
             sizeBytes: 986_048_768,
+            // 934.69 MiB weights + 112.00 MiB KV (4096 ctx) + 62.51 MiB compute.
+            memoryBytes: 1_159_641_497,
             licence: "Apache-2.0",
             source: "bartowski/Qwen2.5-1.5B-Instruct-GGUF on Hugging Face"
+        ),
+        TransformModel(
+            id: "qwen3-8b-q4_k_m",
+            displayName: "Qwen3 8B (Q4_K_M)",
+            fileName: "qwen3-8b-q4_k_m.gguf",
+            downloadURL: URL(string: "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf")!,
+            sha256: "d98cdcbd03e17ce47681435b5150e34c1417f50b5c0019dd560e4882c5745785",
+            sizeBytes: 5_027_783_488,
+            // 4789.19 MiB weights + 576.00 MiB KV (4096 ctx) + 92.01 MiB compute.
+            memoryBytes: 5_723_163_853,
+            licence: "Apache-2.0",
+            source: "Qwen/Qwen3-8B-GGUF on Hugging Face"
         )
     ]
 
@@ -124,6 +175,16 @@ final class TransformModelManager {
         resolvedModel(forID: nil)
     }
 
+    /// The backend for the language the model is about to write.
+    ///
+    /// Resolved from the catalogue, not from a preference: the user picks the
+    /// *direction*, the app picks the weights for it. A build that does not ship
+    /// the Polish backend still resolves to the small one here — the caller
+    /// checks `verifiedPath(for:)` and reports the miss rather than substituting.
+    func model(forOutputLanguage language: TransformLanguage) -> TransformModel {
+        resolvedModel(forID: Self.modelID(forOutputLanguage: language))
+    }
+
     func fileURL(for model: TransformModel) -> URL {
         modelsDirectory.appendingPathComponent(model.fileName)
     }
@@ -131,24 +192,13 @@ final class TransformModelManager {
     // MARK: - Installed state
 
     /// Cheap check: the file is there and its size matches what is pinned.
-    /// Says nothing about the checksum — `installedModelPath()` does that.
+    /// Says nothing about the checksum — `verifiedPath(for:)` does that.
     func hasModelFile(_ model: TransformModel) -> Bool {
         guard let attributes = try? fileManager.attributesOfItem(atPath: fileURL(for: model).path),
               let size = attributes[.size] as? NSNumber else {
             return false
         }
         return size.int64Value == model.sizeBytes
-    }
-
-    /// The path to hand to the runtime, or `nil` when the weights are missing or
-    /// do not match the pinned checksum.
-    ///
-    /// The full hash is only computed when the file changed since it was last
-    /// verified (size/mtime stamp next to it), so the ~1 s hash is paid once per
-    /// download or manual change, not on every launch. Call off the main thread.
-    func installedModelPath() -> String? {
-        let model = resolvedModel(forID: AppPreferences.shared.transformModel)
-        return verifiedPath(for: model)
     }
 
     func verifiedPath(for model: TransformModel) -> String? {
@@ -177,7 +227,7 @@ final class TransformModelManager {
     }
 
     /// Streaming SHA-256 of a file. `CryptoKit` keeps it constant-memory, which
-    /// matters for a 986 MB GGUF.
+    /// matters for a 5 GB GGUF.
     static func sha256(ofFileAt url: URL) throws -> String {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }

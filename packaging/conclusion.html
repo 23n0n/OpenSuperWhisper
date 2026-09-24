@@ -14,14 +14,16 @@ code { font-family: Menlo, monospace; font-size: 12px; }
 the whisper speech engine and the llama.cpp transform engine are linked into the same
 binary, and neither one needs Homebrew, a background server or a listening port.</p>
 
-<h2>The transform model downloads on first use</h2>
+<h2>The transform models download on first use</h2>
 
-<p>Translation and tone need a language model (about 1 GB). It is <em>not</em> in this
-installer &mdash; every update would then carry it again. Turn on
+<p>Translation and tone need a language model, one per output direction: about 1 GB for
+English output and about 5 GB for Polish output. They are <em>not</em> in this installer
+&mdash; every update would then carry them again. Turn on
 <strong>Translate into &hellip;</strong> or <strong>Apply tone</strong> in
-Settings &rarr; Transcription, press <strong>Download model</strong> next to it, and the
-app fetches the weights into its own folder, verifies the published checksum, and keeps
-them there. Until then, dictation is pasted unchanged.</p>
+Settings &rarr; Transcription, press <strong>Download model</strong> next to the direction
+you use, and the app fetches those weights into its own folder, verifies the pinned
+checksum, and keeps them there. Until then, dictation in that direction is pasted
+unchanged — one direction's model never stands in for the other's.</p>
 
 <h2>Uninstalling</h2>
 

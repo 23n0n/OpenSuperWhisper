@@ -128,16 +128,95 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
         // The whole tab, however tall it is: drawing the scroll view's document
         // view covers every card without guessing a window size, so the test
         // does not depend on how much content the current build has.
-        if fullContent, let document = firstScrollView(in: hosting)?.documentView {
-            let rect = document.bounds
-            guard let documentRep = document.bitmapImageRepForCachingDisplay(in: rect) else {
-                window.close()
-                throw SnapshotError.renderFailed("\(name): no bitmap for the tab's content")
+        if fullContent {
+            // The hosted tree is not always built by the time the first run-loop
+            // turn is over — XCTest loads test classes in parallel, and a class
+            // still waking up has no scroll view yet. Skipping the wait quietly
+            // dropped the capture through to the window fallback below, whose
+            // shorter window clips the last card: that is how a capture that was
+            // never a tab capture reported a card missing its 16 pt page padding.
+            // So wait for the scroll view's document view, and fail loudly if the
+            // hosted tree never materialises.
+            let waitBudget: TimeInterval = 5
+            var document: NSView?
+            for _ in 0..<50 {
+                if let documentView = firstScrollView(in: hosting)?.documentView {
+                    document = documentView
+                    break
+                }
+                runLoopTurn(0.1)
             }
-            document.cacheDisplay(in: rect, to: documentRep)
-            guard let documentImage = documentRep.cgImage else {
+            guard let document else {
                 window.close()
-                throw SnapshotError.renderFailed("\(name): cacheDisplay produced no content image")
+                throw SnapshotError.renderFailed("\(name): no scroll view after "
+                                                 + "\(waitBudget) s — the hosted tree never materialised")
+            }
+
+            // The document view only reaches its content's height after a few
+            // layout passes, and a capture taken between passes draws the last
+            // card clipped at the image edge — which reads exactly like a card
+            // that is missing its page padding. Wait until the height stops
+            // changing — for half a second, not one sample: a single tall Text
+            // measures in stages, so two consecutive samples can agree in the
+            // middle of the growth.
+            var previousHeight: CGFloat = -1
+            var settledSamples = 0
+            for _ in 0..<60 {
+                let height = document.bounds.height
+                if height > 0, height == previousHeight {
+                    settledSamples += 1
+                    if settledSamples >= 5 { break }
+                } else {
+                    settledSamples = 0
+                }
+                previousHeight = height
+                runLoopTurn(0.1)
+            }
+
+            // A settled height is not yet a settled *draw*: a capture taken while
+            // AppKit has just changed the scroll view's usable width (the
+            // scrollbar appearing re-wraps every caption, so the stack grows
+            // downwards) comes back with the last card clipped at the image edge,
+            // and that reads exactly like a card that is missing its page
+            // padding. So: force the pending layout, draw, and accept a capture
+            // only when both the rect and the raster it produced are unchanged
+            // from the previous pass. Under a loaded machine the first pass or
+            // two are not enough — this case has gone red that way inside a
+            // suite and green every time on its own.
+            var rect = document.bounds
+            var previousRect = CGRect.null
+            var previousPixels: [UInt8]?
+            var documentImage: CGImage?
+            // Converges in two passes when the layout is already settled — which
+            // is the normal case — and keeps drawing while it is not. The budget
+            // is time, not attempts-only: a few seconds of a loaded machine is
+            // cheaper than a red suite caused by a capture taken mid-convergence.
+            for _ in 0..<60 {
+                // The whole tree, not just the document: the scroll view is what
+                // decides how wide the content gets (its scroller's space), and
+                // that decision is what re-wraps the cards.
+                window.contentView?.layoutSubtreeIfNeeded()
+                window.displayIfNeeded()
+                rect = document.bounds
+                guard let documentRep = document.bitmapImageRepForCachingDisplay(in: rect) else {
+                    window.close()
+                    throw SnapshotError.renderFailed("\(name): no bitmap for the tab's content")
+                }
+                document.cacheDisplay(in: rect, to: documentRep)
+                guard let image = documentRep.cgImage else {
+                    window.close()
+                    throw SnapshotError.renderFailed("\(name): cacheDisplay produced no content image")
+                }
+                documentImage = image
+                let pixels = try bitmap(image)
+                if pixels == previousPixels, rect == previousRect { break }
+                previousPixels = pixels
+                previousRect = rect
+                runLoopTurn(0.05)
+            }
+            guard let documentImage else {
+                window.close()
+                throw SnapshotError.renderFailed("\(name): the capture produced no content image")
             }
             let capture = try writePNG(documentImage, named: name)
             window.close()
@@ -524,12 +603,16 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
             // it cannot be if a card is drawn through the top or bottom edge.
             let topPadding = bands.first?.start ?? -1
             let bottomPadding = capture.image.height - 1 - (bands.last?.end ?? -1)
+            // The capture and its bands go into the message: a red run has to
+            // say *what* it measured, or the next reader is left guessing.
+            let shape = "\(capture.image.width)x\(capture.image.height) img, capture \(capture.size), "
+                + "bands \(bands.map { "\($0.start)-\($0.end)" })"
             XCTAssertEqual(topPadding, Int(Self.pagePadding), accuracy: 2,
                            "\(name): the card stack starts \(topPadding) pt into the tab, "
-                           + "expected the \(Int(Self.pagePadding)) pt page padding")
+                           + "expected the \(Int(Self.pagePadding)) pt page padding — \(shape)")
             XCTAssertEqual(bottomPadding, Int(Self.pagePadding), accuracy: 2,
                            "\(name): the card stack ends \(bottomPadding) pt before the end of the tab, "
-                           + "expected the \(Int(Self.pagePadding)) pt page padding")
+                           + "expected the \(Int(Self.pagePadding)) pt page padding — \(shape)")
 
             // A settings tab with a handful of cards; the count is only here to
             // catch a stack that collapsed to one or two bands.
@@ -567,7 +650,10 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
                                       file: StaticString = #filePath, line: UInt = #line) throws -> [Band] {
         let (bands, gaps, background, _) = try cardBands(in: image)
         let summary = bands.map { "\($0.start)-\($0.end)" }.joined(separator: ", ")
-        print("[snapshot] \(name) \(image.width)x\(image.height): bg=\(background) bands=[\(summary)] gaps=\(gaps)")
+        // Through `report`, not `print`: xcodebuild drops a test process's
+        // stdout, so a run that fails here would leave no trace of *what* the
+        // capture contained. With the variable unset this only prints.
+        TestFixtures.report("[snapshot] \(name) \(image.width)x\(image.height): bg=\(background) bands=[\(summary)] gaps=\(gaps)")
 
         XCTAssertFalse(bands.isEmpty, "\(name): no card is drawn at all", file: file, line: line)
         XCTAssertTrue(gaps.allSatisfy { $0 >= Int(Self.minimumCardGapPoints) },

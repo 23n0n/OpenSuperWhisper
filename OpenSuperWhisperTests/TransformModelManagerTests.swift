@@ -24,6 +24,7 @@ final class TransformModelManagerTests: XCTestCase {
             downloadURL: URL(string: "https://example.invalid/test-model.gguf")!,
             sha256: SHA256.hash(data: payload).map { String(format: "%02x", $0) }.joined(),
             sizeBytes: Int64(payload.count),
+            memoryBytes: 8_589_934_592,
             licence: "Apache-2.0",
             source: "test"
         )
@@ -52,6 +53,7 @@ final class TransformModelManagerTests: XCTestCase {
             downloadURL: model.downloadURL,
             sha256: sha256,
             sizeBytes: model.sizeBytes,
+            memoryBytes: model.memoryBytes,
             licence: model.licence,
             source: model.source
         )
@@ -182,5 +184,66 @@ final class TransformModelManagerTests: XCTestCase {
             "the app and Scripts/transform-server.sh must pin the same weights"
         )
         XCTAssertTrue(script.contains(shipped.fileName))
+    }
+
+    // MARK: - Routing by output direction
+
+    func testOutputLanguageSelectsTheBackend() {
+        XCTAssertEqual(TransformModelManager.modelID(forOutputLanguage: .polish), "qwen3-8b-q4_k_m")
+        XCTAssertEqual(TransformModelManager.modelID(forOutputLanguage: .english), "qwen2.5-1.5b-instruct-q4_k_m")
+        XCTAssertEqual(
+            TransformModelManager.modelID(forOutputLanguage: .english),
+            TransformModelManager.defaultModelID,
+            "English output keeps the shipped model"
+        )
+    }
+
+    func testOutputLanguageResolvesWithinTheCatalogue() throws {
+        let manager = TransformModelManager.shared
+        XCTAssertEqual(manager.model(forOutputLanguage: .polish).id, TransformModelManager.polishOutputModelID)
+        XCTAssertEqual(manager.model(forOutputLanguage: .english).id, TransformModelManager.defaultModelID)
+        XCTAssertNotEqual(
+            manager.model(forOutputLanguage: .polish).id,
+            manager.model(forOutputLanguage: .english).id,
+            "the two directions must not resolve to the same weights"
+        )
+    }
+
+    /// The Polish entry is pinned by the brief: the URL, the size and the
+    /// digest the download is verified against, with no second source of truth.
+    func testPolishBackendIsPinned() throws {
+        let polish = try XCTUnwrap(
+            TransformModelManager.availableModels.first { $0.id == TransformModelManager.polishOutputModelID }
+        )
+
+        XCTAssertEqual(
+            polish.downloadURL.absoluteString,
+            "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf"
+        )
+        XCTAssertEqual(polish.sha256, "d98cdcbd03e17ce47681435b5150e34c1417f50b5c0019dd560e4882c5745785")
+        XCTAssertEqual(polish.sizeBytes, 5_027_783_488)
+        XCTAssertEqual(polish.fileName, "qwen3-8b-q4_k_m.gguf")
+        XCTAssertEqual(polish.licence, "Apache-2.0")
+        XCTAssertGreaterThan(
+            polish.memoryBytes,
+            TransformModelManager.shared.model(forOutputLanguage: .english).memoryBytes,
+            "the Polish backend is the larger one, and the UI states that"
+        )
+    }
+
+    /// A stored id cannot move the built-in runtime: routing is by direction.
+    func testAStoredPreferenceCannotMoveTheBuiltInBackends() {
+        for stored in TransformModelManager.availableModels.map(\.id) + ["Qwen/Qwen3-14B-MLX-6bit"] {
+            XCTAssertEqual(
+                TransformModelManager.shared.model(forOutputLanguage: .polish).id,
+                TransformModelManager.polishOutputModelID,
+                "stored \(stored) must not change the Polish backend"
+            )
+            XCTAssertEqual(
+                TransformModelManager.shared.model(forOutputLanguage: .english).id,
+                TransformModelManager.defaultModelID,
+                "stored \(stored) must not change the English backend"
+            )
+        }
     }
 }

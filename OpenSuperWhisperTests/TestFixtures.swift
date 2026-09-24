@@ -88,4 +88,25 @@ enum TestFixtures {
             line: line
         )
     }
+
+    /// Prints a measurement line, and — when `OSW_TEST_EVIDENCE` names a file —
+    /// appends it there too.
+    ///
+    /// `xcodebuild test` does not carry a test process's stdout into the console
+    /// or the result bundle, so a run that measures something (a backend name, a
+    /// latency, a wired-memory step) has no way to hand its numbers back. The
+    /// file is opt-in, exactly like the model fixtures above: with the variable
+    /// unset — the default, and what CI has — this only prints.
+    static func report(_ line: String) {
+        print(line)
+        guard let path = ProcessInfo.processInfo.environment["OSW_TEST_EVIDENCE"] else { return }
+        let data = Data((line + "\n").utf8)
+        if let handle = try? FileHandle(forWritingTo: URL(fileURLWithPath: path)) {
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: data)
+        } else {
+            FileManager.default.createFile(atPath: path, contents: data)
+        }
+    }
 }
