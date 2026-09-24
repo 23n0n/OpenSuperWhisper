@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 import CoreGraphics
 import Foundation
@@ -26,8 +27,115 @@ enum KeyboardSimulator {
         /// How many events were handed to `post`.
         let eventsPosted: Int
 
+        /// What ended the delivery before the whole transcript had been posted,
+        /// or `nil` when it was posted in full. `eventsPosted` keeps its meaning
+        /// either way: how many events were handed to `post`.
+        var interruptedBy: DeliveryInterruption?
+        /// How many characters of the transcript had been handed to `post` when
+        /// the delivery ended — the whole transcript when `interruptedBy` is
+        /// `nil`. Counted over the text after CR/CRLF normalisation, and a
+        /// grapheme cluster split by the chunking cap counts once per piece.
+        var deliveredCharacters: Int = 0
+
         /// Whether any keystroke was actually handed to the system.
         var injected: Bool { eventsPosted > 0 }
+    }
+
+    /// Why a delivery stopped before it had typed the whole transcript.
+    enum DeliveryInterruption: Equatable, CustomStringConvertible {
+        /// Another application came to the front: every remaining chunk would
+        /// have been typed into that one instead of the intended target.
+        case focusChanged
+        /// The user typed while the transcript was being posted: continuing
+        /// would have mixed the two streams character by character.
+        case userTyping
+
+        /// The token the one-line dictation record carries.
+        var description: String {
+            switch self {
+            case .focusChanged: return "focus-changed"
+            case .userTyping: return "user-typing"
+            }
+        }
+    }
+
+    /// Watches a delivery for the two interferences that make it unsafe to keep
+    /// typing, and answers before each pair of events whether it may go out.
+    ///
+    /// The checks have to be synchronous queries of the login session's own
+    /// state, because a delivery is one uninterrupted main-thread turn — a
+    /// 1000-character transcript is posted in a fraction of a millisecond: an
+    /// `NSEvent` monitor or an event tap is run-loop driven and cannot run its
+    /// callback inside that turn, so it could only report a keystroke after the
+    /// delivery was already over.
+    struct DeliveryWatch {
+        private let check: (_ keyDownsPosted: Int) -> DeliveryInterruption?
+
+        /// A watch built from a check of the caller's own — how a test drives an
+        /// interference a headless machine must not be made to produce.
+        init(interference: @escaping (_ keyDownsPosted: Int) -> DeliveryInterruption?) {
+            self.check = interference
+        }
+
+        /// Answers whether anything interfered once the delivery had posted
+        /// `keyDownsPosted` key-down events; `nil` means "still safe".
+        func interference(keyDownsPosted: Int) -> DeliveryInterruption? {
+            check(keyDownsPosted)
+        }
+
+        /// A watch over the live login session.
+        ///
+        /// - Focus: the frontmost application is read once, when the watch is
+        ///   made — that is the delivery target, because the watch is made as
+        ///   the delivery begins — and compared with the frontmost application
+        ///   at every checkpoint. A different process ends the delivery before
+        ///   the next event goes out, so nothing reaches the application that
+        ///   came to the front. A session with no frontmost application (or one
+        ///   the probe cannot read) is treated as "unchanged" rather than as
+        ///   interference: this check must never stop a delivery on its own
+        ///   ignorance.
+        /// - Typing: `CGEventSource.counterForEventType` reports how many key
+        ///   downs have been seen in the combined session state. That table, in
+        ///   CoreGraphics' words, "reflects the combined state of all event
+        ///   sources posting to the current user login session", and this
+        ///   process is one of them — it creates its events from a
+        ///   `combinedSessionState` source — so the delivery's own key downs are
+        ///   part of the number and subtracting the ones it posted leaves the
+        ///   keystrokes somebody else made. A keystroke that is not part of this
+        ///   delivery is interference whether it came from the keyboard or from
+        ///   another process typing into the same application.
+        ///
+        /// Neither probe can misfire on the quiet case: with nothing competing,
+        /// the surplus over the delivery's own posts is exactly zero, and a
+        /// counter that has not counted this process's posts (or has gone
+        /// backwards) makes the surplus negative, which is also silence. The
+        /// arithmetic can never stop a delivery over the events that delivery
+        /// itself posted; its failure mode is a missed stop, never a stopped
+        /// dictation.
+        ///
+        /// Both probes are injectable for the same reason `trusted` and `post`
+        /// are: a headless test must not produce a real interference, so it
+        /// drives the readings instead (see `KeyboardSimulatorInterferenceTests`).
+        static func live(
+            frontmostPID: @escaping () -> pid_t? = {
+                NSWorkspace.shared.frontmostApplication?.processIdentifier
+            },
+            keyDownCount: @escaping () -> UInt32 = {
+                CGEventSource.counterForEventType(.combinedSessionState, eventType: .keyDown)
+            }
+        ) -> DeliveryWatch {
+            let target = frontmostPID()
+            let reference = keyDownCount()
+            return DeliveryWatch { keyDownsPosted in
+                if let target, let frontmost = frontmostPID(), frontmost != target {
+                    return .focusChanged
+                }
+                let seenSinceDeliveryBegan = keyDownCount()
+                guard seenSinceDeliveryBegan >= reference else { return nil }
+                let keystrokes = Int(seenSinceDeliveryBegan - reference)
+                return keystrokes > keyDownsPosted ? .userTyping : nil
+            }
+        }
     }
 
     /// The unified-log subsystem and category of the one-line-per-dictation
@@ -44,17 +152,25 @@ enum KeyboardSimulator {
     /// launched by LaunchServices (its stdout is `/dev/null`), which is how the
     /// shipped app runs, so the line that explains a dropped dictation goes to
     /// the unified log with `privacy: .public` fields.
+    ///
+    /// `deliveredCharacters` and `interruptedBy` say what became of the
+    /// transcript: how much of it was handed to the system, and what ended the
+    /// delivery early when something did.
     static func logDictation(
         trusted: Bool,
         characters: Int,
         injected: Bool,
-        eventsPosted: Int
+        eventsPosted: Int,
+        deliveredCharacters: Int = 0,
+        interruptedBy: DeliveryInterruption? = nil
     ) {
         log.notice("""
             dictation-injection trusted=\(trusted ? 1 : 0, privacy: .public) \
             chars=\(characters, privacy: .public) \
             injected=\(injected ? 1 : 0, privacy: .public) \
-            events=\(eventsPosted, privacy: .public)
+            events=\(eventsPosted, privacy: .public) \
+            delivered=\(deliveredCharacters, privacy: .public) \
+            interrupted=\(interruptedBy?.description ?? "none", privacy: .public)
             """)
     }
 
@@ -72,25 +188,39 @@ enum KeyboardSimulator {
     /// handled as dedicated key codes: newlines map to Return and tabs to Tab.
     /// Empty input posts nothing.
     ///
+    /// With a `watch`, the delivery is checked before every pair of events and
+    /// stops cleanly at the first interference instead of typing into the wrong
+    /// place: no further event is posted, and the result carries what ended the
+    /// delivery and how much of the transcript had gone out. Chunking, the
+    /// events themselves and their timing are unaffected — the checks are two
+    /// cheap reads of session state, not delays.
+    ///
     /// - Parameters:
     ///   - text: The text to type.
     ///   - trusted: Whether this process may post synthetic events. Defaults to
     ///     the live `AXIsProcessTrusted()` answer, which is what production
     ///     uses; injectable so a test can pin the answer instead of depending on
     ///     whether the machine happens to hold the grant.
+    ///   - watch: Interference check consulted between chunks, or `nil` to post
+    ///     the whole text unchecked. Production passes `.live()`.
     ///   - post: Sink for the generated events. Defaults to posting to the HID
     ///     event tap; tests inject a capture closure.
-    /// - Returns: What was observed and posted. When `trusted` is false the
-    ///   events are still handed to `post`, but macOS discards every event an
-    ///   untrusted process posts, so the text did not reach the focused app —
-    ///   the caller must tell the user instead of discarding the text silently.
+    /// - Returns: What was observed and posted, and whether the delivery stopped
+    ///   early. When `trusted` is false the events are still handed to `post`,
+    ///   but macOS discards every event an untrusted process posts, so the text
+    ///   did not reach the focused app — the caller must tell the user instead of
+    ///   discarding the text silently.
     @discardableResult
     static func typeText(
         _ text: String,
         trusted: Bool = isTrustedForInjection,
+        watch: DeliveryWatch? = nil,
         post: (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) }
     ) -> InjectionResult {
         var eventsPosted = 0
+        var keyDownsPosted = 0
+        var deliveredCharacters = 0
+        var interruptedBy: DeliveryInterruption?
 
         guard !text.isEmpty else {
             return InjectionResult(trusted: trusted, eventsPosted: 0)
@@ -107,25 +237,55 @@ enum KeyboardSimulator {
             for event in events {
                 post(event)
                 eventsPosted += 1
+                if event.type == .keyDown {
+                    // The live watch subtracts these from the session's own
+                    // count, so every one of them has to be counted.
+                    keyDownsPosted += 1
+                }
             }
         }
 
-        func flushBuffer() {
-            guard !buffer.isEmpty else { return }
+        /// Asks the watch whether the delivery may continue, and posts one pair
+        /// of events (or two, for a control character) when it may.
+        ///
+        /// - Returns: `false` once the delivery has stopped, so the caller stops
+        ///   walking the transcript instead of posting the rest of it.
+        func emitUnlessInterrupted(_ events: [CGEvent], characters: Int) -> Bool {
+            if interruptedBy == nil, let watch {
+                interruptedBy = watch.interference(keyDownsPosted: keyDownsPosted)
+            }
+            guard interruptedBy == nil else { return false }
+            emit(events)
+            deliveredCharacters += characters
+            return true
+        }
+
+        /// Posts the buffered text, in chunks, unless something interfered.
+        @discardableResult
+        func flushBuffer() -> Bool {
+            if interruptedBy != nil { return false }
+            guard !buffer.isEmpty else { return true }
             for chunk in chunks(of: buffer, maxUTF16: maxUTF16PerEvent) {
-                emit(makeUnicodeEvents(for: chunk))
+                guard emitUnlessInterrupted(makeUnicodeEvents(for: chunk), characters: chunk.count) else {
+                    return false
+                }
             }
             buffer = ""
+            return true
         }
 
-        for character in normalized {
+        characterLoop: for character in normalized {
             switch character {
             case "\n":
-                flushBuffer()
-                emit(makeKeyEvents(for: returnKeyCode))
+                guard flushBuffer() else { break characterLoop }
+                guard emitUnlessInterrupted(makeKeyEvents(for: returnKeyCode), characters: 1) else {
+                    break characterLoop
+                }
             case "\t":
-                flushBuffer()
-                emit(makeKeyEvents(for: tabKeyCode))
+                guard flushBuffer() else { break characterLoop }
+                guard emitUnlessInterrupted(makeKeyEvents(for: tabKeyCode), characters: 1) else {
+                    break characterLoop
+                }
             default:
                 buffer.append(character)
             }
@@ -133,7 +293,12 @@ enum KeyboardSimulator {
 
         flushBuffer()
 
-        return InjectionResult(trusted: trusted, eventsPosted: eventsPosted)
+        return InjectionResult(
+            trusted: trusted,
+            eventsPosted: eventsPosted,
+            interruptedBy: interruptedBy,
+            deliveredCharacters: deliveredCharacters
+        )
     }
 
     /// Splits `text` into chunks of at most `maxUTF16` UTF-16 code units.
