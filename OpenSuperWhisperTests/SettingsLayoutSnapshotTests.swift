@@ -128,7 +128,30 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
         // The whole tab, however tall it is: drawing the scroll view's document
         // view covers every card without guessing a window size, so the test
         // does not depend on how much content the current build has.
-        if fullContent, let document = firstScrollView(in: hosting)?.documentView {
+        if fullContent {
+            // The hosted tree is not always built by the time the first run-loop
+            // turn is over — XCTest loads test classes in parallel, and a class
+            // still waking up has no scroll view yet. Skipping the wait quietly
+            // dropped the capture through to the window fallback below, whose
+            // shorter window clips the last card: that is how a capture that was
+            // never a tab capture reported a card missing its 16 pt page padding.
+            // So wait for the scroll view's document view, and fail loudly if the
+            // hosted tree never materialises.
+            let waitBudget: TimeInterval = 5
+            var document: NSView?
+            for _ in 0..<50 {
+                if let documentView = firstScrollView(in: hosting)?.documentView {
+                    document = documentView
+                    break
+                }
+                runLoopTurn(0.1)
+            }
+            guard let document else {
+                window.close()
+                throw SnapshotError.renderFailed("\(name): no scroll view after "
+                                                 + "\(waitBudget) s — the hosted tree never materialised")
+            }
+
             // The document view only reaches its content's height after a few
             // layout passes, and a capture taken between passes draws the last
             // card clipped at the image edge — which reads exactly like a card
