@@ -1,0 +1,13 @@
+— 8B NOT installed (isPolishModelInstalled=false) —
+PASS tone EN formal: qwen2.5-1.5b-instruct-q4_k_m  (expected qwen2.5-1.5b-instruct-q4_k_m)
+PASS tone PL casual: qwen2.5-1.5b-instruct-q4_k_m  (expected qwen2.5-1.5b-instruct-q4_k_m)
+PASS cleanUpWithTone EN: qwen2.5-1.5b-instruct-q4_k_m  (expected qwen2.5-1.5b-instruct-q4_k_m)
+PASS cleanup-only EN: qwen2.5-1.5b-instruct-q4_k_m  (expected qwen2.5-1.5b-instruct-q4_k_m)
+PASS cleanup-only PL: qwen2.5-1.5b-instruct-q4_k_m  (expected qwen2.5-1.5b-instruct-q4_k_m)
+— 8B installed (isPolishModelInstalled=true) —
+PASS tone EN formal: qwen3-8b-q4_k_m  (expected qwen3-8b-q4_k_m)
+PASS tone PL formal: qwen3-8b-q4_k_m  (expected qwen3-8b-q4_k_m)
+PASS cleanUpWithTone EN: qwen3-8b-q4_k_m  (expected qwen3-8b-q4_k_m)
+PASS cleanup-only EN: qwen2.5-1.5b-instruct-q4_k_m  (expected qwen2.5-1.5b-instruct-q4_k_m)
+PASS cleanup-only PL: qwen3-8b-q4_k_m  (expected qwen3-8b-q4_k_m)
+ROUTING TABLE OK

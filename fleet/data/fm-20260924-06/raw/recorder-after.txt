@@ -1,0 +1,7 @@
+[trigger] modifier mode: shortcut=Optional(⌥`) armed=false
+[recorder] after clicking the field: recording=[false, true] firstResponder=NSTextView
+[recorder] after ⌥⇧K: stored=Optional(⌥⇧K) shown=⌥⇧K
+[trigger] key-combination mode, nothing stored: shortcut=Optional(⌥`) armed=true
+[trigger] a combination recorded in that mode: shortcut=Optional(⌥⇧K) armed=true
+[recorder] the library's recorder as it comes, clicked: recording=[false, true, false]
+[recorder] the library's recorder as it comes, after ⌥⇧K: stored=nil typed=K

@@ -1,0 +1,2 @@
+[determinism] english→polish on Qwen3-8B-Q4_K_M.gguf: 5 runs in 14.05s, 1 distinct output(s), sha256 5ba778d653984b30cc026094b605ecfe2406e4875f09d2d84e29faa6c13912f5 (134 bytes)
+[determinism] polish→english on qwen2.5-1.5b-instruct-q4_k_m.gguf: 5 runs in 2.05s, 1 distinct output(s), sha256 11968128660b0baa5c9e8ba46bca2e8d5c8615151c52d1abedd7cb966533d319 (85 bytes)

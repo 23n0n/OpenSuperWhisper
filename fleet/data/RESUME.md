@@ -1,5 +1,123 @@
 # RESUME — OpenSuperWhisper fork, state at the computer restart
 
+## HANDOFF — 2026-09-25T07:11:38Z — restart; read this before anything else
+
+This block supersedes the older state paragraphs below wherever they disagree. Three of them are now
+**wrong** and were corrected here: the delivery-branch tip, the worktree list, and the note that the dev
+keychain "will not unlock for this session".
+
+### 0. First three actions
+
+1. `cd /Volumes/home/zenon/Projects/OpenSuperWhisper-fork` then
+   `export FIRSTMATE_HOME=/Volumes/home/zenon/Projects/OpenSuperWhisper-fork/fleet`.
+2. **The DeepSeek peak guard is installed, verified, and needs nothing armed.** It is loaded automatically
+   from `~/.omp/agent/extensions/deepseek-peak-guard.ts` (native auto-discovery of the agent directory's
+   `extensions/`), it briefs every new session with the live billing window, and its own test suite passes
+   (`cd ~/.omp/agent/skills/deepseek-peak-hours && bun peak-guard.test.ts` → all phases). Ask it, never
+   guess the clock:
+   `python3 ~/.omp/agent/skills/deepseek-peak-hours/peak_hours.py status` (exit 0 = off-peak, 3 = peak).
+   During peak it blocks tool calls and subagent spawns in `mode: ask` until `/peak approve`, or waits with
+   `/peak wait` and resumes by itself; `/peak status`, `/peak on`, `/peak off` also exist. Defaults apply
+   because no `deepseek-peak-guard.json` is written — do not write one unless the mode must change.
+3. Work the queue at the end of this block; item 1 is the only branch that is not yet landed.
+
+### 1. Facts established this session — do not re-derive, do not re-litigate
+
+- **The dev keychain password was never wrong.** `~/.opensuperwhisper-dev/keychain-password`
+  (`kxzGTbR6Qbwo9rSFGfL0lJSJLG24B/wI`, mode 600, outside the repo, never committed) **does** unlock
+  `~/Library/Keychains/opensuperwhisper-dev.keychain-db` — verified: `security unlock-keychain` → exit 0,
+  `find-identity -v -p codesigning` → 1 valid identity, `codesign --sign "OpenSuperWhisper Local Dev"` →
+  exit 0 with `designated => … certificate leaf = H"32266bcc51546f68f9347324bd3c81d853fde5a4"`. The crew's
+  single unlock attempt failed transiently (its recorded error even contains
+  `SecKeychainCopySettings …: User canceled the operation`, the locked-keychain path); the identical retry
+  succeeds. **Both built apps are signed with the identity as of this handoff**, including the tone
+  worktree's. No rotation, no re-grant. Its report's "keychain has to be unlocked by hand first" is void.
+- **One model serves tone in both languages — the captain's decision, final.** *"I wish to maintain
+  simplicity… one model to govern them all… a single route for tone transcription applicable to both Polish
+  and English. If the current setup is in place, no changes should be made."* Consequences to hold:
+  **nothing is deleted, no model moves roots**, the shipped 1.5B stays, `~/models` stays, the 8B stays
+  installed and pinned. The *delivered* build does **not** yet satisfy him (tone is still routed per
+  language); the unlanded branch does. That branch is the whole remaining task.
+- **Memory budget, measured from the models' own GGUF metadata** (not estimates):
+  | | weights | KV @ ctx 4096 | KV/token | step measured |
+  |---|---|---|---|---|
+  | Qwen3-8B Q4_K_M (36 layers, 8 KV heads, dim 128) | 5.03 GB | **576 MiB** | 144 KiB | 5.62 GB |
+  | Qwen2.5-1.5B Q4_K_M (28 layers, 2 KV heads, dim 128) | 0.99 GB | **112 MiB** | 28 KiB | 1.43 GB |
+  App sets `defaultContextSize = 4096`, `gpuLayers = 99`, `maxNewTokens = 1024`, temp 0.2, seed 0
+  (`OpenSuperWhisper/Llama/Llama.swift`). KV is allocated for the full context regardless of prompt length,
+  so each context doubling costs another 576 MiB on the 8B; with 4096 + 1024 output, a ~3000-token
+  dictation is refused (`promptTooLong`) rather than truncated. One transform model is resident at a time;
+  the 10-minute idle unload returns the app to its 2.26 GB baseline. Total resident measured: 7.88–8.93 GB
+  with the 8B, 3.69–3.76 GB with the 1.5B. **The single-route change moves English tone from the 1.5B to the
+  8B: about +4.2 GB while resident.** The 19 GB Qwen3-30B-A3B must never be wired (17.2 GB wired, 66 s cold
+  load — incompatible with the idle-unload contract).
+- **Peak-hours premise corrected.** 2026-09-25 is a **Chinese public holiday** per the guard's calendar, so the
+  whole day is off-peak (the provider bills half rate and the guard gates nothing). Next peak:
+  **Mon 2026-09-28 01:00 UTC**. The earlier "freeze until 10:00 UTC" was unnecessary; nothing heavy was
+  running when it was ordered, so nothing was lost.
+
+### 2. Unlanded work — the only open branch
+
+`fm/tone-output` @ **`9c36eae`**, worktree `worktrees/OpenSuperWhisper-fm-tone` (clean, 0 dirty), **4 commits
+ahead of the delivery branch**, build identity-signed. The four commits:
+
+| commit | what |
+|---|---|
+| `741431a` | tone on the 8B in **both** languages, with the guard on the answer |
+| `e194655` | Readme: the 8B is preferred for tone in both languages, not for Polish alone |
+| `b9f6893` | `TransformOutcome` carries the guard rejection in its initializer |
+| `9c36eae` | the test pins the combined tone+clean-up prompt to the new wording |
+
+**Verified on it:** the app target and the whole test bundle compile clean, and `TransformGuardTests` is
+green in-app (13/13, 53 s). **Not verified (its own admission):** the weight-backed Polish/English
+measurement and the full suite. That is the off-peak step, and it is now off-peak:
+
+```
+cd /Volumes/home/zenon/Projects/OpenSuperWhisper-fork/worktrees/OpenSuperWhisper-fm-tone
+Scripts/dev-run.sh test > /tmp/fm2411-suite.log 2>&1          # build + suite + re-sign
+# then the measurement: llama-server with the app's sampling (temp 0.2 / top-k 40 / top-p 0.95 /
+# min-p 0.05, enable_thinking=false) on qwen3-8b-q4_k_m, the seven cases, both languages, prompt+frame
+# exactly as landed (system = TransformService.systemPrompt, user = userPrompt).
+```
+
+Then land it locally under the standing order (merge into the delivery branch, re-sign, teardown the
+worktree) — and make no other change, per §1.
+
+### 3. The rest of the queue
+
+- `fm-20260924-12` — **ignore pauses, Polish only** (brief written, never dispatched:
+  `fleet/data/fm-20260924-12/launch-brief.md`). Long pauses split a Polish dictation into sentences without
+  sense; the captain narrowed it to Polish alone.
+- **Bilingual dictation measurement** (his late-afternoon request): the same content dictated in Polish and
+  in English, then compared. Needs a rebuild with `DEV_SIGN_ENTITLEMENTS` set so the Accessibility grant
+  survives, and his spoken audio.
+- Ship/teardown: nothing is published for `3dcde52` beyond the fork's own refs; `fleet-state` branch holds
+  the records bundle.
+
+### 4. Invariants that have already cost time — do not relearn them
+
+- **Never a bare `xcodebuild test`.** `Scripts/dev-run.sh` is the only correct entry point (it keeps
+  `ENABLE_DEBUG_DYLIB=NO`, signs with the identity, clears a stale split layout, re-signs after tests). A
+  bare `xcodebuild test` leaves the app **ad-hoc signed**, and the Accessibility grant matches the
+  designated requirement — so the app silently loses the ability to type. Check with
+  `codesign -d -r- <app>`; it must show `certificate leaf = H"32266bcc…"`, not `cdhash`.
+- **Never kill the captain's terminal, the running app, or an omp process.** A previous crew's GUI
+  automation SIGHUP'd two whole sessions. Launch the GUI app only through the build/dev-run path, and run
+  any long build or measurement detached (`setsid … > log 2>&1 &`), never in the foreground of a session
+  whose terminal matters.
+- Heavy local work (llama, xcodebuild) spends no provider tokens; the peak rule is about **token spend**.
+  That is exactly what the guard gates — so consult the guard, not the clock, and not your own arithmetic.
+
+### 5. Where the records are
+
+`fleet/data/FLEET-STATE.md` (the ledger; this handoff's entry is appended there), `fleet/data/RESUME.md`
+(this file), `fleet/data/fm-*/report.md` (per-crew evidence), `fleet/data/fm-20260923-27/` … `fm-20260924-12/`
+(briefs), `fleet-state` branch + `fleet-state/archive/*.bundle` (records and branch snapshots), and the
+guard's own home: `~/.omp/agent/extensions/deepseek-peak-guard.ts`,
+`~/.omp/agent/skills/deepseek-peak-hours/{SKILL.md,peak_hours.py,peak_config.json,peak-guard.test.ts}`.
+
+---
+
 Written 2026-09-24, immediately before a machine restart. Nothing of ours is running; all crews were
 cancelled. Nothing needs saving from memory or `/tmp` — the one artifact that mattered (the 5 GB 8B model)
 was already moved to `~/models/`. A restart loses no work.
@@ -39,7 +157,9 @@ updated accordingly; `FLEET-STATE.md` carries the merge block, the skip reconcil
 | delivery branch | `feat/local-translate-tone` @ **`23d873a`** (three crew branches merged 2026-09-24, then the README commit), working tree clean; head of **`origin/main`** *and* `origin/feat/local-translate-tone` (the fork carries both refs and `main` is its default branch since 2026-09-24), and the tree is 71 commits ahead of `origin/develop` |
 | **set this first** | `export FIRSTMATE_HOME=/Volumes/home/zenon/Projects/OpenSuperWhisper-fork/fleet`. The skill derives the home from the working directory, so a session started anywhere else reads a different fleet; that has already cost one session (2026-09-24). |
 | firstmate home (state, briefs, reports) | `/Volumes/home/zenon/Projects/OpenSuperWhisper-fork/fleet` |
-| crew worktrees | **none** — all four were torn down after their branches landed (2026-09-24); the branches themselves are kept, and the primary checkout is the only worktree |
+| crew worktrees | **none** — every crew worktree was torn down after its branch landed (2026-09-24; the last three after
+  `ffda358`); every landed branch is inside `fleet-state/archive/all-local-branches-*.bundle`, and the only worktrees are
+  the primary checkout and the `fleet-state` records branch |
 | built app | `<repo>/build/Build/Products/Debug/OpenSuperWhisper.app` |
 
 ## 2. How to run it again after the restart
@@ -75,6 +195,11 @@ into the focused app.
 - `/tmp/fm24-models/` no longer exists (the 8B model was moved to `~/models/`).
 
 ## 4. What is live in the app now
+
+Suite state **measured** on the merged tip **`ffda358`** (2026-09-24, all three landings): **446 total, 392 passed,
+0 failed, 54 skipped**, `Passed`, read from the `xcresult` summary — 444 (the fm-26 branch, which excludes fm-27) plus
+fm-27's two determinism cases. Earlier the same day, before those landings, the merged tip `319f3a3` measured
+420 / 367 / 0 / 53. The older paragraph, kept as provenance:
 
 Suite state **measured** on the **merged** tip `319f3a3` (2026-09-24, alone on the machine): **420 total,
 367 passed, 0 failed, 53 skipped**, `Passed` — the merge of the three branches was re-verified, not assumed.
@@ -150,23 +275,38 @@ polish. To inspect: `git -C <worktree> status` and `git -C <worktree> log --onel
 
 ## 7. Open tasks, in priority order
 
-Rewritten again 2026-09-24 after the merge. **Done and landed**: `fm-20260923-16`, `-25`, `-17` (the three
-merged branches) and `fm-20260924-01` (the measurement) and `fm-20260924-03` (preservation). What remains: Every entry has a brief on disk under `data/<id>/launch-brief.md`, complete and free of
-placeholders. Nothing below is dispatched. Order is project value, not agent convenience: land what is
-already written, then the two captain-decided features, then coverage.
+Rewritten 2026-09-24, after the merges and after the branch cleanup. Every open entry has a complete brief
+under `data/<id>/launch-brief.md`. Order is project value, not agent convenience.
 
-1. **fm-20260923-28** — Qwen3-8B as the Polish-output backend (your decision). Now the top of the queue:
-   the fm-17 measurement found that **en→pl output on the shipped 1.5B invents words**, and Polish output is
-   the direction the 8B was chosen for.
-2. **fm-20260923-27** — in-process determinism. Premise corrected: the sampler is already seed-pinned
-   (`Llama.swift:270-278`, `dist(seed = 0)`); if outputs still differ run to run, the cause is backend
-   reduction nondeterminism, not seeding. Decide: measure once against real weights, or drop the requirement.
+**TRANSLATION REMOVED, RELEASE 0.1.0-fork.2 PUBLISHED (2026-09-24, tip `3dcde52`).** The captain dropped the translation feature
+entirely: the app never changes a dictation's language, and the switch, both pickers, the external endpoint and the two
+transform scripts are deleted. Tone is a same-language rewrite, clean-up/judgement runs in the spoken language, the 8B is an
+optional backend Polish prefers when installed, and the engine always auto-detects. Published on the fork as `v0.1.0-fork.2`
+with corrected notes; `v0.1.0-fork.1` stays as history. The `/Applications` copy was refreshed to this build.
+
+**Delivery mode:** every verified branch is merged locally into `feat/local-translate-tone` without asking, and the
+push happens once at the end. **That publish has happened** (2026-09-24): `main`, `feat/local-translate-tone` @ `ffda358`
+and `fleet-state` @ `086243f` are on `origin` = `23n0n/OpenSuperWhisper`, all fast-forwards, verified with
+`git ls-remote origin`. Nothing was sent to `upstream` and no pull request is open against it.
+
+**Landed** on `feat/local-translate-tone` (and `main`, both on the fork): `fm-20260923-16`, `-25`, `-17`; the
+measurement `fm-20260924-01`; the preservation `fm-20260924-03`. Since then: the README feature description,
+the `fleet-state` records branch, and the branch cleanup — 17 finished branches deleted, each verified inside
+`fleet-state/archive/all-local-branches-20260924.bundle` first.
+
+1. **fm-20260923-28** — Qwen3-8B as the Polish-output backend (your decision). **READY, unmerged**: branch
+   `fm/fm-20260923-28` @ `0a4f5f8`; two headless full-suite runs green (387 passed / 0 failed / 54 skipped);
+   routing, the missing-model refusal, the digest checks, wired RAM, latency and the idle unload all proven
+   by execution. Awaiting the captain's merge word. Detail and the false-red story: `FLEET-STATE.md`.
+2. **fm-20260923-27** — in-process determinism. Brief rewritten: the sampler is already seed-pinned
+   (`Llama.swift:270-278`, `dist(seed = 0)` per request, chain freed each time), so drift can only come from
+   backend reduction. Reproduce 5x over two process launches, discriminate with CPU-only / single-thread,
+   then fix or document — and add the determinism test either way. Runs after fm-28, rebased on its tip.
 3. **fm-20260923-26** — delivery-path coverage: 50 of the 53 skips are keyboard-layout-gated, so the path you
-   use daily is the least covered in the suite. Related, cheap: the Turkish case's gate is
-   environment-dependent and its green is weak (see `FLEET-STATE.md`, skip reconciliation).
-4. **fm-20260923-22**-style hygiene, not registered: delete the duplicate branch `fm/fm-20260923-09` (its one
-   commit is already in the delivery tree) when convenient.
-5. Optional measurement, not registered: the 14B rung (~9 GB) between the 8B and the 30B.
+   use daily is the least covered in the suite. Test-only code.
+4. Optional, not registered: the 14B rung (~9 GB) between the 8B and the 30B-A3B.
+5. Needs the captain's screen, not a crew: the fm-16 occlusion delta in `stash@{0}`, and the eyeball pass over
+   the merged surfaces (status-bar `Settings…`, the new Settings cards, the last-dictation card).
 
 ## 8. Cautions
 

@@ -1,0 +1,3 @@
+before: BLAS free=0 total=0 | CPU free=34359738368 total=34359738368
+resident: BLAS free=0 total=0 | CPU free=34359738368 total=34359738368
+after unload: BLAS free=0 total=0 | CPU free=34359738368 total=34359738368

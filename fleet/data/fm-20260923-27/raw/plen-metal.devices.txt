@@ -1,0 +1,3 @@
+before: MTL0 free=26800128000 total=26800603136 | BLAS free=0 total=0 | CPU free=34359738368 total=34359738368
+resident: MTL0 free=25388007424 total=26800603136 | BLAS free=0 total=0 | CPU free=34359738368 total=34359738368
+after unload: MTL0 free=26799865856 total=26800603136 | BLAS free=0 total=0 | CPU free=34359738368 total=34359738368

@@ -486,3 +486,628 @@ At 09:46 UTC on Thursday 2026-09-24 that is **peak** (inside 06:00–10:00 UTC).
 - Relaunch happens after 10:00 UTC, off-peak. **Standing rule for this fleet: dispatch crews only outside
   01:00–04:00 and 06:00–10:00 UTC on weekdays.** The rest of the queue (fm-27, fm-26, the records backup and the
   branch cleanup) is unaffected by the pause and runs in the same off-peak window.
+
+## [2026-09-24T11:09:03Z] fm-20260923-28 READY — Polish output on Qwen3-8B, and a false red that was a test's fault
+
+Branch `fm/fm-20260923-28` @ `0a4f5f8` (feature `10a4c3d`: 13 files, +1276/−206; test fix `0a4f5f8`).
+Unmerged, unpushed — waiting for the captain's merge word.
+
+**What it does.** The built-in transform backend is chosen by the language the answer must be written in:
+Polish output → `qwen3-8b-q4_k_m` (5.03 GB on disk, ~5.6 GB wired step), English output → the shipped
+`qwen2.5-1.5b-instruct-q4_k_m`; `TransformModelManager.modelID(forOutputLanguage:)` is the single decision
+point and one backend is resident at a time. A missing Polish backend is refused with a Settings notice and
+its own pinned download — never a silent fallback to the small model, whose English→Polish output is what
+this change exists to replace. Per-backend RAM and disk are stated next to the Target language picker, the
+8B's load rides the record-start warm-up, and the documented 10-minute idle unload still fires.
+
+**Proven by execution, not asserted** (`fleet/data/fm-20260923-28/report.md`, evidence files under `/tmp/fm28-*`):
+en→pl `backend qwen3-8b-q4_k_m` / pl→en `backend qwen2.5-1.5b-instruct-q4_k_m` / pl→pl **0 model calls**;
+missing 8B → `attempted ["qwen3-8b-q4_k_m"], resident none`, raw transcript delivered and the card says
+which direction is waiting for its model; a mutated copy is refused against the pinned digest and the real
+5 GB file re-verifies (`d98cdcbd…`); wired baseline 2.26 GB, 8B step 5.62 GB, 1.5B step 1.43 GB; latency
+en→pl 1.01 s steady, pl→en **0.18 s** steady (the recorded baseline for that direction was ~0.29 s).
+
+**First-mate verification, alone on the machine, headless:** clean-state run **387 passed / 0 failed /
+54 skipped, `** TEST SUCCEEDED **`, exit 0**, then an incremental run identical; bundle re-signed with the
+identity requirement, designated requirement unchanged. Sampling untouched (`Llama.swift` absent from the
+diff — `fm-20260923-27` owns it next) and `params.noTimestamps = false` still at `WhisperEngine.swift:415`.
+
+**The false red, worth keeping.** The first verification run was red on exactly one case
+(386 / 1 / 54): `SettingsLayoutSnapshotTests.testEveryTabLaysOutItsCardsWhateverTheSwitchesSay()`, reporting
+`the card stack ends 0 pt before the end of the tab, expected the 16 pt page padding` — with a **520x600**
+image, which is the *window*, not the tab's document (`503x2016`). The capture asked for the tab's scroll view
+with a single `if let`; under XCTest's parallel test classes (`parallelizable = "YES"`) the hosted tree was not
+built yet, the lookup failed silently, and the capture fell through to a window image whose last card touches
+the bottom edge — so a *capture* defect was reported as a *layout padding* defect. `0a4f5f8` makes the
+`fullContent` capture wait up to 5 s for the document view and throw `renderFailed` naming the case if the tree
+never materialises; no assertion and no part of the settle/draw loop changed. The two green runs are on those
+exact bytes. Lesson for the fleet: a silent fallback in a test harness turns environment trouble into a
+product-looking failure — a harness that cannot obtain what it asked for must fail loudly as itself.
+
+**Accepted gaps** (stated in the report, not hidden): a cache-evicted cold load was not freshly measured (the
+figure that stands is `fm-20260923-24`'s 3.21 s for these weights; the warm-cache warm-up path that hides that
+load is measured at 1.01–1.14 s), and the first-utterance-after-warm-up / racing-the-warm-up numbers were
+flagged by the crew as contention-corrupted.
+
+## [2026-09-24T11:17:17Z] fm-20260923-28 LANDED LOCALLY (no push)
+
+Merged `--no-ff` into `feat/local-translate-tone` as **`c6f9546`**. The captain chose merge-local-only, so
+nothing was pushed: `origin/main` and `origin/feat/local-translate-tone` still point at `23d873a` and the fork
+is one landing behind until he says otherwise.
+
+The merge is content-free by construction — `git diff --stat 0a4f5f8 HEAD` is empty, i.e. the merged tree is
+byte-identical to the branch tip that passed two headless full-suite runs (387 / 0 / 54 each) and the routing,
+missing-model, digest, RAM, latency and idle-unload checks. Nothing was re-measured for the merge because
+nothing changed; that identity check is the verification.
+
+Queue continues with `fm-20260923-27` (determinism) rebased on `c6f9546`, then `fm-20260923-26`.
+
+## [2026-09-24T11:49:55Z] fm-20260923-27 READY — the in-process transform was already deterministic
+
+Branch `fm/fm-20260923-27` @ `80d114c`, **test-only** (one new file, +95), base `c6f9546`. Unmerged, unpushed.
+
+**The requirement is met without a code change.** The crew measured the in-process path hard: 64 probe requests over ten
+test-process launches produced exactly one output hash per configuration — 1.5B PL→EN ×18, 8B EN→PL ×12, 1.5B EN→PL
+(fm-13's exact configuration) ×10, and CPU-only ×6 — and the committed test
+`OpenSuperWhisperTests/TransformDeterminismIntegrationTests.swift` hashes repeated runs in both directions. First-mate
+verification: clean-state headless run **388 passed / 0 failed / 54 skipped, `** TEST SUCCEEDED **`, exit 0**, both
+determinism cases green, bundle identity-signed. The crew's summary line quoted 389 passed; its own log's case lines sum
+to 388 and mine is 388 — same 442-case total, so **388/0/54 is the number to quote** and the difference was a counting slip,
+not a missing case.
+
+**Where fm-13's "8/10 outputs differed" actually came from — the optional HTTP endpoint, not the app.** That path sends no
+`seed` (`TranslationService.buildRequestBody`), `Scripts/transform-server.sh` starts `llama-server` without `--seed`, and
+`LLAMA_DEFAULT_SEED` resolves through `std::random_device` (`llama-sampler.cpp:339-353`). In-process the seed is pinned and
+the sampler chain is rebuilt per request, which is why it does not vary. The fleet's earlier conclusion that the
+nondeterminism lived in seed handling was therefore wrong in its attribution and right in its symptom: the symptom belongs to
+a path that is off by default.
+
+**Two findings worth keeping.** First, the crew invalidated its own experiment — the `n_gpu_layers = 0` hook fired after the
+model had already loaded 99 layers, so that "CPU-only" run was still Metal; it reported the mistake instead of the number.
+Second, real CPU-only (Metal absent) is internally deterministic too but differs from Metal by **one token**
+(`Good day. I am calling about order number 423` vs `Good day. I'm calling about order number 423`): reduction order is part
+of a build's identity, so cross-configuration equality was never the contract and determinism must be judged per
+configuration. Single-threaded sampling is identical to the shipped 4-thread configuration and costs nothing, so it buys
+nothing either.
+
+**Side effect that corroborates fm-28.** The 1.5B's EN→PL output is *stably wrong* — `Dzien dobry. Slucham, ale nie moge ci
+pomoc.` on all ten runs — a reproducible quality defect rather than variance, which is exactly the direction fm-28 moved to
+the 8B.
+
+**Optional, not done (captain's call):** adding a `seed` to the endpoint request body would make the *optional* HTTP path
+deterministic as well. Off by default, and it touches an external contract, so nothing was changed.
+
+## [2026-09-24T12:21:26Z] STANDING ORDER — merge every landing locally, push once at the end
+
+The captain, verbatim: *"Don't ask again, merge all locally. We will be pushing to remote only after the whole work
+will be finished."*
+
+Interpretation, recorded so no later session has to ask:
+- **Merge authority is standing** for every verified crew branch: `git merge --no-ff` into `feat/local-translate-tone` in
+  the primary checkout as soon as the branch passes the first-mate verification (clean-state headless suite green plus
+  the task's own evidence). No per-landing question, and no per-landing push.
+- **Publishing is a single, deferred act**: `main` and `feat/local-translate-tone` go to `origin` (the fork) once, when
+  the captain says the work is finished. Until then `origin/*` stays where it is and the local delivery branch runs ahead
+  of it — `git status -sb` reporting "ahead N" is the expected, healthy state.
+- A landing still requires the verification, and a red suite still stops the landing. This order removes a question, not
+  a check.
+- Nothing is ever pushed to `upstream` (Starmel's) under any reading of this order; the fork is the only remote that
+  receives anything, and only on the final go.
+
+## [2026-09-24T12:24:14Z] fm-20260923-26 LANDED LOCALLY — the daily delivery path is finally covered
+
+Merged `--no-ff` as **`ffda358`** (branch `fm/fm-20260923-26` @ `62eb921`, test-only: two files, +222/−4, no product file in
+the diff), under the standing order: merge on verification, push only when the captain declares the work finished.
+
+**Why it mattered.** 50 of the suite's 53 skips were keyboard-layout gated: the cases that exercise synthetic-keystroke
+delivery hard-coded layouts (US, Dvorak, Russian, …) that this machine does not have, so the path the captain uses every day
+was the least tested code in the repository, and the two cases that did run exercised a code path the product no longer
+calls.
+
+**What the new coverage does, and why it is not decoration.** Each family gained one case that always runs against the
+machine's **active** input source, resolved at run time and never switched. The typed payload is longer than
+`KeyboardSimulator.maxUTF16PerEvent` — so chunk boundaries are exercised — and carries CJK, Cyrillic, emoji, Polish
+diacritics, plus Return and Tab: characters the active layout has no key for, which the case also asserts at run time
+(`findKeycodeForCharacter` returns nil for some of them). A delivery path that derived characters from key codes (the shape
+`ClipboardUtil.sendCmdV` uses), dropped the Unicode payload, or lost characters at chunk boundaries therefore fails it. The
+layout-named cases are kept and still skip when their layout is absent — those skips are honest, and the brief forbade
+weakening or deleting them. The crew also dropped a candidate assertion it judged tautological instead of padding the count.
+
+**Verification (first mate, clean state, headless, alone on the machine):** authoritative from the `xcresult` summary —
+**444 total / 390 passed / 0 failed / 54 skipped, result Passed, exit 0**; the three new cases ran and passed
+(`testPasteWithActiveInputSource`, `testPasteAllAvailableLayouts`, `KeyboardSimulatorDeliveryTests`); bundle identity-signed
+(`certificate leaf = H"32266bcc…"`).
+
+**Counting lesson, recorded.** Log-line counting under-reports when XCTest's parallel processes interleave a case line: the
+fm-26 crew's own summary read 389 'passed' lines for a run the result bundle calls 390, and my fm-27 line-count (388) has
+the same shape. Quote totals from the `xcresult` summary (`xcrun xcresulttool get test-results summary`), not from `grep`.
+
+## [2026-09-24T12:27:25Z] MERGED TIP VERIFIED GREEN — all three landings together
+
+`feat/local-translate-tone` @ **`ffda358`** (fm-28 + fm-27 + fm-26), clean-state headless suite alone on the machine,
+numbers from the `xcresult` summary: **446 total / 392 passed / 0 failed / 54 skipped, result Passed, exit 0**; bundle
+re-signed in the primary checkout with the shipped bundle id and the unchanged designated requirement
+(`identifier "ru.starmel.OpenSuperWhisper" and certificate leaf = H"32266bcc…"`).
+
+The arithmetic checks out against the branches measured separately: 444 (fm-26's branch, which excludes fm-27) plus the two
+`TransformDeterminismIntegrationTests` cases fm-27 added = 446; passed 390 + 2 = 392; skips unchanged at 54. Nothing about
+the three landings interacts: the suites, the routing, the determinism contract and the new delivery coverage all hold in
+one tree.
+
+**Crew queue is empty.** What remains is the captain's: the fm-16 occlusion delta in `stash@0` and the eyeball pass over
+the merged surfaces (both need his screen), the optional `seed` on the endpoint request body, the optional 14B rung
+measurement, and the single deferred publish — `main` + `feat/local-translate-tone` to `origin` when he declares the work
+finished.
+
+## [2026-09-24T12:27:46Z] TEARDOWN — landed worktrees removed, refs bundled, nothing pushed
+
+After the three landings (`ffda358` = fm-28 + fm-27 + fm-26, suite **446 / 392 / 0 / 54** `Passed`):
+
+- A fresh all-refs bundle (`fleet-state/archive/all-local-branches-<stamp>.bundle`, thin against `origin/develop`) and its
+  ref listing were committed into the records branch — `fleet-state` @ **`086243f`**, committed **locally only**. The standing
+  order defers every remote write, so the records branch is pushed at the end with the code.
+- The three crew worktrees were removed (deinit + `rm -rf` + `prune`, since `git worktree remove` refuses trees with
+  submodules) after each branch was confirmed an ancestor of the delivery tip, and the three merged branches deleted.
+  ~12 GB freed; `worktrees/` is empty; the primary checkout is the only worktree besides the records branch.
+- Local branches now: `develop`, `feat/local-translate-tone` @ `ffda358`, `main` @ `ffda358` (fast-forwarded to mirror the
+  delivery branch, still **behind `origin/main` until the final push**), `fleet-state` @ `086243f`.
+- The primary checkout's app was rebuilt and re-signed after the last merge; the occlusion-delta stash is untouched.
+
+**Crew queue: empty.** Remaining items are the captain's, or optional: the fm-16 occlusion delta (his screen), the eyeball
+pass over the merged surfaces (his screen), the optional `seed` in the endpoint request body, the optional 14B rung, and
+the single deferred publish.
+
+## [2026-09-24T13:44:35Z] PUBLISHED — the fork carries everything (`main`, delivery branch, records)
+
+The captain: *"dispatch to my fork."* All three refs pushed to `origin` = `23n0n/OpenSuperWhisper`, each a plain
+fast-forward — no history was rewritten:
+
+| ref | from | to |
+|---|---|---|
+| `main` (fork default) | `23d873a` | **`ffda358`** |
+| `feat/local-translate-tone` | `23d873a` | **`ffda358`** |
+| `fleet-state` (records) | `466ba7c` | **`086243f`** |
+
+Verified by reading the refs back with `git ls-remote origin`: all three remote hashes equal the local ones. `upstream`
+(Starmel's) received nothing and has no pull request from this fork; the closed PR #211 remains closed. The delivery tip is
+the verified merge of fm-28 + fm-27 + fm-26 (`446 / 392 / 0 / 54 Passed`, bundle identity-signed), and the records branch
+carries the ledger, briefs, reports, handoff, the redacted first snapshot and the all-refs bundles.
+
+## [2026-09-24T13:46:47Z] OLD INSTANCE KILLED, STALE BUILD CACHES PURGED
+
+Captain: *"kill and purge old version."*
+
+- The running app (pid 18492, launched 11:54 from `repo/build/…/OpenSuperWhisper.app`) was the **pre-fm-28** build: the file
+  behind that path had been rebuilt twice since (13:17, then 14:27 at `ffda358`), and a running process keeps the image it
+  started from. It was sent `SIGTERM` and is gone; nothing of the app is running now.
+- **Five stale Xcode DerivedData trees** left over from direct Xcode builds on 2026-09-23 were removed
+  (`~/Library/Developer/Xcode/DerivedData/OpenSuperWhisper-*`): `du` accounts for 2.62 GB, while `df` moved by **869 MB** —
+  APFS clones share blocks between those trees, so the apparent size overstates what the filesystem actually reclaims. No
+  process was using them and they contained no app bundles, only regenerable caches.
+- Swept for anything else launchable: **no** `/Applications` copy, **no** Homebrew cask, no `.pkg` anywhere on the volume,
+  no leftover bundle from the pre-move path (`Projects/OpenSuperWhisper` is gone). The only app bundle on this machine is the
+  current one, `repo/build/Build/Products/Debug/OpenSuperWhisper.app` — built 14:27 at the merged tip `ffda358`,
+  75,055,344 bytes, identity-signed.
+- **Not touched on purpose:** the app's own data — preferences, downloaded speech/transform models, dictation history and the
+  Accessibility grant. Purging the *version* is not purging the *installation*; say the word if you want the uninstaller path
+  taken instead.
+
+## [2026-09-24T13:50:48Z] RELEASE 0.1.0-fork.1 — built, verified, installed, published on the fork
+
+Captain: *"built and install newest also add it as realise to my fork repo"*, and then, on the signature question:
+*"No developer id is not an issue."* — so the missing Developer ID is recorded as a fact about this machine, not as a blocker.
+
+**Built** from the merged tip `ffda358` with the repo's own entry points, not upstream's `make_release.sh` (that one demands a
+Developer ID and posts to Starmel's repository): `Scripts/build-native.sh Release` · the autocorrect dylib in release ·
+`xcodebuild -configuration Release` with `CODE_SIGNING_ALLOWED=NO ENABLE_DEBUG_DYLIB=NO` · `Scripts/dev-sign.sh` with the local
+identity (designated requirement `certificate leaf = H"32266bcc…"`) · `packaging/build-pkg.sh --version 0.1.0-fork.1`.
+
+**Artifact:** `dist/OpenSuperWhisper-0.1.0-fork.1.pkg`, **87,574,043 bytes**, sha256
+`ae1662312c1aa8b8a356d1d3aeeeca5c6b47bcc056e3389e2a2c229e6ee69185`. Release app 107 MB, `CFBundleShortVersionString` 0.1.0, bundle id `ru.starmel.OpenSuperWhisper`.
+`Scripts/verify-packaging.sh --app …`: **ALL CHECKS PASSED (39 checks)** — the uninstaller's path list and idempotence, the
+two-entry `/Applications` payload, the receipt id, the preinstall hook, the arm64 / macOS 14 floor, the version substitution.
+
+**Installed on this machine:** `/Applications/OpenSuperWhisper.app` (0.1.0, identity-signed, DR unchanged) plus
+`/Applications/Uninstall OpenSuperWhisper.command` — the package's own payload layout. `installer -pkg` was not used because it
+needs root and this session has no passwordless sudo; the package remains the canonical installer and is attached to the release.
+
+**Published:** GitHub release **`v0.1.0-fork.1`** on `23n0n/OpenSuperWhisper`,
+`https://github.com/23n0n/OpenSuperWhisper/releases/tag/v0.1.0-fork.1`, tag at `main` = the delivery tip `ffda358`, with the
+`.pkg` and its `.sha256` attached (verified by reading the release back). The notes describe the fork's additions, the measured
+verification on the merged tip (446 tests / 392 passed / 0 failed / 54 skipped), the requirements, and one practical line about
+Gatekeeper, which will warn because the package is unsigned — a fact about the build machine, not a defect to fix.
+
+**Trap restated for this machine's own copies:** `/Applications/OpenSuperWhisper.app` and the development checkout's
+`build/Build/Products/` (Debug and Release) share the shipped bundle id. One copy at a time — the Accessibility grant is keyed to
+the bundle id and the signing identity, and two live copies are what has historically made macOS re-prompt.
+
+## [2026-09-24T13:51:51Z] INSTALLED AND READY TO USE (with the Polish backend staged)
+
+The captain asked to be able to use the release from the Applications folder. Verified on `/Applications/OpenSuperWhisper.app`:
+
+- `codesign --verify --deep --strict`: **valid on disk**, **satisfies its Designated Requirement**; designated requirement is the
+  identity one (`certificate leaf = H"32266bcc…"`), so the existing Accessibility grant still applies. `spctl` rejects it for
+  *notarization* only, and there is **no `com.apple.quarantine` attribute** on a locally built bundle, so a double-click opens it
+  normally — the Gatekeeper dance only matters for a downloaded copy.
+- `CFBundleIdentifier ru.starmel.OpenSuperWhisper`, `CFBundleVersion 13`, `LSMinimumSystemVersion 14.0`; single binary
+  `Contents/MacOS/OpenSuperWhisper` (29,451,984 bytes, Release), no debug dylib; bundled `ggml-tiny.en.bin` and the Silero VAD.
+- User state is shared with the fork's Application Support folder, so it runs immediately: `ggml-large-v3-turbo.bin` and
+  `ggml-tiny.en.bin` speech models, the 1.5B transform model with its verified stamp.
+- **The Polish backend was staged into the app's own folder** — `transform-models/qwen3-8b-q4_k_m.gguf`, the name
+  `TransformModelManager` looks for, as a **hard link** to `~/models/Qwen3-8B-Q4_K_M.gguf` (2 links, 5,027,783,488 bytes, **no
+  extra disk used**). Its digest was read back and equals the pin `d98cdcbd03e17ce47681435b5150e34c1417f50b5c0019dd560e4882c5745785`,
+  so the app's own verify step will pass rather than offering a 5 GB download.
+
+To use Polish output: **Settings → Transcription → Translate into … → Target language: Polish** (that is the direction that runs on
+the 8B; English output keeps the 1.5B and is the default). The 1.5B remains the model for English output and for the clean-up pass.
+
+**Receipt note:** the app was installed by copying the package's payload (no passwordless sudo for `installer -pkg`). If the pkgutil
+receipt matters for the uninstaller's completeness, run it once by hand:
+`sudo installer -pkg /Volumes/home/zenon/Projects/OpenSuperWhisper-fork/repo/dist/OpenSuperWhisper-0.1.0-fork.1.pkg -target /`
+
+**One copy at a time.** `/Applications/OpenSuperWhisper.app` and the checkout's `build/Build/Products/…` builds share the shipped
+bundle id; running two at once is what makes macOS re-prompt for Accessibility.
+
+## [2026-09-24T13:58:12Z] SHORTCUT TRIGGER BROKEN — mechanism pinned, immediate remedy applied, fix dispatched
+
+Captain: *"Shortcut recording is not working properly"* and *"detecting the first shortcut pre-recorded is not working properly.
+The hook is not monitoring my input properly."* Both statements are literally true, and not his keyboard's fault.
+
+**Evidence read off his machine (installed 0.1.0 build):**
+
+```
+modifierOnlyHotkey = none            the armed modifier key had been wiped
+lastModifierOnlyHotkey = leftOption   the key he used to hold (Left ⌥) was still remembered
+mouseButtonHotkey = none
+KeyboardShortcuts_toggleRecord = 0    and no key-combination shortcut was stored either
+```
+
+**Mechanism, from the code on the delivered tip:**
+
+1. `ShortcutManager.setupRecordingTrigger()` (`ShortcutManager.swift:97-150`) tears down all three triggers and then, with modifier `none`
+   and mouse `none`, takes the `else` branch — `KeyboardShortcuts.enable(.toggleRecord)`. With no shortcut stored, **no trigger is armed
+   and no monitor is installed**, so the app watches nothing while looking perfectly healthy.
+2. `ModifierKeyMonitor.start(modifierKey:)` (`ModifierKeyMonitor.swift:100-140`) returns early through `stop()` when the key is `.none`, so
+   the global and local `.flagsChanged` monitors behind hold-to-record never exist. His pre-recorded Left ⌥ did nothing.
+3. Two paths write that `.none` **silently**: the trigger-mode segmented picker (`Settings.swift:2225-2245`, `case .keyCombo:`) and the
+   onboarding flow (`OnboardingView.swift:31-43`, `case .keyCombination:`). Either leaves the app inert with no word to the user.
+4. **The recorder itself looks inert.** `system.log` for the running app holds **two** `KeyboardShortcuts.RecorderCocoa` instances with
+   `NSControlGestureRecognizer … state = Began` — mouse gestures that began and never completed — while `isRecordingNewShortcut`
+   (`Settings.swift:1154`, hint displayed at `:2327`) is never set by anything: dead state from an unfinished recorder workflow inside the
+   sheet's `ScrollView` (library: sindresorhus/KeyboardShortcuts 3.0.1, whose recorder is an `NSSearchField` subclass).
+
+**Immediate remedy applied (his machine):** the app was quit and `modifierOnlyHotkey` restored to `leftOption` (mouse stays `none`), so the
+next launch arms the modifier hook again and hold-to-record works with the shortcut he already had. The app is deliberately left quit so the
+restored value cannot be overwritten at exit; the next launch picks it up.
+
+**Fix dispatched** as `fm-20260924-06` (branch `fm/shortcut-recorder` @ `ffda358`, crew `FmShortcutFix`): prove where the recorder breaks
+with a headless AppKit instrument, make recording a shortcut actually work, stop the silent wipe (preserve the remembered modifier key or
+surface the inert state), wire or remove the dead `isRecordingNewShortcut`, and add the test. Lands locally on verification like everything
+else; no push until the captain says so.
+
+## [2026-09-24T14:01:26Z] DECISION — translation is dropped; transcription, tone and the clean-up stay
+
+Captain, verbatim: *"Given this we will be dropping completely translation feature and keep only transcription, tone and judgment
+as a feature. So basically we will always keep the language recorded. So if it's Polish we will keep Polish, if it's English we
+will keep English and that's all."* Confirmed the same day: **tone** is a same-language rewrite in both languages; the **8B** stays
+as an *optional* backend that **Polish prefers when installed** (1.5B otherwise — nothing required, nothing refused); **"judgement"**
+is the existing clean-up pass plus the reference field; the **external endpoint override is removed**.
+
+**This supersedes the translation work landed earlier today** (`fm-20260923-13`, `-17`, `-28`: the cross-language `TransformPolicy`
+rows, the `Translate into …` switch, the Target-language picker, routing by output language, the 8B-for-Polish-quality rationale).
+It is a cutover, not a deprecation: the translation paths get deleted rather than hidden behind a switch, and the tests that pin
+them get rewritten around the new contract (*same language in, same language out*).
+
+**Engine fact established while diagnosing his report** (`params.translate` in `Whis/WhisperFullParams.swift` defaults to `false`
+and `Engines/WhisperEngine.swift` never assigns it): whisper never translated anything for this app. Every Polish→English result he
+saw came from our own transform running with an English target — precisely the path this decision removes, which is why dropping
+translation also resolves his complaint rather than leaving it half-fixed behind a disabled feature.
+
+**Task `fm-20260924-07`** (`fm/translation-off`, brief written, queued) is sequenced **after** `fm/shortcut-recorder` lands, because
+both tasks edit `Settings.swift` and the second must rebase on the first.
+
+**Follow-up implied, not yet done:** the published release `v0.1.0-fork.1` and its notes advertise translation as a feature. Once this
+cutover lands, the honest move is a `0.1.0-fork.2` build with corrected notes (and the old release either edited or left as the
+historical artifact it is) — the captain's call, recorded here so it is not forgotten.
+
+## [2026-09-24T14:04:43Z] FOUR CONFIRMED CHOICES (asked, answered) — queued accordingly
+
+Asked directly, the captain settled the open decisions:
+
+1. **Key-press streamlining scope** = *interference safety only* ("never corrupt a flow"). Throughput, paced/typewriter delivery and
+   trigger-edge timing are out. Task `fm-20260924-08` dispatched in parallel (its files are disjoint from the other two crews'):
+   stop cleanly when the frontmost app changes mid-delivery (asserting the *tail* never reaches the new app) and when the user's own
+   typing interleaves with injected events, reporting the outcome through `InjectionResult`.
+2. **Language: always auto-detect, the picker goes.** With translation gone the only job left for a language setting was to be set
+   wrong — a fixed wrong value is exactly what turns speech into nonsense. So `params.language = nil` always, the Language control
+   leaves Settings and onboarding, and the English-only-model guard is re-keyed to the detected/heuristic signal because there is no
+   setting left to compare against. Folded into `fm-20260924-07`.
+3. **The fm-16 occlusion delta: the captain tests it, then decides.** Steps given to him: launch the latest build, close the main
+   window, click **Settings…** in the status-bar menu. If Settings opens with the window closed, the delta is unnecessary and gets
+   dropped; if it does not, the stashed delta becomes the next task. It stays in `stash@{0}` until then.
+4. **Release: cut `0.1.0-fork.2` after the cutover and the shortcut fix land** — rebuild, refresh `/Applications`, publish with
+   corrected notes — and **leave `v0.1.0-fork.1` untouched as the historical artifact it is**. The old notes stay wrong by design;
+   fork.2 supersedes them.
+
+**Also now dead, with the translation feature:** the optional `seed` in the endpoint request body (the endpoint goes entirely) and the
+14B rung measurement (it was a Polish-*output* quality comparand for translation; Polish tone/clean-up keeps the 8B as its preferred
+optional backend). Neither needs a decision any more.
+
+## [2026-09-24T14:27:51Z] fm-20260924-08 LANDED LOCALLY — delivery stops instead of corrupting a flow
+
+Merged `--no-ff` as **`58d3744`** (branch `fm/keypress-streamline` @ `407821f`; product `+222/−17` in
+`KeyboardSimulator.swift` + `IndicatorWindow.swift`, tests `+346` in two files, 7 new cases). The captain scoped this
+feature down to one aspect — *"Interference safety — never corrupt a flow"* — and that is exactly what landed; throughput,
+pacing and trigger-edge timing were deliberately not touched.
+
+**What it does.** Delivery captures the target when it begins and, before every pair of events, asks a `DeliveryWatch`
+whether anything changed. Two interruptions stop it cleanly and are reported: `focusChanged` (the frontmost application's
+pid differs from the one captured at the start) and `userTyping`. Nothing of the remaining transcript reaches the newly
+frontmost app, and the user is told through the indicator how much was delivered and that the rest is in the dictation
+history — the same reporting path the untrusted-Accessibility warning already uses (`AppErrorCenter`).
+
+**The discriminator, and why it cannot misfire.** A run-loop-driven `NSEvent` monitor or an event tap is unusable here:
+delivery is a single uninterrupted main-thread turn (~0.16 ms for 1000 characters), so no callback can run inside it. The
+watch therefore reads two synchronous probes between chunks: `NSWorkspace.frontmostApplication` (0.23 µs per read) and the
+login session's `CGEventSource.counterForEventType(.combinedSessionState, .keyDown)` (0.01 µs), subtracting the key-downs
+this delivery posted. A surplus is a keystroke the process did not make; a **negative** surplus means the session never
+counted our posts, which is also silence; a counter that went backwards is treated as no evidence. So the failure mode is a
+*missed* stop, never a stopped dictation — and the empty transcript returns before the watch is ever consulted, asserted.
+
+**Verified (first mate, clean state, headless, alone on the machine, from the `xcresult` summary):** 453 total / 399 passed /
+0 failed / 54 skipped, `Passed`, exit 0; all six `KeyboardSimulatorInterferenceTests` cases green, including
+`testDeliveryStopsWhenTheFrontmostApplicationChanges` (asserts the new target holds nothing, and its unguarded control shows
+the tail would otherwise have leaked there) and `testTheLiveWatchTellsItsOwnKeystrokesFromTheUsers`; bundle identity-signed.
+
+**Contract untouched, verified by absence from the diff:** `maxUTF16PerEvent` stays 20, `keyboardSetUnicodeString` unchanged,
+no delays added, clipboard never touched, Accessibility the only grant — and `KeyboardSimulatorDeliveryTests` (the
+`fm-20260923-26` contract) still green.
+
+Worktree and branch torn down after landing; the refs went into the records branch as
+`fleet-state` @ **`1160c36`** (local commit — nothing is pushed until the captain says so).
+
+## [2026-09-24T14:41:24Z] fm-20260924-06 LANDED LOCALLY — the shortcut recorder and the silent trigger wipe are fixed
+
+Merged `--no-ff` as **`210cfb8`** (branch `fm/shortcut-recorder` @ `058d08a`): `Settings.swift` +75/−7, `ShortcutManager.swift` +9,
+new `ShortcutRecorderTests.swift` +332 (four cases). This closes the captain's report — *"Shortcut recording is not working
+properly"*, *"the hook is not monitoring my input properly"* — whose mechanism was pinned before dispatch.
+
+**Root cause, verified independently in the library source.** `KeyboardShortcuts.RecorderCocoa` creates its
+`LocalEventMonitor` **only inside `becomeFirstResponder()`** (`RecorderCocoa.swift:343`, the monitor at `:363`). In this AppKit
+context a click installs the *field editor* as the window's first responder and never asks the field itself, so the monitor was
+never created: the recorder looked alive, the field accepted the keystrokes as text, and nothing was ever stored. The crew proved
+it by hosting the real Settings view as a sheet and using the library's own `recorderActiveStatusDidChange` notification as the
+detector — library-as-it-comes: `recording=[false,true,false]`, `stored=nil`, the field showing the typed `K`; through the new
+host: `recording=[false,true]`, `stored=Option-Shift-K`. A mutation restoring the old `hitTest` reproduces the symptom and fails
+the new case.
+
+**The fix.** A small `NSViewRepresentable` host hands the recorder the first responder on the click and keeps everything else the
+library does (display, conflict checks, storage, monitoring toggling); the dead `isRecordingNewShortcut` state and its
+unreachable hint are removed. **Second half of the report** — the silent wipe — is closed by arming rather than preserving: in
+key-combination mode with nothing stored, the app applies the name's declared initial (`⌥``) instead of monitoring nothing, so
+the mode can no longer be selected with no trigger and no word. The alternative (restoring `lastModifierOnlyHotkey`) was rejected
+with a reason I agree with: the trigger mode is *derived* from the hotkey preferences, so restoring the modifier key would snap
+the segmented control back and break the mutual exclusivity. Stated trade-off: a deliberate clear of the field is undone at the
+next reconfigure.
+
+**Verified (first mate, clean state, headless, alone, `xcresult` summary):** 450 total / 396 passed / 0 failed / 54 skipped,
+`Passed`; all four `ShortcutRecorderTests` green, including the library-as-it-comes control that captures nothing; bundle
+identity-signed. **Flagged, not hidden:** the crew could not obtain a key window in-process, so both measurements are in non-key
+windows — the fix does not depend on that, since the app hands the responder over itself.
+
+**Immediately before the captain's app was touched:** his machine had `modifierOnlyHotkey` restored to `leftOption` by hand (the
+immediate remedy from the diagnosis) and the app left quit so the value could not be overwritten at exit. The fix means the
+*recorder* now works, so he can record whatever combination he wants from the UI.
+
+Worktree and branch torn down; refs bundled into `fleet-state` @ **`cd1e9a8`** (local commit — nothing pushed until he says so).
+`fm-20260924-07` (translation cutover, auto-detect-only language) has been dispatched from `210cfb8` and is the last queued crew task.
+
+## [2026-09-24T14:57:22Z] OPEN RED — one long-form case, merged tip `210cfb8`, cause unresolved
+
+The merged-tip verification run (fm-08 + the shortcut fix together) came back **red on one case**:
+`WhisperLongFormLanguageIntegrationTests.testCancellingLongWhisperDecodeStopsNativeOperation()` —
+`XCTAssertTrue failed - The fixture never reached whisper.cpp decoding`. Totals: **457 total / 402 passed / 1 failed /
+54 skipped** (457 = 450 from the shortcut branch + fm-08's 7 cases, so both landings are present).
+
+**What is known, and what is not.**
+
+- The assertion polls `service.progress > 0.12` for **1000 × 20 ms = 20 s** (`LongFormTranscriptionTests.swift:461-477`)
+  before failing. Generous, but not unlimited — and the machine was carrying the fm-07 cutover crew's build at the same
+  time.
+- Neither landing touches the engine or the transcription/cancel path: `fm-20260924-08` changed
+  `Utils/KeyboardSimulator.swift` and the injection part of `Indicator/IndicatorWindow.swift`; the shortcut fix changed
+  `Settings.swift`, `ShortcutManager.swift` and added a test file. This test drives `TranscriptionService` directly.
+- The model fixture is reachable in the primary checkout: `.build/test-models/` is empty there (that hard link belonged
+  to the removed fm-24-01 worktree) but `dev-run.sh`'s `multilingual_test_model()` falls back to the app's own
+  `whisper-models/ggml-large-v3-turbo.bin`, which is present.
+- Load average was 19-21 during the run **with no CPU consumers and no D-state processes** (checked: `ps` shows 0.0% CPU
+  across the board, 0 uninterruptible, ~19 GB free, disk ~15 MB/s). So the number is real but its source is not obvious
+  on this host; it is recorded as an observation, not as an explanation.
+- An isolated re-run of that class was started (`/tmp/isolated-longform.log`); an earlier attempt produced no output
+  within 300 s while the crew was building, which is why the measurement is being repeated rather than concluded.
+
+**Next, in order:** let the fm-07 cutover crew settle (it will rebuild and test, and it is rewriting the language-related
+tests anyway — `settings.selectedLanguage = "en"` in this very case may not survive the auto-detect change); then re-run
+the merged tip on an otherwise idle machine. **Green there ⇒ contention, recorded with both logs. Red again ⇒ a real
+bug, and it becomes the next task** with the poll bound and the progress signal as the first suspects.
+
+## [2026-09-24T15:05:22Z] RESOLVED — the long-form red was load-induced, not a regression
+
+The isolated re-run settles it: `Scripts/dev-run.sh test -only-testing:OpenSuperWhisperTests/WhisperLongFormLanguageIntegrationTests`
+→ **`** TEST SUCCEEDED **`**, exit 0, with both cases passing —
+`testCancellingLongWhisperDecodeStopsNativeOperation()` in **159.5 s** and
+`testLongEnglishAndRussianAudioKeepsLanguageContextAndTail()` in 34.7 s. Neither landing touched the engine or the
+transcription/cancel path, and the case passes alone on the same bytes that were red in the full run, so the red is
+**contention with the fm-07 crew's build**, not a defect.
+
+The timing is the evidence: this case normally runs in roughly the time its 20 s progress poll plus one decode needs; 159 s
+means the machine was degraded by a factor of several while the full suite ran. The fragility is in the test, not the
+product: `LongFormTranscriptionTests.swift:461-477` polls `service.progress > 0.12` for 1000 × 20 ms and asserts if the
+native decoder never started *inside that window* — a fixed bound for a load-dependent event, the same family as the
+snapshot-capture bug fixed earlier today. **Follow-up, cheapest honest form:** raise that wait to a real time budget (or
+wait on the decode-start signal rather than a progress threshold) — waiting longer for a start-of-decode signal cannot make
+a wrong result pass, so it weakens nothing. The fm-07 crew, which is already rewriting these tests for the cutover, has been
+asked to do it in passing.
+
+**Load observation, still unexplained:** during the affected run the 1-minute load average sat at 19-21 while `ps` showed no
+CPU consumers, no uninterruptible processes, ~19 GB free memory and ~15 MB/s of disk. Recorded as an observation about this
+host; nothing in the fleet's own processes explains it.
+
+## [2026-09-24T16:31:46Z] RELEASE 0.1.0-fork.2 PUBLISHED — the product without translation
+
+Built from the cutover tip **`3dcde52`** and published as
+`https://github.com/23n0n/OpenSuperWhisper/releases/tag/v0.1.0-fork.2`: tag at `main`, assets
+`OpenSuperWhisper-0.1.0-fork.2.pkg` (87,549,062 bytes) and its `.sha256`
+(`a39d6a0a01134624f5ec8afba74d5109e48790dd74f59d342b735a4a4b4031d2`). `Scripts/verify-packaging.sh`: **ALL CHECKS PASSED (39)**.
+
+**Notes corrected, not hidden:** they lead with *"translation is gone, deliberately"*, name what was removed with it (the
+switch, both pickers, the endpoint override, `transform-server.sh`, `verify-transform.sh`), state that
+`v0.1.0-fork.1` remains as the historical artifact whose notes describe a feature this build no longer has, and then describe
+what the build actually does — same-language tone and clean-up, auto-detected language, the optional 8B that Polish prefers
+when installed, zero model calls with both switches off, interference-safe delivery, the long-form recall numbers, model
+management, and the one practical Gatekeeper line.
+
+**Pushed for it, and only for it:** `main`, `feat/local-translate-tone` and `fleet-state` went to `origin` as fast-forwards
+(`main` had to be fast-forwarded locally first — it was still at `ffda358`). `upstream` received nothing; no pull request
+exists against it.
+
+**Installed copy refreshed:** `/Applications/OpenSuperWhisper.app` now carries the fork.2 build — `codesign --verify --deep
+--strict` valid on disk and satisfies its designated requirement (`certificate leaf = H"32266bcc…"`), binary 29,368,096
+bytes (smaller than fork.1's 29,451,984, consistent with the removed code), and **`Target language` is absent from the
+binary's strings** — the removed surface is gone from the artifact, not merely from the source. The app was not running
+during the swap, so nothing was interrupted.
+
+**What remains:** the captain's own two checks — launching this build and the fm-16 occlusion test (close the main window,
+click `Settings…` in the status-bar menu) — and nothing else is queued.
+
+## [2026-09-25T05:39:34Z] TONE OUTPUT — measured, designed, queued (dispatch held for off-peak)
+
+Captain: *"Tone transcription is not working as intended… the whole mechanism or pipeline is working. The only thing
+that is lacking is the correct output."* Then, after the evidence below: **"Both tasks A and B should be completed."**
+
+**Measured before designing anything** (harness `/tmp/tone-ab.py`, real weights over `llama-server` with the app's own
+sampling, seven adversarial cases, three prompt variants, two models; full tables in `data/fm-20260924-10/tone-prompt.md`):
+
+- **The model is the dominant variable.** Every failure a user notices on `qwen2.5-1.5b-instruct-q4_k_m` — an added
+  `"Sure,"`, a preamble (`"Sure, here's the rewritten text in a casual register:"`), dropped articles, an invented
+  noun, and at temperature 0 an outright `"Understood."` — **is absent on `qwen3-8b-q4_k_m` with the same prompt.**
+- **Temperature 0 is worse than 0.2** on both models; no sampling change.
+- **The proposed prompt is not a win on its own**: equal-or-better on the 8B, and it introduced the preamble on the
+  small model. Hence A and B together: the prompt makes good output likelier, the 8B makes it possible, the guard makes
+  the bad case impossible.
+- Casual and neutral legitimately return text unchanged when it is already in that register.
+
+**A** — tone runs on the 8B for both languages while it is installed (clean-up alone keeps the language-based
+preference); the card states which model a job will use. **B** — the tightened prompt, a framed and delimited user turn
+(dictated text is often an imperative or a question, and an unframed turn makes the model obey or answer it), and a
+deterministic guard that rejects an assistant frame, a stub, or a language-flipped result and delivers the raw
+transcript with a visible notice instead. The guard cannot catch subtle content drift — recorded as a limit, not
+papered over.
+
+**Queued as `fm-20260924-11`** (`fm/tone-output`, brief written). **Dispatch held to 10:00 UTC** because the provider's
+peak window opens at 06:00 UTC; the captain can overrule that if he wants it started immediately.
+
+## [2026-09-25T05:43:47Z] OPERATING RULE CHANGE — dispatch immediately, gate the expensive steps inside the task
+
+The captain's correction, taken: holding a dispatch until the off-peak window opens wastes the window that is actually
+available. From now on a task is dispatched as soon as it is briefed, and **the peak window is handled inside the task**:
+
+- cheap work — code, prompts, unit tests, reading — runs any time;
+- expensive work — loading the 8B, any real-weight measurement, `llama-server`, the full suite — is gated by the crew
+  itself: `date -u`, and if the hour is 06-09 UTC it waits with a **single shell sleep until 10:00 UTC**. A sleeping shell
+  costs nothing; a measurement that runs into peak costs double.
+
+`fm-20260924-11` (tone on the 8B for both languages + the tightened prompt, the framed user turn and the deterministic
+guard) was dispatched under this rule, 19 minutes before peak opened, with the gate written into its prompt.
+
+## [2026-09-25T05:50:48Z] CAPTAIN'S DATA POINT — English tone works, Polish tone is the failure
+
+Verbatim: *"The tone transcription is also bound with Polish. The English tone transcription works well."*
+
+That is a significant constraint on `fm-20260924-11`, because its part A routes tone to the 8B in **both** languages,
+and the captain now reports that the shipped-model path he already has for English is good. The crew has been told,
+before it stops for peak:
+
+- **Prove English does not regress**: same real English dictation through the 1.5B (today's behaviour) and through the
+  8B with the new prompt, judged on his terms — meaning kept, register moved, nothing added, no assistant frame. If the
+  8B is not clearly at least as good, English keeps the 1.5B and the routing table and card follow that.
+- **Make Polish tone the acceptance focus**, measured on his *real* Polish dictations from `recordings.sqlite`, per
+  register: is the register moved, is every dictated word still there, is anything invented, is there English leakage
+  or honourific invention ("Szanowni Państwo")? If Polish register control on the 8B is weak, the report must say where
+  and how rather than declare success.
+- Commit the worktree's pending `TransformService.swift` change so the branch is coherent, and stop at the boundary.
+
+**Why this matters beyond the tone task:** his Polish-only failures now have two independent causes recorded — the
+pause/segment handling (`fm-20260924-12`) and the tone rewrite (`fm-20260924-11`) — plus the instruction-shaped
+`initialPrompt` he still has set, which is measured in `fm-20260924-12` because it affects Polish decoding most.
+
+## [2026-09-25T06:00:38Z] DECISION — one model governs tone; no deletion, no root move; land the branch after off-peak verification
+
+The captain, after the keychain correction: *"I wish to maintain simplicity. Therefore, one model to govern them all. Thus,
+a single route for tone transcription that is applicable to both Polish and English. If the current setup is in place, no
+changes should be made."*
+
+**Reading, recorded so it is not re-litigated:** he wants **one model serving tone in both languages** — a single route with no
+per-language split for tone — and *nothing else changed*. That supersedes the earlier "migrate to the English root and delete
+the other model": **no model file is deleted, no root is migrated, the shipped 1.5B and the `~/models` copies stay**, and the
+8B stays installed and pinned.
+
+**Correction he was told:** the *delivered* build does **not** satisfy that today — it routes tone per language (Polish → 8B,
+English → 1.5B). The unlanded branch `fm/tone-output` does: `TransformModelManager.model(for policy:)` gives tone one model in
+both languages, with the per-language preference removed for tone only.
+
+**Plan, no other changes:** finish the crew's admitted gap (weight-backed Polish/English measurements and the full suite were
+never run — the off-peak gated step), then **land `fm/tone-output` locally** under the standing order. One nuance stated and
+deliberately not changed: clean-up-alone keeps its language rule (Polish → 8B, English → 1.5B); collapsing that too is one line
+and happens only on his word.
+
+**Peak:** the timer fired at 06:00:30 UTC and work stopped there. Everything is parked: `fm/tone-output` @ `9c36eae` (four
+commits, worktree clean, build re-signed with the identity requirement), the pause task briefed as `fm-20260924-12` and
+undispatched, and no heavy process left running. Next off-peak window opens 10:00 UTC (12:00 Wrocław).
+
+## [2026-09-25T06:01:48Z] FREEZE — peak hours, all work stopped (captain's order)
+
+Captain: *"I believe peak hour begins. Freeze all the work!"* — correct, peak started 06:00:30 UTC / 08:00 Wrocław.
+
+**Verified at freeze time:** no `llama-server`, no `xcodebuild`/`swift-frontend`/`clang`, no MLX process, no timers armed. All four crews stopped at 06:00:30. Every worktree clean at its recorded commit; the tone worktree `fm/tone-output` @ `9c36eae` (four commits) with its build re-signed to the identity requirement.
+
+**Parked, in priority order, for the next off-peak window (opens 10:00 UTC / 12:00 Wrocław):**
+1. `fm-20260924-11` (tone) — the two steps its own report admits are unexecuted: the weight-backed Polish/English measurements and the full suite (`Scripts/dev-run.sh test`, off-peak only), then land the branch locally. Nothing deleted, no root moves.
+2. `fm-20260924-12` (pause task) — briefed, undispatched.
+3. The captain's late-afternoon request: the bilingual dictation measurement (Polish and English on the same content), for which the app must be rebuilt with `DEV_SIGN_ENTITLEMENTS` so the Accessibility grant survives.
+
+**Standing constraints reaffirmed:** heavy work only off-peak; never a bare `xcodebuild test` (it launches the GUI); the captain's terminal and app instance are not to be killed, and no headless test run may take down the session. Memory numbers for the record: 8B route = 5.03 GB weights + 576 MiB KV @ ctx 4096 (144 KiB/token); 1.5B = 0.99 GB + 112 MiB (28 KiB/token); one model resident at a time, 10-minute idle unload.
+
+## [2026-09-25T07:11:46Z] HANDOFF PREPARED — restart; the peak guard is live, and the freeze premise was wrong
+
+The captain: *"Prepare the session to hand-off. We need to restart."* The handoff block now heads
+`fleet/data/RESUME.md`; this entry is its ledger record.
+
+**The guard turned out to be installed and working — and it contradicts the freeze.** It lives at
+`~/.omp/agent/extensions/deepseek-peak-guard.ts` (812 lines, written 2026-09-24 12:45 by another session that
+titled itself "DeepSeek peak-hours guard extension"), and native auto-discovery of the agent directory's
+`extensions/` loads it in every new session — **verified in the wild**, not inferred: the session started
+today at 07:07 UTC in `-Documents-deepseek_general-ai-interactive-portfolio` carries the injected
+`com.zenon.deepseek-peak-guard` brief reading *"DeepSeek peak-hours guard is active … DeepSeek billing:
+OFF-PEAK (chinese-public-holiday)"*. Its own suite passes every phase
+(`cd ~/.omp/agent/skills/deepseek-peak-hours && bun peak-guard.test.ts` → all phases passed), covering
+off-peak passthrough, peak blocking without a UI, subagent-spawn blocking, approval persistence, `mode=wait`,
+`mode=block`, and the `/peak` commands. Defaults are exactly the desired policy — `enabled: true`,
+`mode: "ask"`, `onlyDeepSeekModels: true`, `blockSubagentSpawns: true`, `autoResumeAtOffPeak: true`,
+`stopTurnOnPeakEnter: true`, `injectSessionBrief: true` — so **no `deepseek-peak-guard.json` is written**
+(absent = defaults; a malformed file also keeps them).
+
+**Why this session had no guard:** it started 2026-09-24 08:33 local, four hours *before* the extension was
+written, so it never loaded it. Every session from now on does.
+
+**The freeze was unnecessary.** 2026-09-25 is a Chinese public holiday in the guard's calendar
+(`peak_config.json`, 33 entries for 2026, entry `2026-09-25` present), so the provider bills the whole day at
+off-peak and the guard gates nothing. Next peak: **Mon 2026-09-28 01:00 UTC**. Nothing heavy was running when
+the freeze was ordered, so the freeze cost nothing — but the operating rule from here is *ask the guard*, not
+the wall clock: `python3 ~/.omp/agent/skills/deepseek-peak-hours/peak_hours.py status`.
+
+**State frozen for the handoff, all verified at write time:** delivery branch `feat/local-translate-tone` ==
+`main` == `3dcde52`, clean; unlanded `fm/tone-output` @ `9c36eae`, 4 commits ahead, clean worktree, and
+**both** built apps identity-signed (`certificate leaf = H"32266bcc…"`) — the tone crew's "keychain will not
+unlock" claim is void, the stored password unlocks it (exit 0); records on the `fleet-state` branch @
+`6fbdc2e`; no process of ours running.

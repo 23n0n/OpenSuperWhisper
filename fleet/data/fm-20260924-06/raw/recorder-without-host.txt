@@ -1,0 +1,2 @@
+[recorder] after clicking the field: recording=[false, true, false] firstResponder=NSTextView
+[recorder] after ⌥⇧K: stored=nil shown=K
