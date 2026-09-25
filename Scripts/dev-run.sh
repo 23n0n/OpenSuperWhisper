@@ -298,6 +298,12 @@ echo "Building OpenSuperWhisper..."
 if [[ -n "$BUNDLE_ID_SUFFIX" ]]; then
     echo "  worktree build: bundle id ${BUNDLE_ID}"
 fi
+# `set -e` would abort at the assignment itself if xcodebuild failed, before the
+# captured output below is ever echoed — so a failed build looked like a build
+# that simply stopped mid-sentence, with the reason only in
+# build/Logs/Build/*.xcactivitylog. Capture the status without errexit, then
+# restore it: the failure path below is the one that must be able to speak.
+set +e
 BUILD_OUTPUT=$(xcodebuild -scheme OpenSuperWhisper -configuration Debug -jobs 8 \
     -derivedDataPath build -quiet -destination 'platform=macOS,arch=arm64' \
     -skipPackagePluginValidation -skipMacroValidation -UseModernBuildSystem=YES \
@@ -307,6 +313,7 @@ BUILD_OUTPUT=$(xcodebuild -scheme OpenSuperWhisper -configuration Debug -jobs 8 
     OSW_BUNDLE_ID_SUFFIX="$BUNDLE_ID_SUFFIX" \
     build 2>&1)
 BUILD_STATUS=$?
+set -e
 
 if command -v xcpretty >/dev/null 2>&1; then
     echo "$BUILD_OUTPUT" | xcpretty --simple --color
