@@ -1,4 +1,16 @@
-# RESUME — OpenSuperWhisper fork, state at the computer restart
+## UPDATE 2026-09-25T10:18:35Z — PUBLISHED: everything landed, tagged and pushed to the fork
+
+`main` = `ddcd91f` on `origin` (= the delivery branch), annotated tag **`fork-0.1.0-3`**, release page
+https://github.com/23n0n/OpenSuperWhisper/releases/tag/fork-0.1.0-3 with **no assets** (notes only, deliberately: the
+packages are unsigned and the app is bound to a locally created signing identity). Nothing went upstream. The acceptance
+run on the merged tip passed and rebuilt the app the captain launches; the ledger (`FLEET-STATE.md`) carries the full
+day, including the corrections of the mate's own wrong claims. Worktrees torn down; only `repo` and `fleet-state` remain.
+
+**If work resumes here:** the pause fix ships **on** with a language-keyed decoder prompt and costs a detect-only
+pre-pass (~1.3 s against a ~3.5 s decode) only when the switch is on with no custom prompt; the English audio takes a
+measured two-word change on pause-heavy speech, pinned by a test; and two limits are documented rather than hidden —
+the guard's bracketed-marker rule rejects an all-caps word attached to a bracket whatever it says (`CPU>GPU`), and the
+stub floor counts fillers.
 
 ## UPDATE 2026-09-25T08:01:10Z — the tone branch has LANDED (supersedes §2 item 1 of the handoff below)
 

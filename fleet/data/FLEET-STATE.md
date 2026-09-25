@@ -1471,3 +1471,28 @@ byte-identical were reverted rather than kept, and the report carries the decode
 launches. **Stated rather than glossed: this is an incremental build, not a from-scratch one** — no source file was
 removed today, so the difference is immaterial here, but the clean-state runs of the crews remain the stronger evidence
 and this run is the merged-tip acceptance record, attributed to me.
+
+## [2026-09-25T10:18:35Z] PUBLISHED — `fork-0.1.0-3` on the captain's fork; the day's work is delivered
+
+**Acceptance run on the merged tip: `** TEST SUCCEEDED **`** (`/tmp/final-tip-suite.log`), and the same command rebuilt
+the app the captain launches — bundle `ru.starmel.OpenSuperWhisper`, `certificate leaf = H"32266bcc…"`, binary dated
+12:14. Stated for the record: that run was an **incremental** build, not from-scratch; no source file was removed today,
+so the distinction is immaterial here, and the crews' clean-state runs remain the stronger evidence for the individual
+branches.
+
+**Publication, exactly:** `origin/main` = **`ddcd91f`** (and `origin/feat/local-translate-tone` = `ddcd91f`); annotated tag
+**`fork-0.1.0-3`** on the same commit; release page
+**https://github.com/23n0n/OpenSuperWhisper/releases/tag/fork-0.1.0-3** with **`"assets":[]`** — notes only, no installer,
+not a draft. The verified commit is its parent `82b6ff9`; the delta is documentation only (the two Readme sentences that
+now say *no binary releases*). **Upstream (Starmel/OpenSuperWhisper) received nothing** — and one scare worth recording:
+`gh` resolves this repo to *upstream* by default, so the release command **must** carry `-R 23n0n/OpenSuperWhisper`; the
+first attempt was refused by gh for exactly that reason, which is how the trap was found rather than assumed.
+
+**Records:** published (`47520ee`), the ledger and this entry included. **Worktrees:** the last two torn down; only `repo`
+and `fleet-state` remain, ~5 GB reclaimed.
+
+**What the day delivered:** tone rewrites on one model for both languages with a visible guard; the Polish prompt written
+in Polish (measured 25 vs 15 untouched over 28 cases); long pauses ending the sentence, threshold 0.6 s from the
+captain's own pause band, shipping **on** with the two-word English change he accepted and a test pinning it; the prompt's
+own marker kept out of his text; and a dev-run.sh that no longer swallows a failed build. Verified on his own voice: 87
+recordings, **0 language flips**, the two anchors word-identical and byte-identical.
