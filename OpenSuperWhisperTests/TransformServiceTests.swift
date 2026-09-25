@@ -177,17 +177,30 @@ final class TransformServiceTests: XCTestCase {
                 )
             }
 
-            // Whatever the row, the language of the text never changed hands:
-            // the model was handed the transcript itself and the prompt keeps
-            // the language it was spoken in.
+            // Whatever the row, the language of the text never changed hands: the
+            // prompt pins the language that went in, each language in its own
+            // words. A Polish dictation is instructed in Polish, so it pins
+            // Polish as "polski na wejściu, polski na wyjściu"; clean-up alone
+            // keeps the wording it has always had ("it stays in Polish").
             for prompt in local.systemPrompts {
                 XCTAssertFalse(
                     prompt.contains("Translate the user's"),
                     "\(row.name): no prompt may ask for a translation: \(prompt)"
                 )
+                let pinsItsOwnLanguage: Bool
+                switch row.expectedPolicy {
+                case .some(.cleanUp(let language)):
+                    pinsItsOwnLanguage = prompt.contains("it stays in \(language.displayName)")
+                case .some(.tone(let language, _)), .some(.cleanUpWithTone(let language, _)):
+                    pinsItsOwnLanguage = language == .polish
+                        ? prompt.contains("polski na wejściu, polski na wyjściu")
+                        : prompt.contains("English in, English out")
+                case .none:
+                    pinsItsOwnLanguage = false
+                }
                 XCTAssertTrue(
-                    prompt.contains(row.expectedPolicy?.language.displayName ?? "\u{0}"),
-                    "\(row.name): every prompt names the language it pins: \(prompt)"
+                    pinsItsOwnLanguage,
+                    "\(row.name): every prompt pins the language that went in: \(prompt)"
                 )
             }
         }
