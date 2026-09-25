@@ -48,7 +48,69 @@ class WhisperEngine: TranscriptionEngine {
     }
     struct DecodedSegment: Equatable {
         let text: String
+        /// Where this segment begins and ends in the audio the decoder heard, in
+        /// centiseconds. The pair is what says whether a measured pause fell
+        /// *between* two segments or inside one of them.
+        let startTimeCentiseconds: Int64
         let endTimeCentiseconds: Int64
+    }
+
+    /// How the engine re-stitches the VAD speech segments it hands the decoder,
+    /// and what it does with the pauses it measured while stitching.
+    ///
+    /// The pauses are the one thing the VAD measures that the transcript cannot
+    /// recover afterwards: the decoder hears a recording in which every pause
+    /// has been replaced by a fixed 0.1-second breath, so its sentence
+    /// boundaries rest on prosody alone. That is enough in English and not in
+    /// Polish, where the model's punctuation is markedly weaker — a pause comes
+    /// back either as a fragment (`Jestem.`) or as nothing at all, and two
+    /// thoughts arrive joined.
+    ///
+    /// `restored` gives the decoder the pause itself back (up to `maxPause`) and
+    /// lets `sentenceThreshold` close a sentence the decoder still left open.
+    /// `upstream` is the behaviour every build before this had, and it is what
+    /// the switch being off means: a fixed 0.1 s of zeros everywhere, no
+    /// terminator, no word touched.
+    struct PauseBoundaryPolicy: Equatable {
+        /// Longest real pause kept for the decoder, in seconds. Zero keeps no
+        /// real pause at all, which is upstream's stitched silence.
+        let maxPause: TimeInterval
+        /// Shortest silence between two speech segments, in seconds, exactly as
+        /// upstream stitches it.
+        let minPause: TimeInterval
+        /// A pause at least this long ends the sentence.
+        let sentenceThreshold: TimeInterval
+        /// How close to the end of a pause a decoder segment has to start to be
+        /// treated as beginning at the pause. A segment that starts earlier than
+        /// this decoded straight through the pause, so its own text already
+        /// mixes both sides of it and no boundary is inserted there: half the
+        /// threshold is wide enough for whisper's own timestamp granularity and
+        /// still far inside the pause.
+        let boundaryTolerance: TimeInterval
+        /// Whether a pause may close the sentence in the assembled text.
+        let closesSentence: Bool
+
+        /// Upstream whisper.cpp's stitching: 0.1 s of zeros at every pause.
+        static let upstream = PauseBoundaryPolicy(
+            maxPause: 0,
+            minPause: 0.1,
+            sentenceThreshold: .infinity,
+            boundaryTolerance: 0,
+            closesSentence: false
+        )
+
+        /// The pause is kept and a long one ends the sentence.
+        static let restored = PauseBoundaryPolicy(
+            maxPause: 0.8,
+            minPause: 0.1,
+            sentenceThreshold: 0.5,
+            boundaryTolerance: 0.25,
+            closesSentence: true
+        )
+
+        static func from(settings: Settings) -> PauseBoundaryPolicy {
+            settings.longPausesEndSentences ? .restored : .upstream
+        }
     }
 
     struct DetailedTranscription {
@@ -139,7 +201,23 @@ class WhisperEngine: TranscriptionEngine {
         url: URL,
         settings: Settings
     ) async throws -> DetailedTranscription {
-        try await transcribe(input: .file(url), settings: settings)
+        try await transcribe(
+            input: .file(url),
+            settings: settings,
+            pausePolicy: .from(settings: settings)
+        )
+    }
+
+    /// Internal detailed result with the pause policy named explicitly instead
+    /// of derived from the setting, so one measurement run can decode the same
+    /// recording under each policy. Production reaches the same path through
+    /// `transcribeAudioDetailed(url:settings:)`.
+    func transcribeAudioDetailed(
+        url: URL,
+        settings: Settings,
+        pausePolicy: PauseBoundaryPolicy
+    ) async throws -> DetailedTranscription {
+        try await transcribe(input: .file(url), settings: settings, pausePolicy: pausePolicy)
     }
 
     /// Detailed result for the PCM path, which is the hotkey dictation path:
@@ -150,12 +228,20 @@ class WhisperEngine: TranscriptionEngine {
         _ samples: [Float],
         settings: Settings
     ) async throws -> DetailedTranscription {
-        try await transcribe(input: .pcm(samples), settings: settings)
+        try await transcribe(
+            input: .pcm(samples),
+            settings: settings,
+            pausePolicy: .from(settings: settings)
+        )
     }
 
-    private func transcribe(input: AudioInput, settings: Settings) async throws -> DetailedTranscription {
+    private func transcribe(
+        input: AudioInput,
+        settings: Settings,
+        pausePolicy: PauseBoundaryPolicy
+    ) async throws -> DetailedTranscription {
         try await withTaskCancellationHandler {
-            try await performTranscription(input: input, settings: settings)
+            try await performTranscription(input: input, settings: settings, pausePolicy: pausePolicy)
         } onCancel: { [abortFlag] in
             abortFlag.isSet = true
         }
@@ -163,7 +249,8 @@ class WhisperEngine: TranscriptionEngine {
 
     private func performTranscription(
         input: AudioInput,
-        settings: Settings
+        settings: Settings,
+        pausePolicy: PauseBoundaryPolicy
     ) async throws -> DetailedTranscription {
         try Task.checkCancellation()
 
@@ -218,10 +305,14 @@ class WhisperEngine: TranscriptionEngine {
             return DetailedTranscription(text: "", segments: [], language: nil)
         }
         // Timestamps of the trimmed audio would not match the original file,
-        // so trimming is applied only when timestamps are not requested.
-        let samples = settings.showTimestamps
-            ? converted
-            : Self.speechOnlySamples(from: converted, segments: speechSegments)
+        // so trimming is applied only when timestamps are not requested. The
+        // stitching is also the only place the pauses are still measurable:
+        // the decoder gets `pauses` back so a pause the speaker actually left
+        // can end the sentence instead of being flattened into a breath.
+        let stitched = settings.showTimestamps
+            ? StitchedAudio(samples: converted, pauses: [])
+            : Self.stitch(from: converted, segments: speechSegments, policy: pausePolicy)
+        let samples = stitched.samples
         
         let nThreads = max(2, min(ProcessInfo.processInfo.activeProcessorCount, 8))
         
@@ -302,18 +393,19 @@ class WhisperEngine: TranscriptionEngine {
             }
             
             guard let segmentText = context.fullGetSegmentText(iSegment: i) else { continue }
+            let segmentStart = context.fullGetSegmentT0(iSegment: i)
             let segmentEnd = context.fullGetSegmentT1(iSegment: i)
             decodedSegments.append(
                 DecodedSegment(
                     text: segmentText,
+                    startTimeCentiseconds: segmentStart,
                     endTimeCentiseconds: segmentEnd
                 )
             )
             
             if settings.showTimestamps {
-                let t0 = context.fullGetSegmentT0(iSegment: i)
                 segmentTexts.append(
-                    String(format: "[%.1f->%.1f] ", Float(t0) / 100.0, Float(segmentEnd) / 100.0)
+                    String(format: "[%.1f->%.1f] ", Float(segmentStart) / 100.0, Float(segmentEnd) / 100.0)
                         + segmentText
                 )
             } else {
@@ -321,9 +413,20 @@ class WhisperEngine: TranscriptionEngine {
             }
         }
         
+        // A pause the speaker left is a boundary the decoder was free to
+        // ignore: the segment that ended just before it gets a terminator when
+        // the decoder's own text did not close the sentence.
+        let sentenceBoundaries = Self.sentenceBoundaries(
+            decodedStartsCentiseconds: decodedSegments.map(\.startTimeCentiseconds),
+            decodedEndCentiseconds: decodedSegments.map(\.endTimeCentiseconds),
+            pauses: stitched.pauses,
+            policy: pausePolicy,
+            terminator: Self.sentenceTerminator(forLanguage: language)
+        )
         let cleanedText = Self.assembleSegmentTexts(
             segmentTexts,
-            showTimestamps: settings.showTimestamps
+            showTimestamps: settings.showTimestamps,
+            sentenceBoundaries: sentenceBoundaries
         )
             .replacingOccurrences(of: "[MUSIC]", with: "")
             .replacingOccurrences(of: "[BLANK_AUDIO]", with: "")
@@ -361,12 +464,155 @@ class WhisperEngine: TranscriptionEngine {
         return MyWhisperContext.langStr(id: languageId)
     }
 
+    /// Where a real pause fell between two decoder segments, and what closes a
+    /// sentence in the language that was spoken.
+    struct SentenceBoundaries: Equatable {
+        /// Indices of the segments after which the speaker paused long enough
+        /// for the pause to end the sentence.
+        var afterSegment: Set<Int> = []
+        /// `.` for the languages that write one, `。` for the ones that do not.
+        var terminator: String = "."
+
+        /// The decoder's own punctuation is all there is.
+        static let none = SentenceBoundaries()
+    }
+
     /// Whisper segments are decoder boundaries, not paragraph boundaries.
     /// Their text already contains the token-level whitespace needed between
     /// adjacent segments, so adding a newline (or an inferred space) changes
     /// the dictated text. Timestamp mode remains line-oriented for readability.
-    static func assembleSegmentTexts(_ segments: [String], showTimestamps: Bool) -> String {
-        segments.joined(separator: showTimestamps ? "\n" : "")
+    ///
+    /// `sentenceBoundaries` is the one addition to that rule, and it is not
+    /// inferred from the text: it says where the audio itself paused long
+    /// enough for the pause to be the end of a sentence, so a thought cannot
+    /// run into the next one. No word is ever changed and no punctuation is
+    /// added inside a sentence — the terminator only closes a sentence the
+    /// decoder itself left open.
+    static func assembleSegmentTexts(
+        _ segments: [String],
+        showTimestamps: Bool,
+        sentenceBoundaries: SentenceBoundaries = .none
+    ) -> String {
+        guard !showTimestamps else { return segments.joined(separator: "\n") }
+        guard !sentenceBoundaries.afterSegment.isEmpty else { return segments.joined() }
+
+        var result = ""
+        for (index, segment) in segments.enumerated() {
+            result += segment
+            guard sentenceBoundaries.afterSegment.contains(index) else { continue }
+            result = closingSentence(
+                result,
+                terminator: sentenceBoundaries.terminator,
+                before: index + 1 < segments.count ? segments[index + 1] : ""
+            )
+        }
+        return result
+    }
+
+    /// `text` with a terminator inserted where the sentence the pause fell after
+    /// ended, when the text did not already close it.
+    ///
+    /// The insertion goes at the last non-whitespace character, so a decoder
+    /// segment that is nothing but whitespace cannot push the terminator away
+    /// from the words in front of it.
+    private static func closingSentence(
+        _ text: String,
+        terminator: String,
+        before next: String
+    ) -> String {
+        guard let contentEnd = text.lastIndex(where: { !$0.isWhitespace })
+            .map({ text.index(after: $0) }),
+            !endsSentence(String(text[text.startIndex..<contentEnd]))
+        else { return text }
+
+        // The text's own trailing whitespace — or the next segment's leading one
+        // — is the join the decoder chose. Add a space only when neither side has
+        // one, so the terminator never lands beside a stray space.
+        let hasTrailingWhitespace = text[contentEnd...].contains { $0.isWhitespace }
+        let hasLeadingWhitespace = next.first.map { $0.isWhitespace } ?? false
+        let suffix = hasTrailingWhitespace || hasLeadingWhitespace
+            ? terminator
+            : terminator + " "
+
+        var closed = text
+        closed.insert(contentsOf: suffix, at: contentEnd)
+        return closed
+    }
+
+    /// Whether `text` already ends a sentence — `.` `!` `?` `…` and the full
+    /// width forms, with any closing quote or bracket after them counted as
+    /// part of the ending.
+    static func endsSentence(_ text: String) -> Bool {
+        let terminators: Set<Character> = [".", "!", "?", "…", "。", "！", "？"]
+        let closers: Set<Character> = ["\"", "'", "”", "’", "»", ")", "]", "}"]
+
+        for character in text.reversed() {
+            if character.isWhitespace { continue }
+            if closers.contains(character) { continue }
+            return terminators.contains(character)
+        }
+        return false
+    }
+
+    /// The terminator the spoken language writes. Chinese, Japanese and Korean
+    /// end a sentence with `。`; every other language whisper can transcribe
+    /// uses `.`, and a language the engine could not measure gets `.` too.
+    static func sentenceTerminator(forLanguage language: String?) -> String {
+        guard let language, Settings.asianLanguages.contains(language) else { return "." }
+        return "。"
+    }
+
+    /// Which decoder segments have a speaker's pause after them.
+    ///
+    /// The decoder's timestamps are read in the audio it was handed, so a pause
+    /// belongs after the last segment that ended before the pause did — and only
+    /// when the next segment really starts at the pause. A decoder segment that
+    /// *starts* before the pause ends decoded straight through the pause: both
+    /// sides of it are already inside that one segment's text, and where in that
+    /// text the boundary belongs is not something the audio can say, so nothing
+    /// is inserted there. A pause with no segment after it can close nothing
+    /// either.
+    static func pauseJunctions(
+        decodedStartsCentiseconds: [Int64],
+        decodedEndCentiseconds: [Int64],
+        pauses: [StitchedPause],
+        threshold: TimeInterval,
+        tolerance: TimeInterval
+    ) -> [Int] {
+        guard !decodedEndCentiseconds.isEmpty else { return [] }
+
+        let toleranceCs = Int64((tolerance * 100).rounded())
+        var junctions: Set<Int> = []
+        for pause in pauses where pause.seconds >= threshold {
+            guard let index = decodedEndCentiseconds.lastIndex(where: { $0 <= pause.endCentiseconds }),
+                  index + 1 < decodedEndCentiseconds.count,
+                  index + 1 < decodedStartsCentiseconds.count,
+                  decodedStartsCentiseconds[index + 1] >= pause.endCentiseconds - toleranceCs
+            else { continue }
+            junctions.insert(index)
+        }
+        return junctions.sorted()
+    }
+
+    /// The boundaries a policy asks the assembly for.
+    static func sentenceBoundaries(
+        decodedStartsCentiseconds: [Int64],
+        decodedEndCentiseconds: [Int64],
+        pauses: [StitchedPause],
+        policy: PauseBoundaryPolicy,
+        terminator: String
+    ) -> SentenceBoundaries {
+        guard policy.closesSentence else { return .none }
+
+        let junctions = pauseJunctions(
+            decodedStartsCentiseconds: decodedStartsCentiseconds,
+            decodedEndCentiseconds: decodedEndCentiseconds,
+            pauses: pauses,
+            threshold: policy.sentenceThreshold,
+            tolerance: policy.boundaryTolerance
+        )
+        guard !junctions.isEmpty else { return .none }
+        return SentenceBoundaries(afterSegment: Set(junctions), terminator: terminator)
     }
 
     static func makeFullParams(
@@ -447,12 +693,57 @@ class WhisperEngine: TranscriptionEngine {
     /// each segment (already padded by the VAD) gets 0.1s of the following
     /// audio as overlap and segments are separated by 0.1s of silence, so the
     /// decoder still sees natural pauses between phrases.
+    ///
+    /// This is the upstream behaviour, and it is what the policy asks for when
+    /// `longPausesEndSentences` is off. The switch-on path is `stitch`, which
+    /// keeps the pause the speaker actually left.
     static func speechOnlySamples(from samples: [Float], segments: [WhisperVadSegment]) -> [Float] {
+        stitch(from: samples, segments: segments, policy: .upstream).samples
+    }
+
+    /// The audio the decoder hears, plus the pauses that were still measurable
+    /// when it was assembled.
+    struct StitchedAudio: Equatable {
+        let samples: [Float]
+        /// One entry per pause between two retained speech segments, in the
+        /// order they occur.
+        let pauses: [StitchedPause]
+    }
+
+    /// A pause the VAD found between two speech segments.
+    struct StitchedPause: Equatable {
+        /// The silence the decoder was given none of: the VAD's gap between the
+        /// two segments less the 0.1 s overlap upstream already carries into the
+        /// next segment. This is the quantity `maxPause` caps and
+        /// `sentenceThreshold` is compared against.
+        let seconds: TimeInterval
+        /// Where the pause sits in the audio the decoder hears, in centiseconds
+        /// — the clock the decoder's own segment timestamps use.
+        let startCentiseconds: Int64
+        let endCentiseconds: Int64
+    }
+
+    /// Rebuilds the speech-only audio the decoder is handed, and measures the
+    /// pauses on the way through.
+    ///
+    /// Upstream replaces every pause with a fixed 0.1 s of zeros, which is a
+    /// breath: the decoder then has prosody and nothing else to decide sentence
+    /// boundaries from, and that is enough in English and not in Polish. Under
+    /// `policy` the pause itself is kept, up to its cap, so the decoder can hear
+    /// silence that is really there; `pauses` carries the measurements out so
+    /// the assembled text can close a sentence the decoder still left open.
+    static func stitch(
+        from samples: [Float],
+        segments: [WhisperVadSegment],
+        policy: PauseBoundaryPolicy = .upstream
+    ) -> StitchedAudio {
         let samplesPerCs = 160 // 16 kHz / 100
         let overlapSamples = 1600 // 0.1 s
-        let gapSamples = 1600 // 0.1 s
-        
+        let minPauseSamples = Int((policy.minPause * 16000).rounded())
+        let maxPauseSamples = Int((policy.maxPause * 16000).rounded())
+
         var result = [Float]()
+        var pauses = [StitchedPause]()
         for (index, segment) in segments.enumerated() {
             let start = min(max(0, Int(segment.startCs) * samplesPerCs), samples.count)
             var end = min(Int(segment.endCs) * samplesPerCs, samples.count)
@@ -460,13 +751,36 @@ class WhisperEngine: TranscriptionEngine {
                 end = min(end + overlapSamples, samples.count)
             }
             guard end > start else { continue }
-            
-            result.append(contentsOf: samples[start..<end])
-            if index < segments.count - 1 {
-                result.append(contentsOf: repeatElement(0, count: gapSamples))
+
+            if index > 0 {
+                // The silence between the speech the decoder already has and the
+                // speech that starts here, minus the 0.1 s overlap both sides
+                // carry into each other.
+                let gapStart = max(
+                    0,
+                    min(Int(segments[index - 1].endCs) * samplesPerCs + overlapSamples, start)
+                )
+                let kept = min(start - gapStart, maxPauseSamples)
+                let pauseStartCs = Int64(result.count / samplesPerCs)
+                // Zeros only ever pad a short pause up to upstream's minimum; a
+                // longer pause is the speaker's own silence, never a synthetic
+                // block the decoder could latch onto.
+                result.append(contentsOf: repeatElement(0, count: max(0, minPauseSamples - kept)))
+                if kept > 0 {
+                    result.append(contentsOf: samples[(start - kept)..<start])
+                }
+                pauses.append(
+                    StitchedPause(
+                        seconds: Double(start - gapStart) / 16000,
+                        startCentiseconds: pauseStartCs,
+                        endCentiseconds: Int64(result.count / samplesPerCs)
+                    )
+                )
             }
+
+            result.append(contentsOf: samples[start..<end])
         }
-        return result
+        return StitchedAudio(samples: result, pauses: pauses)
     }
     
     func getSupportedLanguages() -> [String] {

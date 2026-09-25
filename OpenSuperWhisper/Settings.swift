@@ -70,6 +70,12 @@ class SettingsViewModel: ObservableObject {
         }
     }
     
+    @Published var longPausesEndSentences: Bool {
+        didSet {
+            AppPreferences.shared.longPausesEndSentences = longPausesEndSentences
+        }
+    }
+    
     @Published var temperature: Double {
         didSet {
             AppPreferences.shared.temperature = temperature
@@ -375,6 +381,7 @@ class SettingsViewModel: ObservableObject {
         self.fluidAudioModelVersion = prefs.fluidAudioModelVersion
         self.suppressBlankAudio = prefs.suppressBlankAudio
         self.showTimestamps = prefs.showTimestamps
+        self.longPausesEndSentences = prefs.longPausesEndSentences
         self.temperature = prefs.temperature
         self.noSpeechThreshold = prefs.noSpeechThreshold
         self.initialPrompt = prefs.initialPrompt
@@ -1024,6 +1031,9 @@ struct Settings {
     var debugMode: Bool
     var suppressBlankAudio: Bool
     var showTimestamps: Bool
+    /// See `PauseBoundaryPolicy`: on, a long pause is kept as a real pause and
+    /// closes the sentence; off, upstream's 0.1 s of zeros everywhere.
+    var longPausesEndSentences: Bool
     var temperature: Double
     var noSpeechThreshold: Double
     var initialPrompt: String
@@ -1068,6 +1078,7 @@ struct Settings {
         let prefs = AppPreferences.shared
         self.suppressBlankAudio = prefs.suppressBlankAudio
         self.showTimestamps = prefs.showTimestamps
+        self.longPausesEndSentences = prefs.longPausesEndSentences
         self.temperature = prefs.temperature
         self.noSpeechThreshold = prefs.noSpeechThreshold
         self.initialPrompt = prefs.initialPrompt
@@ -1489,6 +1500,31 @@ struct SettingsView: View {
                             }
                             Spacer()
                             Toggle("", isOn: $viewModel.useAsianAutocorrect)
+                                .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
+                                .labelsHidden()
+                        }
+                        .padding(.top, 4)
+
+                        // The captain asked for pauses to be "ignored"; the
+                        // pause was never the problem — replacing it with a 0.1
+                        // second breath is what made a sentence out of nothing,
+                        // and the label says what the switch does instead.
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Long Pauses End the Sentence")
+                                    .font(.subheadline)
+                                Text(
+                                    "Whisper: a pause of "
+                                        + "\(WhisperEngine.PauseBoundaryPolicy.restored.sentenceThreshold) s or longer "
+                                        + "keeps its silence and closes the sentence, instead of dissolving "
+                                        + "into a breath that lets two thoughts merge"
+                                )
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $viewModel.longPausesEndSentences)
                                 .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
                                 .labelsHidden()
                         }

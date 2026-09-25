@@ -50,6 +50,9 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 - 🗂️ **Model storage controls** — installed models listed with the one in use, SHA-256 verification against the
   digest each publisher reports, removal with the space it frees
 - 🧯 **Long-form audio fix** — dictation longer than 30 s no longer skips audio
+- ⏸️ **A long pause ends the sentence** — the pause the speaker left is no longer dissolved into a 0.1 s breath,
+  so a pause cannot split a thought into a fragment or run two thoughts together (Polish in particular, where the
+  model's punctuation is weaker than English's)
 - 🧾 **Readable settings, reachable settings** — the Settings sheet lays out correctly, and the status-bar menu
   reaches it even with the main window closed
 - 📦 **One-package install, one-operation uninstall** — from inside the app
@@ -170,7 +173,35 @@ Measured on the delivery tip against `large-v3-turbo`, in `LongFormTranscription
 The transcripts are captured verbatim next to the measurement, and four independent derivations of the numbers
 agree to the last printed digit.
 
-### 8. Settings, models and diagnostics made visible
+### 8. A long pause ends the sentence
+
+The pause was never ignored — it was **dissolved**. Decoding takes the silence-removed path
+(`params.language = nil`, so `showTimestamps` decides only the `[t0->t1]` prefixes), and
+`Engines/WhisperEngine.swift` rebuilt the speech-only audio by replacing **every** gap the VAD found with a fixed
+**0.1 s of zeros** — the same 0.1 s upstream `whisper_full` uses when it stitches VAD segments
+(`libwhisper/whisper.cpp/src/whisper.cpp:6730-6800`). A pause of any length therefore reached the decoder as a
+breath, and `assembleSegmentTexts` joined the decoder's segments with `""`, so the VAD's own timing — the one
+signal that survived — was discarded. The decoder then decided sentence boundaries from prosody alone, which is
+enough in English and is not enough in Polish, where the model's punctuation is markedly weaker.
+
+**The switch is named for what it does, not for what was asked.** One line in **Settings → Transcription →
+Language Settings**, on by default: **Long Pauses End the Sentence** — "a pause of 0.5 s or longer keeps its
+silence and closes the sentence, instead of dissolving into a breath that lets two thoughts merge". Off is
+byte-for-byte the behaviour every earlier build had.
+
+What it does, in the decoder's terms:
+
+* `PauseBoundaryPolicy.restored` keeps `min(pause, 0.8 s)` of the recording's **own** silence at each gap, and
+  zero-pads only up to upstream's 0.1 s minimum — so the silence the decoder hears is the silence the speaker
+  left, never a synthetic block;
+* the same pass returns the pauses it measured, with their span in the decoder's own centisecond clock, and a
+  pause of **0.5 s or more** ends the sentence: the join gets a terminator where the decoder left the sentence
+  open. A segment that already closed its sentence is untouched, so nothing is doubled; a segment that *starts*
+  before the pause ends decoded straight through the pause, and no boundary is invented inside its text;
+* the terminator is language-aware (`.` — `。` for Chinese, Japanese and Korean), timestamp mode is unchanged
+  (one decoder segment per line), no word is ever altered, and no punctuation is added inside a sentence.
+
+### 9. Settings, models and diagnostics made visible
 
 Several of these are the difference between a feature existing and a feature being *findable*:
 
@@ -186,7 +217,7 @@ Several of these are the difference between a feature existing and a feature bei
 - **The indicator is honest.** With no microphone it says so, instead of showing "Processing…" forever, and a
   dictation whose transcript was lost says why.
 
-### 9. Packaging and uninstall
+### 10. Packaging and uninstall
 
 Upstream ships a package built from its own release process and has no uninstaller. This fork adds
 `packaging/{build-pkg.sh,distribution.xml,scripts/preinstall,uninstall.sh}` plus `UninstallService.swift`: one
@@ -196,7 +227,7 @@ the app is already gone — removes the app, the dictation history, the download
 leaving other applications' data alone. Running it twice is harmless, and `Scripts/verify-packaging.sh` checks the
 path list, the idempotence and a built package's payload rather than trusting them.
 
-### 10. Developer tooling
+### 11. Developer tooling
 
 Local Debug builds are signed with a stable self-signed identity (`Scripts/dev-signing-identity.sh`,
 `dev-sign.sh`) so the Accessibility grant survives rebuilds, and `Scripts/dev-run.sh` is the single entry point

@@ -166,6 +166,23 @@ final class AppPreferences {
     
     @UserDefault(key: "showTimestamps", defaultValue: false)
     var showTimestamps: Bool
+
+    /// "Long Pauses End the Sentence" — the switch that keeps a pause instead of
+    /// dissolving it.
+    ///
+    /// The name says what the behaviour is, not what the captain first asked
+    /// for: the nonsense came from *dissolving* the pause into a 0.1 s breath,
+    /// so "ignore pauses" would name the defect. On, a pause of at least
+    /// `PauseBoundaryPolicy.restored.sentenceThreshold` between two speech
+    /// segments is kept as real silence (up to `maxPause`) and closes the
+    /// sentence in the assembled text when the decoder did not close it.
+    ///
+    /// On by default: the transcript it produces is the one without the defect,
+    /// and a default of off would leave an install that never opens Settings
+    /// with the fragments the switch exists to remove. Off is upstream's
+    /// stitching, byte for byte.
+    @UserDefault(key: "longPausesEndSentences", defaultValue: true)
+    var longPausesEndSentences: Bool
     
     @UserDefault(key: "temperature", defaultValue: 0.0)
     var temperature: Double
