@@ -50,9 +50,10 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 - 🗂️ **Model storage controls** — installed models listed with the one in use, SHA-256 verification against the
   digest each publisher reports, removal with the space it frees
 - 🧯 **Long-form audio fix** — dictation longer than 30 s no longer skips audio
-- ⏸️ **A long pause ends the sentence** — the pause the speaker left is no longer dissolved into a 0.1 s breath,
-  so a pause cannot split a thought into a fragment or run two thoughts together (Polish in particular, where the
-  model's punctuation is weaker than English's)
+- ⏸️ **A long pause ends the sentence** — a switch (off by default, with the reason measured in §8) that keeps the
+  pause the speaker left instead of dissolving it into a 0.1 s breath, so a pause cannot split a thought into a
+  fragment or run two thoughts together — Polish in particular, where the model's punctuation is weaker than
+  English's
 - 🧾 **Readable settings, reachable settings** — the Settings sheet lays out correctly, and the status-bar menu
   reaches it even with the main window closed
 - 📦 **One-package install, one-operation uninstall** — from inside the app
@@ -185,9 +186,10 @@ signal that survived — was discarded. The decoder then decided sentence bounda
 enough in English and is not enough in Polish, where the model's punctuation is markedly weaker.
 
 **The switch is named for what it does, not for what was asked.** One line in **Settings → Transcription →
-Language Settings**, on by default: **Long Pauses End the Sentence** — "a pause of 0.6 s or longer keeps its
-silence and closes the sentence, instead of dissolving into a breath that lets two thoughts merge". Off is
-byte-for-byte the behaviour every earlier build had.
+Language Settings**: **Long Pauses End the Sentence** — "a pause of 0.6 s or longer keeps its silence and closes the
+sentence, instead of dissolving into a breath that lets two thoughts merge". Off is byte-for-byte the behaviour
+every earlier build had, and it ships **off by default** — not out of caution, but because the measurement below
+says the switch-on state regresses the English control while this app sends no decoder prompt.
 
 What it does, in the decoder's terms:
 
@@ -202,29 +204,46 @@ What it does, in the decoder's terms:
   (one decoder segment per line), no word is ever altered, and no punctuation is added inside a sentence.
 
 **What the measurement said, including the parts that argue against it.** Measured on his own two Polish
-recordings and an English control, through this app's own decode path, with his settings:
+recordings and an English control, through this app's own decode path, with his settings and the decoder prompt
+this app actually sends — **none**.
 
-* The switch-off arm reproduces the transcript the app itself stored for each recording, byte for byte — so the
-  numbers below are this app's path, not a harness's idea of it, and the same decode twice gives the same text.
-* The pause being kept is what fixes his two recordings: `pl-2` comes back "**Open Super Whisper**… **Dodałem**
-  drugi model" where the switch off gives "Ben super whisper… Dałem drugi model", and `pl-1`'s verb arrives as
-  "spieprzył po całości" instead of "pieprzył po całości". Both are the *words*, not the punctuation, so this is
-  the audio half doing the work.
-* **The English control changes two words** with the same settings ("how it creates a sentence" becomes "now it
-  creates a sentences"). That is the cost of handing the decoder a real pause instead of a 0.1 s breath, it is
-  why the switch exists, and it is not hidden in the tables: the control's sentence count is unchanged, its words
-  are not.
+* The same arm decoded twice is identical on all three recordings, so a before/after difference is the switch and
+  not sampling. The transcripts the app stored for those recordings are reproduced **byte for byte by the
+  switch-off arm with the instruction-shaped prompt an earlier brief attributed to his preferences** as the
+  decoder prompt — which is evidence that *that* string was reaching the decoder when he dictated them, not of
+  anything the app ships: `initialPrompt` defaults to the empty string and his stored domain holds no value. (On
+  `pl-2` the switch off with that string reads "Ben super whisper… Dałem drugi model"; with no prompt, "Będę super
+  whisper… Dałem drugi model".)
+* The pause being kept is what fixes the Polish: `pl-2` comes back "**Open Super Whisper**" and "**Dodałem** drugi
+  model" where the switch off gives "Ben super whisper" and "Dałem drugi model", and `pl-1`'s verb arrives as
+  "spieprzył po całości" instead of "pieprzył po całości"; with no prompt the switch also turns `pl-1` from two
+  comma-joined sentences back into three.
+* **With no decoder prompt the English control regresses** — and not by two words, by inventing a fragment:
+  "Basically, now it creates,. **based, no,** now it creates a sentences…" where the switch off is clean, **at
+  every silence cap tried** (0.2 s, 0.4 s, 0.6 s, 0.8 s; 0.4 s and 0.6 s are worse still — "profound sense",
+  lowercase drift). That is why the switch ships off.
+* **A deliberate decoder prompt removes that regression and keeps the Polish win.** Four prompts were measured on
+  the same recordings with the same sampling — none, the instruction-shaped string the brief attributed to him,
+  and two candidates written as ordinary Polish dictation with full punctuation and no instruction — and each is
+  reported as a **counted word-level delta** against the no-prompt arm, because a prompt that fixes punctuation by
+  moving words is not a win. With the English counterpart of candidate 1 the control comes back clean ("Basically,
+  now it creates a sentences…", nothing invented); on `pl-2` the instruction-shaped string is the only arm that
+  recovers the words he said ("spój" → "swój", "forkę" → "fork", and it drops a spurious "I"); on `pl-1` every arm
+  keeps the words identical and only punctuation moves, where the two candidates add the commas but trade away a
+  sentence boundary. The app ships none of them: that is the captain's setting to choose, and this branch does not
+  set it for him.
 * **The threshold was 0.5 s and the measurement removed it.** On `pl-1` a pause the VAD measured at 0.52 s falls
-  inside "…o to, że żeś | spieprzył po całości", and 0.5 s closed the sentence there — "że żeś. spieprzył". On the
-  app's own numbers every pause he talks across is 0.52 s or below and every boundary he punctuates is 0.74 s or
-  above, so the threshold is **0.6 s**, and at 0.6 s that arm comes back unchanged.
-* **The cap is measured too.** At 0.2 s or 0.4 s the decoder merges "…inną drogą. Bo tu chodzi…" into one sentence
-  on `pl-1` (two where there were three, worse than the switch off), and 0.4 s invents "profound" on the English
-  control; at 0.6 s and 0.8 s `pl-1` keeps its three sentences, and only at 0.8 s does `pl-2` come back with
-  "zrobić fork" rather than "zrobić forkę" — so the cap is 0.8 s.
-* **A smaller cap does not save the English control**, which is worth knowing before anyone tries: its two changed
-  words appear at 0.2 s, 0.4 s, 0.6 s and 0.8 s alike. What perturbs it is keeping *any* real silence where
-  upstream had a 0.1 s breath, not how long that silence is — the switch is the answer to that, not another cap.
+  inside "…o to, że żeś | spieprzył po całości", and 0.5 s closed the sentence there — "że żeś. spieprzył" (the
+  same wrong break appears at 0.4 s). On the app's own numbers every pause he talks across is 0.52 s or below and
+  every boundary he punctuates is 0.74 s or above, so the threshold is **0.6 s**, and at 0.6 s that arm comes back
+  unchanged.
+* **The cap is measured too.** At 0.2 s the decoder loses `pl-1`'s sentence break (two comma-joined sentences
+  where the switch off has a full stop and the stored text has three), 0.4 s and 0.6 s leave a stray ". ," at the
+  join, and only 0.8 s keeps `pl-1` at three sentences while leaving the join clean — so the cap is 0.8 s.
+* **A smaller cap does not save the English control**, which is worth knowing before anyone tries: the invented
+  fragment is there at 0.2 s, 0.4 s, 0.6 s and 0.8 s alike. What perturbs it is keeping *any* real silence where
+  upstream had a 0.1 s breath, not how long that silence is — the switch, or a prompt, is the answer to that, not
+  another cap.
 
 ### 9. Settings, models and diagnostics made visible
 

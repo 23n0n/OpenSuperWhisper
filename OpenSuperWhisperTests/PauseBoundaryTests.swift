@@ -233,6 +233,36 @@ final class WhisperPauseBoundaryTests: XCTestCase {
         XCTAssertTrue(Settings().longPausesEndSentences)
     }
 
+    /// An install that never touches the switch keeps upstream's stitching.
+    ///
+    /// The default is a measurement, not a shrug (see `PauseBoundaryPolicy`):
+    /// with the decoder prompt this app sends — none — turning the switch on
+    /// regresses the English control, so it ships off. This case is here so that
+    /// flipping it is a deliberate act with the reason in front of the reader.
+    func testAnInstallThatNeverTouchesTheSwitchKeepsUpstreamStitching() {
+        let suite = AppPreferences.defaults
+        let key = "longPausesEndSentences"
+        let saved = suite.object(forKey: key)
+        suite.removeObject(forKey: key)
+        defer {
+            if let saved {
+                suite.set(saved, forKey: key)
+            } else {
+                suite.removeObject(forKey: key)
+            }
+        }
+
+        XCTAssertFalse(Settings().longPausesEndSentences, "the shipped default is off")
+        XCTAssertFalse(
+            WhisperEngine.PauseBoundaryPolicy.from(settings: Settings()).closesSentence,
+            "…and the policy it produces is upstream's stitching, unchanged"
+        )
+        XCTAssertEqual(
+            WhisperEngine.PauseBoundaryPolicy.from(settings: Settings()),
+            .upstream
+        )
+    }
+
     // MARK: - Where the boundary lands
 
     func testAPauseBelongsAfterTheSegmentThatEndedBeforeIt() {
