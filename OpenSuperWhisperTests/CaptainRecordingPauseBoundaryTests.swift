@@ -25,6 +25,9 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
     private struct CaptainRecording {
         let label: String
         let fileName: String
+        /// Which prompt arms this recording gets: the Polish candidates prime
+        /// Polish, so they are not run against English audio.
+        let isEnglish: Bool
         /// The transcript the app stored for it, for the one check that this
         /// harness really is the app's own path: the switch-off run has to
         /// reproduce it.
@@ -35,28 +38,71 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
         CaptainRecording(
             label: "pl-1 (12.1 s)",
             fileName: "5C68BFAC-5EC8-45CC-8239-3B5659272C1A.wav",
+            isEnglish: false,
             storedTranscript: "Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. "
                 + "Bo tu chodzi o to że żeś pieprzył po całości."
         ),
         CaptainRecording(
             label: "pl-2 (23.3 s)",
             fileName: "B2EA9010-97C9-40AB-A7A2-746323A45297.wav",
+            isEnglish: false,
             storedTranscript: "Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. "
                 + "Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku."
         ),
         CaptainRecording(
             label: "en control (33.0 s)",
             fileName: "D92A0B10-EB8D-4D47-80B9-A9F3A88C112F.wav",
+            isEnglish: true,
             storedTranscript: "Also add feature to ignore pauses. Basically how it creates a sentence without "
                 + "a sense because of my long pauses. The pauses need to be ignored."
         ),
     ]
 
-    /// His stored preference, verbatim: an instruction sitting in whisper's
-    /// decoder context, which is what the A/B below measures.
-    private static let captainInitialPrompt =
+    /// The decoder prompts measured as arms.
+    ///
+    /// whisper's `initialPrompt` is decoder *context*, not a system prompt: it
+    /// primes style and punctuation, so a useful one has to look like the text
+    /// wanted back. **The shipped app sends none** — `AppPreferences`'s default
+    /// is the empty string and his stored domain holds no value — so the empty
+    /// arm is today's app and every other arm here is a hypothetical setting.
+    private struct PromptArm {
+        let label: String
+        let prompt: String
+    }
+
+    /// The instruction-shaped string an earlier brief reported finding in his
+    /// preferences. It is not in the app: no commit ever contained it, and the
+    /// stored value it came from is gone from his domain. The arm is kept
+    /// because the brief's hypothesis was about exactly this shape of prompt.
+    private static let attributedPrompt =
         "You are a transcriber. Your role is just to clean up the text and make it look pretty and attractive. "
         + "Do not change the sense of the sentences."
+
+    /// Ordinary Polish dictation with full punctuation, a proper noun, a comma, a
+    /// colon and a question mark — no instruction and no meta-commentary.
+    private static let candidateOne = "Dobra, jeszcze raz: wysłałem raport w poniedziałek, ale Anna nie "
+        + "odpowiedziała. Możesz to sprawdzić?"
+    private static let candidateTwo = "Tak, zgadza się. Kiedy? Nie wiem, ale sprawdzę to jutro."
+
+    /// The English counterpart of candidate one, for the English control.
+    private static let candidateOneEnglish = "Okay, one more time: I sent the report on Monday, but Anna hasn't "
+        + "replied. Can you check?"
+
+    private static let polishPromptArms = [
+        PromptArm(label: "prompt: none (the shipped app)", prompt: ""),
+        PromptArm(label: "prompt: the instruction-shaped string (hypothetical)", prompt: attributedPrompt),
+        PromptArm(label: "prompt: candidate 1 (comma, colon, question)", prompt: candidateOne),
+        PromptArm(label: "prompt: candidate 2 (short sentences, questions)", prompt: candidateTwo),
+    ]
+
+    /// The Polish candidate two is deliberately absent here: a Polish decoder
+    /// prompt on English audio invites Polish, which measures the prompt's
+    /// language pull rather than the captain's English punctuation.
+    private static let englishPromptArms = [
+        PromptArm(label: "prompt: none (the shipped app)", prompt: ""),
+        PromptArm(label: "prompt: the instruction-shaped string (hypothetical)", prompt: attributedPrompt),
+        PromptArm(label: "prompt: candidate 1 EN (the English counterpart)", prompt: candidateOneEnglish),
+    ]
 
     private struct Arm {
         let name: String
@@ -132,9 +178,10 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
         return directory
     }
 
-    /// His settings, as stored and as they reach the decoder: greedy, temperature
-    /// 0, no-speech 0.6, blank suppression on, no timestamps. The pause policy is
-    /// the arm, not the preference, so one process measures all of them.
+    /// His settings, as they reach the decoder: greedy, temperature 0, no-speech
+    /// 0.6, blank suppression on, no timestamps. The pause policy and the decoder
+    /// prompt are the arm, not the preference, so one process measures all of
+    /// them; the shipped app sends the empty prompt.
     private func captainSettings(initialPrompt: String) -> Settings {
         var settings = Settings()
         settings.showTimestamps = false
@@ -174,6 +221,36 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
 
     private func wordCount(_ sentence: String) -> Int {
         sentence.split(whereSeparator: { $0.isWhitespace }).count
+    }
+
+    /// The sentence punctuation marks present, in a fixed order, so two arms can
+    /// be compared at a glance.
+    private func punctuationCounts(_ text: String) -> String {
+        let marks: [Character] = [".", ",", "?", "!", ":", ";", "…", "—", "\""]
+        return marks
+            .map { mark in "\(mark)\(text.filter { $0 == mark }.count)" }
+            .joined(separator: " ")
+    }
+
+    /// The words in `text` that are not in `baseline` and the ones that are,
+    /// counted so a repeated word counts once per repetition. Punctuation and
+    /// case are ignored: this is about which *words* the prompt moved.
+    private func wordDelta(baseline: String, text: String) -> (removed: [String], added: [String]) {
+        func words(_ value: String) -> [String] {
+            value.lowercased()
+                .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                .map(String.init)
+        }
+
+        var counts: [String: Int] = [:]
+        for word in words(baseline) { counts[word, default: 0] += 1 }
+        for word in words(text) { counts[word, default: 0] -= 1 }
+
+        let removed = counts.filter { $0.value > 0 }.sorted { $0.key < $1.key }
+            .flatMap { Array(repeating: $0.key, count: $0.value) }
+        let added = counts.filter { $0.value < 0 }.sorted { $0.key < $1.key }
+            .flatMap { Array(repeating: $0.key, count: -$0.value) }
+        return (removed, added)
     }
 
     /// How many long pauses the transcript ran straight through.
@@ -252,40 +329,55 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
             let segments = try XCTUnwrap(vad.speechSegments(in: samples))
             reportPauses(recording: recording, samples: samples, segments: segments)
 
+            // Today's app: no decoder prompt (`initialPrompt` is empty).
             var switchOffText: String?
             var switchOnText: String?
             for arm in Self.arms {
-                for prompt in [Self.captainInitialPrompt, ""] {
-                    let text = try await measure(
-                        engine: engine,
-                        audioURL: audioURL,
-                        policy: arm.policy,
-                        arm: arm.name,
-                        prompt: prompt,
-                        recording: recording,
-                        samples: samples,
-                        segments: segments
-                    )
-                    if !prompt.isEmpty {
-                        if arm.policy == .upstream { switchOffText = text }
-                        if arm.policy == .restored { switchOnText = text }
-                    }
-                }
+                let text = try await measure(
+                    engine: engine,
+                    audioURL: audioURL,
+                    policy: arm.policy,
+                    arm: arm.name,
+                    prompt: "",
+                    recording: recording,
+                    samples: samples,
+                    segments: segments
+                )
+                if arm.policy == .upstream { switchOffText = text }
+                if arm.policy == .restored { switchOnText = text }
             }
 
-            // The two numbers the switch ships with, isolated on his own audio:
-            // each sweep arm is decoded once, with his own prompt.
+            // The two numbers the switch ships with, isolated on his own audio.
             for arm in Self.sweepArms {
                 try await measure(
                     engine: engine,
                     audioURL: audioURL,
                     policy: arm.policy,
                     arm: arm.name,
-                    prompt: Self.captainInitialPrompt,
+                    prompt: "",
                     recording: recording,
                     samples: samples,
                     segments: segments
                 )
+            }
+
+            // The decoder prompts: the shipped app sends none, so the empty arm
+            // is the baseline every other arm is diffed against, word by word.
+            let promptArms = recording.isEnglish ? Self.englishPromptArms : Self.polishPromptArms
+            var baseline: String?
+            for arm in promptArms {
+                let text = try await measure(
+                    engine: engine,
+                    audioURL: audioURL,
+                    policy: .restored,
+                    arm: arm.label,
+                    prompt: arm.prompt,
+                    recording: recording,
+                    samples: samples,
+                    segments: segments,
+                    baseline: arm.prompt.isEmpty ? nil : baseline
+                )
+                if arm.prompt.isEmpty { baseline = text }
             }
 
             // The comparison is between two decodes, so it is only about the
@@ -296,7 +388,7 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
                 audioURL: audioURL,
                 policy: .restored,
                 arm: "after (switch on), repeated",
-                prompt: Self.captainInitialPrompt,
+                prompt: "",
                 recording: recording,
                 samples: samples,
                 segments: segments
@@ -318,6 +410,10 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
 
     /// Decodes one arm, reports it, and checks the properties that must hold for
     /// this audio.
+    ///
+    /// `baseline` is the empty-prompt arm's text: when it is present the arm is
+    /// reported as a word-level delta against today's app, because a prompt that
+    /// fixes punctuation by changing the words is not a win.
     @discardableResult
     private func measure(
         engine: WhisperEngine,
@@ -327,7 +423,8 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
         prompt: String,
         recording: CaptainRecording,
         samples: [Float],
-        segments: [WhisperVadSegment]
+        segments: [WhisperVadSegment],
+        baseline: String? = nil
     ) async throws -> String {
         let stitched = WhisperEngine.stitch(from: samples, segments: segments, policy: policy)
         let detailed = try await engine.transcribeAudioDetailed(
@@ -404,8 +501,18 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
         )
         TestFixtures.report(
             "[pauses]   sentences \(read.count) | fragments (<=2 words) "
-                + "\(read.filter { wordCount($0) <= 2 }.count)"
+                + "\(read.filter { wordCount($0) <= 2 }.count) | punctuation \(punctuationCounts(text))"
         )
+        if let baseline {
+            let delta = wordDelta(baseline: baseline, text: text)
+            TestFixtures.report(
+                "[pauses]   word delta vs the empty-prompt arm: -\(delta.removed.count) \(delta.removed) "
+                    + "+\(delta.added.count) \(delta.added)"
+            )
+            TestFixtures.report(
+                "[pauses]   words unchanged: \(delta.removed.isEmpty && delta.added.isEmpty)"
+            )
+        }
         TestFixtures.report("[pauses]   text: \(text)")
         for (index, segment) in texts.enumerated() {
             TestFixtures.report("[pauses]   seg \(index) \(starts[index])->\(ends[index])cs: \(segment)")
