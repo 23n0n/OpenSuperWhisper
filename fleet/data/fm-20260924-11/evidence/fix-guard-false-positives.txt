@@ -1,0 +1,16 @@
+PASS added-sure: got assistantFrame(sure) expected assistantFrame(sure)
+PASS added-understood: got assistantFrame(understood) expected assistantFrame(understood)
+PASS added-sure-mid-input: got assistantFrame(sure) expected assistantFrame(sure)
+PASS added-oczywiscie: got assistantFrame(oczywiście) expected assistantFrame(oczywiście)
+PASS dictated-here-is: got nil expected nil
+PASS dictated-ive: got nil expected nil
+PASS dictated-sure: got nil expected nil
+PASS dictated-oto: got nil expected nil
+PASS dictated-jasne: got nil expected nil
+PASS announce-in-input: got nil expected nil
+PASS dictated-label: got nil expected nil
+PASS added-announce-en: got label(rewritten text) expected label(rewritten text)
+PASS added-announce-pl-tekst: got label(przepisany tekst) expected label(przepisany tekst)
+PASS added-announce-pl-wersja: got label(przepisana wersja) expected label(przepisana wersja)
+PASS added-announce-pl-oto: got label(oto przepisany) expected label(oto przepisany)
+ALL 15 CASES PASS

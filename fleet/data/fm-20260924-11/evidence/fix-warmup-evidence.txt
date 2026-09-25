@@ -1,0 +1,19 @@
+=== the warm-up pin, from the acceptance suite run (TransformBackendTests) ===
+22642:Test case 'TransformBackendTests.testPolishPrefersTheEightBeeAndUsesTheShippedModelWithoutIt()' passed on 'My Mac - OpenSuperWhisper (47365)' (0.003 seconds)
+22644:Test case 'TransformBackendTests.testThePreferredModelIsTheOneTheRuntimeIsHanded()' passed on 'My Mac - OpenSuperWhisper (47365)' (0.001 seconds)
+
+=== the three suite failures of the verification run, and the new guard/report pins, in this run ===
+Test case 'TransformServiceTests.testPolicyTable_returnsTheInputAndChargesACallOnlyWhenItActs()' passed on 'My Mac - OpenSuperWhisper (47365)' (0.002 seconds)
+Test case 'TransformServiceTests.testSystemPrompt_toneOnly_asksForASameLanguageRewrite()' passed on 'My Mac - OpenSuperWhisper (47365)' (0.002 seconds)
+Test case 'TranscriptionLanguageGateTests.testEachSpokenLanguageIsRewrittenInItsOwnLanguage()' passed on 'My Mac - OpenSuperWhisper (47365)' (0.002 seconds)
+Test case 'TranscriptionLanguageGateTests.testWhisperLanguageReachesTheTranscriptionOutput_forFilesAndSamples()' passed on 'My Mac - OpenSuperWhisper (47365)' (0.001 seconds)
+Test case 'TransformGuardTests.testFrameTheDictationOpenedWith_isDelivered()' passed on 'My Mac - OpenSuperWhisper (47364)' (0.001 seconds)
+Test case 'TransformGuardTests.testFrameTheModelAdded_isStillRejected()' passed on 'My Mac - OpenSuperWhisper (47364)' (0.000 seconds)
+Test case 'TransformGuardTests.testLabelTheDictationAlreadyCarried_isDelivered()' passed on 'My Mac - OpenSuperWhisper (47364)' (0.001 seconds)
+Test case 'TransformGuardTests.testLabelTheModelAdded_isStillRejected()' passed on 'My Mac - OpenSuperWhisper (47364)' (0.000 seconds)
+Test case 'TransformGuardTests.testPolishAnnouncementPhrases_areRejected()' passed on 'My Mac - OpenSuperWhisper (47364)' (0.000 seconds)
+Test case 'TransformServiceTests.testGuardedRejection_keepsTheTranscriptAndRecordsTheReason()' passed on 'My Mac - OpenSuperWhisper (47365)' (0.001 seconds)
+Test case 'TransformServiceTests.testCleanUpAlone_isNotGuarded()' passed on 'My Mac - OpenSuperWhisper (47365)' (0.001 seconds)
+Test case 'DictationInjectionTests.testTheDictationReportCarriesAGuardedRejection()' passed on 'My Mac - OpenSuperWhisper (47364)' (0.016 seconds)
+
+=== the warm-up decision line printed by the test ===

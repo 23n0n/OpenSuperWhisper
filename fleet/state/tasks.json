@@ -617,11 +617,13 @@
       "project": "OpenSuperWhisper",
       "status": "in-flight",
       "created": "2026-09-25T05:39:34Z",
-      "retries": 0,
+      "retries": 2,
       "subagent": "FmToneOutput",
       "branch": "fm/tone-output",
       "worktree": "worktrees/OpenSuperWhisper-fm-tone",
-      "note": "DISPATCHED 2026-09-25T05:43:47Z with the peak window handled inside the task instead of by holding the dispatch: the crew does cheap work (prompt, guard, tests) any time and gates every expensive step (8B load, real-weight measurement, llama-server, full suite) behind `date -u` + a single shell sleep until 10:00 UTC - sleeping costs nothing, a mid-measurement peak run costs double. Captain: tone output is wrong; asks for a system prompt. A/B measured before dispatch (harness /tmp/tone-ab.py, seven adversarial cases, two models, three prompt variants): the model dominates - every failure seen on the 1.5B (added 'Sure,', a preamble, dropped articles, an invented noun, 'Understood.' at temp 0) is absent on the 8B with the same prompts; temperature 0 is worse than 0.2 on both; the proposed prompt is equal-or-better on the 8B and introduced a preamble on the 1.5B. Captain then chose BOTH: A = tone runs on the 8B for both languages when installed (clean-up alone keeps the language-based preference); B = adopt the tightened prompt + framed user turn + a deterministic guard (assistant frame / stub / language flip -> deliver the raw transcript with a visible notice). Brief: data/fm-20260924-11/launch-brief.md; evidence: data/fm-20260924-10/tone-prompt.md. Dispatch held to 10:00 UTC because peak opens 06:00 UTC."
+      "note": "VERIFICATION SETTLED 2026-09-25T07:52Z (Fm11Resume, 13m33s): suite ** TEST FAILED ** 426/369/3/54 - all three failures are test-side staleness (TransformServiceTests:158 guard-vs-fixture, :238 six lowercase prompt-string pins vs the landed capital 'Never translate', TranscriptionLanguageGateTests:124 still expecting the bare transcript instead of part B's framed turn). Measurement: 100 answers across 3 runs (8B PL 56, 8B EN 22, 1.5B EN 22), app sampling, classified with the real guard+detector -> 0 rejections; new prompt equal-or-better in both languages on the 8B (PL invented-word answers 2 vs 6; old prompt's inventions gone), English moving to the 8B does not regress, cost 1.67s vs 0.25s median. Residual gap the fix pass must close: the harness prompt differs from the compiled prompt in two places (three register definitions vs one; no trailing Output ONLY line), so the exact compiled wording is unmeasured. Fix pass dispatched next (Fm11Fix, retries 2).",
+      "updated": "2026-09-25T07:31:37Z",
+      "subagentId": "Fm11Fix"
     },
     {
       "id": "fm-20260924-12",
@@ -634,7 +636,8 @@
       "subagent": null,
       "branch": "fm/pause-boundary",
       "worktree": "worktrees/OpenSuperWhisper-fm-pauses",
-      "note": "Captain: add a feature to ignore pauses - long pauses produce a sentence without sense; Polish only. Established before the brief: his raw Polish transcripts from recordings.sqlite show short isolated fragments where pauses were ('Jestem.', 'Znowu po polsku.') and garbled word forms; the decode path collapses every pause to 0.1 s of silence (speechOnlySamples, WhisperEngine.swift:450-470) so the decoder never sees a thought boundary, and Polish punctuation is weaker in this model than English - which fits 'only Polish'. A second finding: his initialPrompt is an instruction ('...make it look pretty and attractive...') sitting in whisper's decoder context, a classic hallucination trigger that the brief asks to A/B rather than change silently. Brief: data/fm-20260924-12/launch-brief.md."
+      "note": "PREPARED 2026-09-25T07:31Z: worktree worktrees/OpenSuperWhisper-fm-pauses created off the delivery tip 3dcde52 (branch fm/pause-boundary); brief's stale time gate replaced with the guard rule plus the machine-contention gate (a sibling crew holds the suite + llama-server). Dispatch waits for that crew's heavy steps to finish so two builds never run at once.",
+      "updated": "2026-09-25T07:18:47Z"
     }
   ]
 }

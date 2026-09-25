@@ -1,0 +1,20 @@
+PASS ack: got assistantFrame(sure) expected assistantFrame(sure)
+PASS preamble: got assistantFrame(sure) expected assistantFrame(sure)
+PASS collapse: got assistantFrame(understood) expected assistantFrame(understood)
+PASS stub: got stub(17,2) expected stub(17,2)
+PASS pl-frame-ocz: got assistantFrame(oczywiście) expected assistantFrame(oczywiście)
+PASS pl-frame-oto: got assistantFrame(oto) expected assistantFrame(oto)
+PASS pl-frame-jasne: got assistantFrame(jasne) expected assistantFrame(jasne)
+PASS label-register: got label(register:) expected label(register:)
+PASS label-output: got label(output:) expected label(output:)
+PASS label-rewritten: got label(rewritten version) expected label(rewritten version)
+PASS flip-en->pl: got languageFlip(English) expected languageFlip(English)
+PASS flip-pl->en: got languageFlip(Polish) expected languageFlip(Polish)
+PASS n-in-register: got nil expected nil
+PASS n-two-word: got nil expected nil
+PASS n-fragment: got nil expected nil
+PASS n-mixed-term: got nil expected nil
+PASS n-rewrite: got nil expected nil
+PASS n-drift-article: got nil expected nil
+PASS n-drift-noun: got nil expected nil
+ALL 19 CASES PASS

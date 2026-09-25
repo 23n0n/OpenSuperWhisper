@@ -1111,3 +1111,44 @@ the wall clock: `python3 ~/.omp/agent/skills/deepseek-peak-hours/peak_hours.py s
 **both** built apps identity-signed (`certificate leaf = H"32266bcc…"`) — the tone crew's "keychain will not
 unlock" claim is void, the stored password unlocks it (exit 0); records on the `fleet-state` branch @
 `6fbdc2e`; no process of ours running.
+
+## [2026-09-25T08:01:10Z] TONE LANDED — `fm/tone-output` merged, one model for tone in both languages, verified and measured
+
+The captain's decision (*"one model to govern them all… a single route for tone transcription that is applicable to
+both Polish and English"*) is now in the delivery branch. `fm/tone-output` @ **`877d19e`** was fast-forwarded into
+`feat/local-translate-tone`, and `main` was advanced with it, so both are **`877d19e`** (16 files, +1175/−158). The
+branch's five commits: `741431a` (tone on the 8B in both languages, with a guard on the answer), `e194655` (Readme),
+`b9f6893` (`TransformOutcome` carries the guard rejection), `9c36eae` (prompt pin), `877d19e` (the fix pass).
+
+**The requirement, verified in code rather than asserted:** `TransformModelManager.model(for:)` returns one model for
+`.tone` and `.cleanUpWithTone` with no language branch, reached through the single injection point
+`TransformService.swift:246`; only `.cleanUp` alone keeps the per-language rule. An independent review confirmed both
+that and the absence of dead code from the withdrawn "run everything on the 1.5B" plan.
+
+**Verification.** Suite on the fixed head: **434 total / 380 passed / 0 failed / 54 skipped**, `** TEST SUCCEEDED **`,
+`SUITE_EXIT=0` (`/tmp/fm2412-tone-fix-suite.log`), bundle identity-signed (`certificate leaf = H"32266bcc…"`). The
+earlier run's three failures were all test-side staleness — a fixture the guard correctly rejected, six lowercase
+prompt-string pins against a capitalised prompt, and a gate test still expecting the pre-frame transcript.
+Measurement with the **exact compiled prompt** on the 8B (78 answers, app sampling, classified by the real guard and
+detector): **0 rejections, 0 flips**; the new prompt beats the old in both languages (Polish inventions 2 answers vs 7,
+lost words 4 vs 8; English 1 vs 4 invented) and the 8 differing Polish answers against the harness variant are within
+run-to-run noise (27/28 identical when the identical prompt is re-run).
+
+**Defects the independent review found and the fix pass closed** — worth remembering as a class: the guard treated
+`"here is"`, `"here's"` and `"i've"` as assistant frames, so a rewrite that legitimately kept a dictated opening was
+thrown away and the raw transcript delivered with a misleading notice; the record-start warm-up still loaded the
+1.5B while tone runs on the 8B, so the first tone dictation paid the cold 8B load the Readme promised was hidden; and
+`TransformOutcome.guardRejection` was set and never read, so a rejection was **invisible** — the report claimed the
+model ran while the user's own words came back. It now reaches `DictationReport.guardRejection`/`guardNotice`, the
+transform label says "answer rejected, transcript kept", and the notice line renders. Deferred with reasons recorded:
+the stub floor counting fillers, and the flip rule needing engine/detector agreement.
+
+**Price, stated for the record:** English tone moves from the 1.5B's 0.25 s median to the 8B's ~1.0 s, and the app
+holds ~4.2 GB more while the transform model is resident (one model at a time; the 10-minute idle unload still
+returns it to the 2.26 GB baseline).
+
+**State:** the merged tip is being rebuilt and re-verified in the primary checkout (`/tmp/merged-tip-suite.log`,
+running) so the app the captain launches carries the change; the worktree comes down after that. **Nothing is
+published** — `origin/main` is still `3dcde52` and the push waits on the captain. `fm/pause-boundary` is in flight on
+its own branch (implementation committed at `1383234`, measurement and suite still owed); it was cut from `3dcde52`,
+so expect conflicts in `Settings.swift` and `Readme.md` where both branches touched them.

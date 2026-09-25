@@ -1,0 +1,27 @@
+| model | lang | case | tone | prompt | input lang | output lang | guard | unchanged | added | dropped |
+|---|---|---|---|---|---|---|---|---|---|---|
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-imperative | formal | old | english | english | ok | yes | — | — |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-imperative | formal | new | english | english | ok | yes | — | — |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-question | formal | old | english | english | ok | no | for schedule | move to |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-question | formal | new | english | english | ok | no | for schedule | move to |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-already-formal | formal | old | english | english | ok | no | a forward immediately transmit | on reply send today |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-already-formal | formal | new | english | english | ok | yes | — | — |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-run-on | casual | old | english | english | ok | no | reckon | probably think |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-run-on | casual | new | english | english | ok | no | reckon | probably think |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-numbers | casual | old | english | english | ok | no | — | — |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-numbers | casual | new | english | english | ok | no | — | and the |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-filler | neutral | old | english | english | ok | no | — | — |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-filler | neutral | new | english | english | ok | no | — | i say so that to um wanted |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-plan-run-on | formal | old | english | english | ok | no | finally to | so we |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-plan-run-on | formal | new | english | english | ok | no | finally monitor subsequently will | is ok plan so then watch |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-real-problem-polish | formal | old | english | english | ok | no | issue pertains solely to | is only problem with |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-real-problem-polish | formal | new | english | english | ok | no | lies solely | is only |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-real-keyboard | formal | old | english | english | ok | no | consistently does function intermittently operates the | always from is s time to working |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-real-keyboard | formal | new | english | english | ok | no | consistently functioning occasionally operational | always from s time to working |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-real-dispatch | casual | old | english | english | ok | no | done re | finish |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-real-dispatch | casual | new | english | english | ok | yes | — | — |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-real-pauses | formal | old | english | english | ok | no | create due essentially this will | basically because creates how it of |
+| qwen2.5-1.5b-instruct-q4_k_m.gguf | english | en-real-pauses | formal | new | english | english | ok | no | due essentially system | basically because how it of |
+
+qwen2.5-1.5b-instruct-q4_k_m.gguf / english / old: 11 outputs, 0 guard rejections , 0 detector-verdict changes 
+qwen2.5-1.5b-instruct-q4_k_m.gguf / english / new: 11 outputs, 0 guard rejections , 0 detector-verdict changes 

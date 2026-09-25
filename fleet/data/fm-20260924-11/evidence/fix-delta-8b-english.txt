@@ -1,0 +1,21 @@
+### exact compiled prompt vs the harness variant — english
+
+| case | register | exact `new` | harness-variant `new` | guard (exact / harness) | same? | previous exact `new` (rerun noise) |
+|---|---|---|---|---|---|---|
+| en-imperative | formal | `Send the report tomorrow.` | `Send the report tomorrow.` | ok / ok | yes | `Send the report tomorrow.` |
+| en-question | formal | `Can we move the meeting to next week?` | `Can we move the meeting to next week?` | ok / ok | yes | `Can we move the meeting to next week?` |
+| en-already-formal | formal | `Please send the report to the client today, and copy me on the reply.` | `Please send the report to the client today, and copy me on the reply.` | ok / ok | yes | `Please send the report to the client today, and copy me on the reply.` |
+| en-run-on | casual | `I think we should probably just ship it on Friday if nothing breaks.` | `I think we should probably just ship it on Friday if nothing breaks.` | ok / ok | yes | `I think we should probably just ship it on Friday if nothing breaks.` |
+| en-numbers | casual | `the invoice number is 423 and the amount is three thousand zloty` | `the invoice number is 423 and the amount is three thousand zloty` | ok / ok | yes | `the invoice number is 423 and the amount is three thousand zloty` |
+| en-filler | neutral | `um so basically I wanted to say that the deployment is done` | `um so basically I wanted to say that the deployment is done` | ok / ok | yes | `um so basically I wanted to say that the deployment is done` |
+| en-plan-run-on | formal | `The plan is first to test, then to deploy, and then to watch the logs.` | `The plan is first to test, then to deploy, and then to watch the logs.` | ok / ok | yes | `The plan is first to test, then to deploy, and then to watch the logs.` |
+| en-real-problem-polish | formal | `The problem is only with polish.` | `The problem is only with polish.` | ok / ok | yes | `The problem is only with polish.` |
+| en-real-keyboard | formal | `Keyboard simulation is working from time to time. It is not always working.` | `Keyboard simulation is functioning intermittently. It is not consistently operational.` | ok / ok | **no** | `Keyboard simulation is working from time to time. It is not always working.` |
+| en-real-dispatch | casual | `dispatch prod after you finish` | `dispatch prod after you finish` | ok / ok | yes | `dispatch prod after you finish` |
+| en-real-pauses | formal | `Also add a feature to ignore pauses. Basically, how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.` | `Also add a feature to ignore pauses. Basically, it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.` | ok / ok | **no** | `Also add a feature to ignore pauses. Basically, how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.` |
+
+* exact `new` vs harness-variant `new`: **9/11 identical**, 2 differ
+* exact `new` vs previous exact `new` (identical prompt, rerun): **11/11 identical**, 0 differ
+* exact `old` vs previous exact `old` (identical prompt, rerun): 1 differ
+* guard on the harness-variant answers: 0 rejections 
+* guard on the exact-prompt answers: see `fix-table-8b-*.md`

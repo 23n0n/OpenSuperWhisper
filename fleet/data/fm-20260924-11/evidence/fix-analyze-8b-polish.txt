@@ -1,0 +1,61 @@
+| model | lang | case | tone | prompt | input lang | output lang | guard | unchanged | added | dropped |
+|---|---|---|---|---|---|---|---|---|---|---|
+| qwen3-8b-q4_k_m.gguf | polish | pl-imperative | formal | old | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-imperative | formal | new | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-question | formal | old | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-question | formal | new | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-already-formal | formal | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-already-formal | formal | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-run-on | casual | old | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-run-on | casual | new | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-numbers | casual | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-numbers | casual | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-filler | neutral | old | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-filler | neutral | new | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-plan-run-on | formal | old | polish | polish | ok | no | — | jest no plan taki więc |
+| qwen3-8b-q4_k_m.gguf | polish | pl-plan-run-on | formal | new | polish | polish | ok | no | — | jest no plan taki więc |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-odzyskalem-formal | formal | old | polish | polish | ok | no | to | jest |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-odzyskalem-formal | formal | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-odzyskalem-casual | casual | old | polish | polish | ok | no | to | jest |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-odzyskalem-casual | casual | new | polish | polish | ok | no | to | jest |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-odzyskalem-neutral | neutral | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-odzyskalem-neutral | neutral | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-ziameczku-formal | formal | old | polish | polish | ok | no | przekląłeś | pieprzył żeś |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-ziameczku-formal | formal | new | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-ziameczku-casual | casual | old | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-ziameczku-casual | casual | new | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-ziameczku-neutral | neutral | old | polish | polish | ok | no | przeszkodziłeś | pieprzył żeś |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-ziameczku-neutral | neutral | new | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-jeszcze-raz-formal | formal | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-jeszcze-raz-formal | formal | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-jeszcze-raz-casual | casual | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-jeszcze-raz-casual | casual | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-jeszcze-raz-neutral | neutral | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-jeszcze-raz-neutral | neutral | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-zarzucic-formal | formal | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-zarzucic-formal | formal | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-zarzucic-casual | casual | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-zarzucic-casual | casual | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-zarzucic-neutral | neutral | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-zarzucic-neutral | neutral | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-nagrywam-formal | formal | old | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-nagrywam-formal | formal | new | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-nagrywam-casual | casual | old | polish | polish | ok | no | po polsku | języku polskim w |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-nagrywam-casual | casual | new | polish | polish | ok | no | po polsku | języku polskim w |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-nagrywam-neutral | neutral | old | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-nagrywam-neutral | neutral | new | polish | polish | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-podgrywam-formal | formal | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-podgrywam-formal | formal | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-podgrywam-casual | casual | old | polish | polish | ok | no | po polsku | języku polskim w |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-podgrywam-casual | casual | new | polish | polish | ok | no | — | języku |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-podgrywam-neutral | neutral | old | polish | polish | ok | no | gram | podgrywam |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-podgrywam-neutral | neutral | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-probuje-formal | formal | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-probuje-formal | formal | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-probuje-casual | casual | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-probuje-casual | casual | new | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-probuje-neutral | neutral | old | polish | polish | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | polish | pl-real-probuje-neutral | neutral | new | polish | polish | ok | yes | — | — |
+
+qwen3-8b-q4_k_m.gguf / polish / old: 28 outputs, 0 guard rejections , 0 detector-verdict changes 
+qwen3-8b-q4_k_m.gguf / polish / new: 28 outputs, 0 guard rejections , 0 detector-verdict changes 

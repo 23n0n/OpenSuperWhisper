@@ -1,0 +1,118 @@
+fm-20260924-11 RESUME — Gate 1, the full suite. Every line below is copied from the run's own output.
+
+Worktree : /Volumes/home/zenon/Projects/OpenSuperWhisper-fork/worktrees/OpenSuperWhisper-fm-tone
+Branch   : fm/tone-output @ 9c36eae, clean working tree before the run
+Command  : Scripts/dev-run.sh test   (detached: python3 Popen(..., start_new_session=True) —
+           macOS has no `setsid`; same effect, the child is in its own session and survived it)
+Log      : /tmp/fm2411-suite.log  (copy: evidence/resume-full-suite.log, 2 865 244 B)
+xcresult : build/Logs/Test/Test-OpenSuperWhisper-2026.09.25_09-18-33-+0200.xcresult
+Started  : 2026-09-25T07:18:33Z (09:18:33 +0200)   Finished: 2026-09-25T07:20:39Z (124.6 s of testing)
+
+RESULT
+======
+/tmp/fm2411-suite.log:20937: ** TEST FAILED **
+
+Counts, from the xcresult summary (`xcresulttool get test-results summary`):
+  "failedTests"  : 3
+  "passedTests"  : 369
+  "skippedTests" : 54
+  total executed : 426
+
+Counts, read straight out of the log text (same numbers; one log line is split by
+xcodebuild's own interleaved output, which is why the log grep shows 369 passed
+lines of which one is broken across the noise):
+  369 "Test case '…' passed on …"   3 "Test case '…' failed on …"   54 "… skipped on …"
+  the split line is TransformDeterminismIntegrationTests.testPolishRewriteIsIdenticalOnEveryRepeat()
+
+Delivery tip for comparison (per the launch brief): 420 total / 367 passed / 0 failed / 53 skipped.
+
+THE THREE FAILURES, VERBATIM
+============================
+xCresult, "Failing tests:" block:
+
+	TransformServiceTests.testPolicyTable_returnsTheInputAndChargesACallOnlyWhenItActs()
+	TransformServiceTests.testSystemPrompt_toneOnly_asksForASameLanguageRewrite()
+	TransformServiceTests.testSystemPrompt_toneOnly_asksForASameLanguageRewrite()
+	TransformServiceTests.testSystemPrompt_toneOnly_asksForASameLanguageRewrite()
+	TransformServiceTests.testSystemPrompt_toneOnly_asksForASameLanguageRewrite()
+	TransformServiceTests.testSystemPrompt_toneOnly_asksForASameLanguageRewrite()
+	TransformServiceTests.testSystemPrompt_toneOnly_asksForASameLanguageRewrite()
+	TranscriptionLanguageGateTests.testEachSpokenLanguageIsRewrittenInItsOwnLanguage()
+
+(The six identical lines are the six failures of the same assertion — two languages × three
+registers — inside one test method. Three distinct test methods failed.)
+
+1. TransformServiceTests.testPolicyTable_returnsTheInputAndChargesACallOnlyWhenItActs()
+   at OpenSuperWhisperTests/TransformServiceTests.swift:158
+
+   XCTAssertEqual failed: ("Please send the report to the client today.") is not equal to ("rewritten") - tone on, English: the model's answer is what is pasted
+
+   Assertion: XCTAssertEqual(outcome.text, "rewritten", "\(row.name): the model's answer is what is pasted")
+   Mechanism (already diagnosed independently, first mate's message 07:23Z): the row feeds the input
+   "Please send the report to the client today." — 8 letter-words, so the new guard's stub rule IS armed
+   (stubMinimumInputWords = 8, floor = 2) — together with the fixture answer "rewritten" (1 word).
+   TransformGuard returns .stub(wordsIn: 8, wordsOut: 1), the raw transcript is delivered instead, and the
+   expectation of the fixture answer fails. The guard is behaving exactly as specified; the fixture answer
+   is what is stale. NOT changed here (first mate: "Do NOT change any code, test, or fixture … being fixed
+   in a separate pass").
+
+2. TransformServiceTests.testSystemPrompt_toneOnly_asksForASameLanguageRewrite()
+   at OpenSuperWhisperTests/TransformServiceTests.swift:238 — 6 failures, one per (language, register)
+
+   XCTAssertTrue failed - <the whole composed system prompt, verbatim>
+
+   Assertion: XCTAssertTrue(system.contains("never translate, not even one word"), system)
+   Mechanism: the landed prompt says "Never translate, not even one word." — capital N, because it is a
+   sentence start in TransformService.toneInstruction. The assertion still looks for the lowercase phrase of
+   the OLD tone line ("keep its language exactly Polish, never translate it, …"). Stale test string, not a
+   prompt defect: the phrase is present, with a capital N — see the prompt printed in
+   evidence/service-checks.txt and in the failure text itself.
+
+3. TranscriptionLanguageGateTests.testEachSpokenLanguageIsRewrittenInItsOwnLanguage()
+   at OpenSuperWhisperTests/TranscriptionLanguageGateTests.swift:124
+
+   XCTAssertEqual failed: ("[\"Rewrite this dictated text in a formal register. Keep its language (Polish), the speaker, every fact and every number exactly as dictated. Output only the rewritten text.\n\n<<<TRANSCRIPT\nCześć, jak się masz?\nTRANSCRIPT>>>\", \"Rewrite this dictated text in a formal register. Keep its language (English), the speaker, every fact and every number exactly as dictated. Output only the rewritten text.\n\n<<<TRANSCRIPT\nPlease send the report.\nTRANSCRIPT>>>\"]") is not equal to ("[\"Cześć, jak się masz?\", \"Please send the report.\"]") - each transcription is what the model is given
+
+   Assertion: XCTAssertEqual(recorder.texts, [polishText, englishText], "each transcription is what the model is given")
+   Mechanism: part B of this branch frames the user turn, so the service hands the model the framed
+   <<<TRANSCRIPT …>>> turn instead of the bare transcript. This file was not among the four the branch
+   edited, so its expectation still pins the pre-framing behaviour. Stale test, not a behaviour defect — the
+   recorder shows the frame carrying the correct transcript. Not changed here.
+
+BUNDLE IDENTITY (the re-sign step ran)
+=====================================
+dev-run.sh's own re-sign output, /tmp/fm2411-suite.log:20959-20972:
+
+/Volumes/home/zenon/Projects/OpenSuperWhisper-fork/worktrees/OpenSuperWhisper-fm-tone/build/Build/Products/Debug/OpenSuperWhisper.app: replacing existing signature
+…
+Signature OK.
+  identity:              OpenSuperWhisper Local Dev
+  designated requirement: identifier "ru.starmel.OpenSuperWhisper.dev" and certificate leaf = H"32266bcc51546f68f9347324bd3c81d853fde5a4"
+
+and, run again afterwards by this session:
+
+$ codesign -d -r- build/Build/Products/Debug/OpenSuperWhisper.app
+designated => identifier "ru.starmel.OpenSuperWhisper.dev" and certificate leaf = H"32266bcc51546f68f9347324bd3c81d853fde5a4"
+$ codesign -dv build/Build/Products/Debug/OpenSuperWhisper.app
+Identifier=ru.starmel.OpenSuperWhisper.dev
+CodeDirectory v=20400 size=146200 flags=0x0(none) hashes=4558+7 location=embedded
+Signature size=1717
+TeamIdentifier=not set
+$ codesign --verify --deep --strict build/Build/Products/Debug/OpenSuperWhisper.app
+(exit 0)
+$ spctl -a -vv build/Build/Products/Debug/OpenSuperWhisper.app
+build/Build/Products/Debug/OpenSuperWhisper.app: rejected
+origin=OpenSuperWhisper Local Dev
+
+`certificate leaf`, NOT `cdhash`: the identity-signing step ran and the bundle satisfies its Designated
+Requirement. The `spctl` rejection is expected for a locally minted identity that Apple has not notarised;
+it is not a signature defect (codesign --verify --deep --strict exits 0).
+
+The dev keychain unlocked without help this session (the previous attempt's blocker is gone):
+
+$ security unlock-keychain -p "$(cat ~/.opensuperwhisper-dev/keychain-password)" \
+      ~/Library/Keychains/opensuperwhisper-dev.keychain-db ; echo $?
+0
+$ security find-identity -v -p codesigning ~/Library/Keychains/opensuperwhisper-dev.keychain-db
+  1) 32266BCC51546F68F9347324BD3C81D853FDE5A4 "OpenSuperWhisper Local Dev"
+     1 valid identities found

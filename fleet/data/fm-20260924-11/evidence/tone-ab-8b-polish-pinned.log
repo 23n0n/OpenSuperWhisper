@@ -1,0 +1,140 @@
+====================================================================================================
+[formal] in : wyślij raport do klienta dzisiaj
+      old(0.2): Wyślij raport do klienta dzisiaj.
+      v1 (0.2): Wyślij raport do klienta dzisiaj.
+      v2 (0.0): Wyślij raport do klienta dzisiaj.
+====================================================================================================
+[formal] in : czy możemy przenieść spotkanie na przyszły tydzień
+      old(0.2): Czy możemy przenieść spotkanie na przyszły tydzień?
+      v1 (0.2): Czy możemy przenieść spotkanie na przyszły tydzień?
+      v2 (0.0): Czy możemy przenieść spotkanie na przyszły tydzień?
+====================================================================================================
+[formal] in : Proszę o wysłanie raportu do klienta jeszcze dziś oraz o przesłanie mi kopii odpowiedzi.
+      old(0.2): Proszę o wysłanie raportu do klienta jeszcze dziś oraz o przesłanie mi kopii odpowiedzi.
+      v1 (0.2): Proszę o wysłanie raportu do klienta jeszcze dziś oraz o przesłanie mi kopii odpowiedzi.
+      v2 (0.0): Proszę o wysłanie raportu do klienta jeszcze dziś oraz o przesłanie mi kopii odpowiedzi.
+====================================================================================================
+[casual] in : no więc myślę że po prostu powinniśmy to wypuścić w piątek jeśli nic się nie zepsuje
+      old(0.2): no więc myślę, że po prostu powinniśmy to wypuścić w piątek, jeśli nic się nie zepsuje
+      v1 (0.2): no więc myślę, że po prostu powinniśmy to wypuścić w piątek, jeśli nic się nie zepsuje
+      v2 (0.0): no więc myślę, że po prostu powinniśmy to wypuścić w piątek, jeśli nic się nie zepsuje
+====================================================================================================
+[casual] in : numer faktury to 423 a kwota to trzy tysiące złotych
+      old(0.2): numer faktury to 423 a kwota to trzy tysiące złotych
+      v1 (0.2): numer faktury to 423, a kwota to trzy tysiące złotych
+      v2 (0.0): numer faktury to 423 a kwota to trzy tysiące złotych
+====================================================================================================
+[neutral] in : yyy no więc w sumie chciałem powiedzieć że że wdrożenie jest zrobione
+      old(0.2): yyy no więc w sumie chciałem powiedzieć, że wdrożenie jest zrobione
+      v1 (0.2): yyy nie więc w sumie chciałem powiedzieć, że wdrożenie jest zrobione
+      v2 (0.0): yyy no więc w sumie chciałem powiedzieć, że wdrożenie jest zrobione
+====================================================================================================
+[formal] in : no więc plan jest taki najpierw testujemy potem wdrażamy a potem patrzymy w logi
+      old(0.2): Najpierw testujemy, potem wdrażamy, a potem patrzymy w logi.
+      v1 (0.2): Zatem plan jest taki: najpierw przeprowadzamy testy, następnie wdrażamy, a potem analizujemy logi.
+      v2 (0.0): Zatem plan jest taki, najpierw testujemy, potem wdrażamy, a potem patrzymy w logi.
+====================================================================================================
+[formal] in : Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+      old(0.2): Dobra wiadomość to taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+      v1 (0.2): Dobra wiadomość to fakt, że odzyskałem swój polski. Udało mi się stworzyć fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+      v2 (0.0): Dobra wiadomość to fakt, że odzyskałem swój polski. Udało mi się stworzyć fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+====================================================================================================
+[casual] in : Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+      old(0.2): Dobra wiadomość to taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+      v1 (0.2): Dobra wiadomość to taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+      v2 (0.0): Dobra wiadomość to taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+====================================================================================================
+[neutral] in : Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+      old(0.2): Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+      v1 (0.2): Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+      v2 (0.0): Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+====================================================================================================
+[formal] in : Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+      old(0.2): Dobra, ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że przekląłeś po całości.
+      v1 (0.2): Dobra, ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że po całości pieprzyłeś.
+      v2 (0.0): Dobry wieczór, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że przekląłeś po całości.
+====================================================================================================
+[casual] in : Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+      old(0.2): Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+      v1 (0.2): Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+      v2 (0.0): Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+====================================================================================================
+[neutral] in : Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+      old(0.2): Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że przekląłeś po całości.
+      v1 (0.2): Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+      v2 (0.0): Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+====================================================================================================
+[formal] in : Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+      old(0.2): Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+      v1 (0.2): Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+      v2 (0.0): Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+====================================================================================================
+[casual] in : Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+      old(0.2): Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+      v1 (0.2): Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+      v2 (0.0): Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+====================================================================================================
+[neutral] in : Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+      old(0.2): Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+      v1 (0.2): Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+      v2 (0.0): Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+====================================================================================================
+[formal] in : Mogę coś zarzucić za jej w tle.
+      old(0.2): Mogę coś zarzucić za jej w tle.
+      v1 (0.2): Mogę coś zarzucić za jej w tle.
+      v2 (0.0): Mogę coś załadować za jej w tle.
+====================================================================================================
+[casual] in : Mogę coś zarzucić za jej w tle.
+      old(0.2): Mogę coś zarzucić za jej w tle.
+      v1 (0.2): Mogę coś zarzucić za jej w tle.
+      v2 (0.0): Mogę coś zarzucić za jej w tle.
+====================================================================================================
+[neutral] in : Mogę coś zarzucić za jej w tle.
+      old(0.2): Mogę coś zarzucić za jej w tle.
+      v1 (0.2): Mogę coś zarzucić za jej w tle.
+      v2 (0.0): Mogę coś zarzucić za jej w tle.
+====================================================================================================
+[formal] in : Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+      old(0.2): Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+      v1 (0.2): Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+      v2 (0.0): Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+====================================================================================================
+[casual] in : Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+      old(0.2): Teraz nagrywam po polsku, sprawdzam jak to działa.
+      v1 (0.2): Teraz nagrywam po polsku, sprawdzam jak to działa.
+      v2 (0.0): Teraz nagrywam po polsku, sprawdzam jak to działa.
+====================================================================================================
+[neutral] in : Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+      old(0.2): Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+      v1 (0.2): Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+      v2 (0.0): Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+====================================================================================================
+[formal] in : Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+      old(0.2): Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+      v1 (0.2): Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+      v2 (0.0): Teraz gram w języku polskim, teraz nagrywam w języku polskim.
+====================================================================================================
+[casual] in : Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+      old(0.2): Teraz podgrywam po polsku, teraz nagrywam po polsku.
+      v1 (0.2): Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+      v2 (0.0): Teraz graję w języku polskim, teraz nagrywam w języku polskim.
+====================================================================================================
+[neutral] in : Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+      old(0.2): Teraz gram w języku polskim, teraz nagrywam w języku polskim.
+      v1 (0.2): Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+      v2 (0.0): Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+====================================================================================================
+[formal] in : Teraz próbuję coś nagrać.
+      old(0.2): Teraz próbuję coś nagrać.
+      v1 (0.2): Teraz próbuję coś nagrać.
+      v2 (0.0): Teraz próbuję coś nagrać.
+====================================================================================================
+[casual] in : Teraz próbuję coś nagrać.
+      old(0.2): Teraz próbuję coś nagrać.
+      v1 (0.2): Teraz próbuję coś nagrać.
+      v2 (0.0): Teraz próbuję coś nagrać.
+====================================================================================================
+[neutral] in : Teraz próbuję coś nagrać.
+      old(0.2): Teraz próbuję coś nagrać.
+      v1 (0.2): Teraz próbuję coś nagrać.
+      v2 (0.0): Teraz próbuję coś nagrać.

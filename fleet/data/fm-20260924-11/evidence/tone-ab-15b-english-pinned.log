@@ -1,0 +1,55 @@
+====================================================================================================
+[formal] in : send the report tomorrow
+      old(0.2): send the report tomorrow
+      v1 (0.2): send the report tomorrow
+      v2 (0.0): send the report tomorrow
+====================================================================================================
+[formal] in : can we move the meeting to next week
+      old(0.2): can we schedule the meeting for next week?
+      v1 (0.2): Can we schedule the meeting for next week?
+      v2 (0.0): can we schedule the meeting for next week?
+====================================================================================================
+[formal] in : Please send the report to the client today, and copy me on the reply.
+      old(0.2): Please transmit the report to the client immediately, and forward a copy to me in response.
+      v1 (0.2): Please send the report to the client today, and copy me on the reply.
+      v2 (0.0): Please send the report to the client today, and also copy me on the reply.
+====================================================================================================
+[casual] in : I think we should probably just ship it on friday if nothing breaks
+      old(0.2): I reckon we should just ship it on Friday if nothing breaks.
+      v1 (0.2): I reckon we should just ship it on Friday if nothing breaks.
+      v2 (0.0): I reckon we should ship it on Friday if nothing breaks.
+====================================================================================================
+[casual] in : the invoice number is 423 and the amount is three thousand zloty
+      old(0.2): The invoice number is 423, and the amount is three thousand zloty.
+      v1 (0.2): invoice number is 423, amount is three thousand zloty.
+      v2 (0.0): The invoice number is 423, and the amount is three thousand zloty.
+====================================================================================================
+[neutral] in : um so basically I wanted to say that the the deployment is done
+      old(0.2): um, basically, I wanted to say that the deployment is done
+      v1 (0.2): basically, the deployment is done.
+      v2 (0.0): um, basically, the deployment is done
+====================================================================================================
+[formal] in : ok so the plan is first we test then we deploy and then we watch the logs
+      old(0.2): OK, the plan is to first test, then deploy, and finally monitor the logs.
+      v1 (0.2): The plan is first to test, then to deploy, and finally to observe the logs.
+      v2 (0.0): Understood.
+====================================================================================================
+[formal] in : The problem is only with polish.
+      old(0.2): The issue pertains solely to the polish.
+      v1 (0.2): The issue pertains solely to Poland.
+      v2 (0.0): The issue pertains solely to the polish.
+====================================================================================================
+[formal] in : keyboard simulation is working from time to time. It's not always working.
+      old(0.2): The keyboard simulation is functioning intermittently. It does not always function as expected.
+      v1 (0.2): Keyboard simulation is occasionally functioning. It does not always function.
+      v2 (0.0): keyboard simulation is intermittently functioning. it is not consistently operational.
+====================================================================================================
+[casual] in : dispatch prod after you finish
+      old(0.2): dispatch prod after you're done
+      v1 (0.2): dispatch prod after you finish
+      v2 (0.0): dispatch prod after you're done
+====================================================================================================
+[formal] in : Also add feature to ignore pauses. Basically how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+      old(0.2): Also add a feature to ignore pauses. Essentially, this creates a sentence without a sense due to my long pauses. The pauses need to be ignored.
+      v1 (0.2): Also add a feature to ignore pauses. Essentially, it creates a sentence without a sense due to my long pauses. The pauses need to be ignored.
+      v2 (0.0): Also add a feature to ignore pauses. Essentially, this will create a sentence without a sense due to my long pauses. The pauses need to be ignored.

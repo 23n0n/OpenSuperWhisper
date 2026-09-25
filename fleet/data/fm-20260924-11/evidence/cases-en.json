@@ -1,0 +1,68 @@
+[
+ {
+  "id": "en-imperative",
+  "tone": "formal",
+  "text": "send the report tomorrow",
+  "note": "adversarial: imperative"
+ },
+ {
+  "id": "en-question",
+  "tone": "formal",
+  "text": "can we move the meeting to next week",
+  "note": "adversarial: question"
+ },
+ {
+  "id": "en-already-formal",
+  "tone": "formal",
+  "text": "Please send the report to the client today, and copy me on the reply.",
+  "note": "adversarial: already in register"
+ },
+ {
+  "id": "en-run-on",
+  "tone": "casual",
+  "text": "I think we should probably just ship it on friday if nothing breaks",
+  "note": "adversarial: run-on"
+ },
+ {
+  "id": "en-numbers",
+  "tone": "casual",
+  "text": "the invoice number is 423 and the amount is three thousand zloty",
+  "note": "adversarial: numbers"
+ },
+ {
+  "id": "en-filler",
+  "tone": "neutral",
+  "text": "um so basically I wanted to say that the the deployment is done",
+  "note": "adversarial: filler"
+ },
+ {
+  "id": "en-plan-run-on",
+  "tone": "formal",
+  "text": "ok so the plan is first we test then we deploy and then we watch the logs",
+  "note": "adversarial: run-on, the one the 1.5B collapsed to 'Understood.'"
+ },
+ {
+  "id": "en-real-problem-polish",
+  "tone": "formal",
+  "text": "The problem is only with polish.",
+  "note": "captain's real dictation"
+ },
+ {
+  "id": "en-real-keyboard",
+  "tone": "formal",
+  "text": "keyboard simulation is working from time to time. It's not always working.",
+  "note": "captain's real dictation"
+ },
+ {
+  "id": "en-real-dispatch",
+  "tone": "casual",
+  "text": "dispatch prod after you finish",
+  "note": "captain's real dictation"
+ },
+ {
+  "id": "en-real-pauses",
+  "tone": "formal",
+  "text": "Also add feature to ignore pauses. Basically how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.",
+  "note": "captain's real dictation"
+ }
+]

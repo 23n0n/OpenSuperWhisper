@@ -92,12 +92,25 @@ git -C <worktree> -c protocol.file.allow=always submodule update --init --recurs
 Work in that worktree ONLY. **Headless only:** never launch the app, never `osascript`, never `screencapture`, never
 `Scripts/dev-run.sh` without a mode argument.
 
-## Time gate
+## Time gate — ask the guard, never the clock
 
-The provider bills peak rates during **01:00–04:00 and 06:00–10:00 UTC, Monday to Friday**. Cheap steps run any
-time; gate every expensive step (decoding his recordings, `llama-server`, the full suite) behind `date -u` and, if
-the hour is 06–09 UTC, one shell sleep until 10:00 UTC. **At the peak boundary the captain wants work stopped, not
-carried over:** if a window closes mid-task, commit what is coherent, report exactly what is left, and stop.
+Peak windows are handled by an installed guard, not by your arithmetic:
+`python3 ~/.omp/agent/skills/deepseek-peak-hours/peak_hours.py status` (exit 0 = off-peak, 3 = peak). **Off-peak:**
+proceed, no confirmation, no sleep. **Peak:** commit what is coherent, stop, and report — do not sleep a window out
+and do not carry work across the boundary unless the captain has approved that window (`/peak approve`).
+
+The rule bites on provider **token spend**, not on local work: decoding his recordings, `llama-server` and
+`xcodebuild` cost no tokens, but every tool call implies a turn. Today, 2026-09-25, is a Chinese public holiday, so
+the whole day is off-peak; the next peak is Mon 2026-09-28 01:00 UTC. This supersedes the older instruction to
+"sleep until 10:00 UTC".
+
+**Machine contention, not billing, is the real gate right now.** A sibling crew is working the tone branch in
+`worktrees/OpenSuperWhisper-fm-tone` (a fix pass, then its own full suite and a `llama-server` measurement). Before you
+start a build, a model load or a decoding run, confirm that **both** of these hold: `/tmp/fm2412-tone-fix-suite.log`
+exists and ends in `** TEST SUCCEEDED **` or `** TEST FAILED **`, and no `llama-server` process is alive. Until then do
+the reading, the design and the pure-function test work — that is a real part of this task and needs no build. Wait with
+a single `sleep 60` loop (never a busy-wait), and if the sibling is still busy after 45 minutes, report where you got to
+rather than starting a second build.
 
 ## Delegation guard
 

@@ -1,0 +1,27 @@
+| model | lang | case | tone | prompt | input lang | output lang | guard | unchanged | added | dropped |
+|---|---|---|---|---|---|---|---|---|---|---|
+| qwen3-8b-q4_k_m.gguf | english | en-imperative | formal | old | english | english | ok | no | please | — |
+| qwen3-8b-q4_k_m.gguf | english | en-imperative | formal | new | english | english | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-question | formal | old | english | english | ok | no | may reschedule | can move |
+| qwen3-8b-q4_k_m.gguf | english | en-question | formal | new | english | english | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-already-formal | formal | old | english | english | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-already-formal | formal | new | english | english | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-run-on | casual | old | english | english | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-run-on | casual | new | english | english | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-numbers | casual | old | english | english | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-numbers | casual | new | english | english | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-filler | neutral | old | english | english | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-filler | neutral | new | english | english | ok | no | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-plan-run-on | formal | old | english | english | ok | no | monitor to | ok so watch we |
+| qwen3-8b-q4_k_m.gguf | english | en-plan-run-on | formal | new | english | english | ok | no | to | ok so we |
+| qwen3-8b-q4_k_m.gguf | english | en-real-problem-polish | formal | old | english | english | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-real-problem-polish | formal | new | english | english | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-real-keyboard | formal | old | english | english | ok | no | consistently functioning intermittently operational | always from s time to working |
+| qwen3-8b-q4_k_m.gguf | english | en-real-keyboard | formal | new | english | english | ok | no | — | s |
+| qwen3-8b-q4_k_m.gguf | english | en-real-dispatch | casual | old | english | english | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-real-dispatch | casual | new | english | english | ok | yes | — | — |
+| qwen3-8b-q4_k_m.gguf | english | en-real-pauses | formal | old | english | english | ok | no | — | how |
+| qwen3-8b-q4_k_m.gguf | english | en-real-pauses | formal | new | english | english | ok | no | — | — |
+
+qwen3-8b-q4_k_m.gguf / english / old: 11 outputs, 0 guard rejections , 0 detector-verdict changes 
+qwen3-8b-q4_k_m.gguf / english / new: 11 outputs, 0 guard rejections , 0 detector-verdict changes 

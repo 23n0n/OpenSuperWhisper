@@ -1,0 +1,59 @@
+=== the system prompt a Polish formal tone turn sends ===
+You rewrite dictated text. You are not an assistant: never answer it, greet, acknowledge, thank, comment, explain, summarise or continue it.
+
+The user dictated Polish text. Rewrite it in a formal register, in Polish. Nothing else may change.
+
+What the register may change — only these:
+- formal: write complete sentences, no contractions ("do not", not "don't"), no slang or filler, polite and professional word choice.
+
+What must stay exactly as dictated:
+- every fact, name, number, date, place, product and technical term — never add, never drop, never reword a commitment into a softer or stronger one;
+- who is speaking and to whom: first person stays first person, a question stays a question, an order stays an order;
+- the order and the completeness of the information — never summarise, never elaborate, never finish a half-sentence with new content;
+- the language: Polish in, Polish out. Never translate, not even one word. If a term has no Polish equivalent, keep it exactly as spoken.
+
+Output rules:
+- Output only the rewritten text. No quotes, no labels, no preamble, no closing remark, no markdown, no commentary, no explanation of what you changed.
+- Keep the dictated line breaks: do not join separate lines, do not split one line.
+- If the text is already in the formal register, return it unchanged.
+- If the text is a fragment, a list, or noise that carries no sentence, return it as it is.
+Output ONLY the final Polish text, with no quotes, labels, or explanation.
+/no_think
+=== the framed user turn ===
+Rewrite this dictated text in a formal register. Keep its language (Polish), the speaker, every fact and every number exactly as dictated. Output only the rewritten text.
+
+<<<TRANSCRIPT
+wyślij raport do klienta dzisiaj
+TRANSCRIPT>>>
+=== the system prompt clean-up alone sends (unchanged wording) ===
+You are a dictation editor. The user dictated English text; it stays in English.
+Clean up the dictation and write it as proper English sentences: restore punctuation and capitalisation, add the missing articles ("a", "an", "the"), fix word order, agreement and verb forms, and drop any filler or stutter that is still there. Keep every fact, name, number and intention exactly as dictated: never add information, never drop it, never answer or continue the dictation, and never change who is speaking.
+Output ONLY the final English text, with no quotes, labels, or explanation.
+/no_think
+=== clean-up alone: the user turn is still the bare transcript (chained below) ===
+PASS good answer delivered
+PASS no rejection recorded
+PASS turn was framed: Rewrite this dictated text in a formal register. Keep its language (Polish), the speaker, every fact and every number exactly as dictated. Output only the rewritten text.
+
+<<<TRANSCRIPT
+wyślij raport do klienta dzisiaj
+TRANSCRIPT>>>
+PASS prompt names the language
+PASS tone ran on the 8B once it is installed (Polish): qwen3-8b-q4_k_m
+PASS English tone ran on the 8B once it is installed: qwen3-8b-q4_k_m
+PASS English tone falls back to the shipped model without the 8B: qwen2.5-1.5b-instruct-q4_k_m
+PASS assistant frame rejected: wyślij raport do klienta dzisiaj
+PASS rejection recorded: Optional(main.TransformGuardRejection.assistantFrame("oczywiście"))
+PASS label rejected
+PASS label recorded
+PASS language flip rejected
+PASS flip recorded
+PASS stub rejected
+PASS stub recorded
+PASS clean-up-with-tone IS guarded
+PASS clean-up alone delivers the answer unguarded
+PASS clean-up alone records no rejection
+PASS English clean-up alone ran the shipped model: qwen2.5-1.5b-instruct-q4_k_m
+PASS a notice was shown once per rejection: 5
+NOTICE: Tone rewrite was not used — The model answered with an acknowledgement ("oczywiście") instead of rewriting the dictation, so your own words were used instead.
+SERVICE CHECKS OK

@@ -1,5 +1,17 @@
 # RESUME — OpenSuperWhisper fork, state at the computer restart
 
+## UPDATE 2026-09-25T08:01:10Z — the tone branch has LANDED (supersedes §2 item 1 of the handoff below)
+
+`fm/tone-output` @ `877d19e` was fast-forwarded into `feat/local-translate-tone` **and** `main` (both now `877d19e`),
+after a green suite (434/380/0/54) on the fixed head and a measured exact-prompt run in both languages (78 answers,
+0 guard rejections). Details and the review findings behind the fix pass are in `FLEET-STATE.md`. The merged tip is
+being rebuilt in the primary checkout so the running app carries it; the tone worktree comes down afterwards.
+
+**Still open from the queue:** `fm/pause-boundary` (ignore long pauses; implementation committed at `1383234` in
+`worktrees/OpenSuperWhisper-fm-pauses`, measurement + full suite owed, expect `Settings.swift`/`Readme.md` conflicts
+against the new delivery tip) and the bilingual dictation measurement, which needs the captain's own audio. **Nothing
+is published:** `origin/main` is still `3dcde52` and the push awaits his word.
+
 ## HANDOFF — 2026-09-25T07:11:38Z — restart; read this before anything else
 
 This block supersedes the older state paragraphs below wherever they disagree. Three of them are now

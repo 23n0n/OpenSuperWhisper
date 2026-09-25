@@ -1,0 +1,170 @@
+[
+ {
+  "id": "pl-imperative",
+  "tone": "formal",
+  "text": "wyślij raport do klienta dzisiaj",
+  "note": "adversarial: imperative"
+ },
+ {
+  "id": "pl-question",
+  "tone": "formal",
+  "text": "czy możemy przenieść spotkanie na przyszły tydzień",
+  "note": "adversarial: question"
+ },
+ {
+  "id": "pl-already-formal",
+  "tone": "formal",
+  "text": "Proszę o wysłanie raportu do klienta jeszcze dziś oraz o przesłanie mi kopii odpowiedzi.",
+  "note": "adversarial: already in register"
+ },
+ {
+  "id": "pl-run-on",
+  "tone": "casual",
+  "text": "no więc myślę że po prostu powinniśmy to wypuścić w piątek jeśli nic się nie zepsuje",
+  "note": "adversarial: run-on"
+ },
+ {
+  "id": "pl-numbers",
+  "tone": "casual",
+  "text": "numer faktury to 423 a kwota to trzy tysiące złotych",
+  "note": "adversarial: numbers"
+ },
+ {
+  "id": "pl-filler",
+  "tone": "neutral",
+  "text": "yyy no więc w sumie chciałem powiedzieć że że wdrożenie jest zrobione",
+  "note": "adversarial: filler"
+ },
+ {
+  "id": "pl-plan-run-on",
+  "tone": "formal",
+  "text": "no więc plan jest taki najpierw testujemy potem wdrażamy a potem patrzymy w logi",
+  "note": "adversarial: run-on"
+ },
+ {
+  "id": "pl-real-odzyskalem-formal",
+  "tone": "formal",
+  "text": "Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.",
+  "note": "captain's real Polish dictation, formal register"
+ },
+ {
+  "id": "pl-real-odzyskalem-casual",
+  "tone": "casual",
+  "text": "Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.",
+  "note": "captain's real Polish dictation, casual register"
+ },
+ {
+  "id": "pl-real-odzyskalem-neutral",
+  "tone": "neutral",
+  "text": "Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.",
+  "note": "captain's real Polish dictation, neutral register"
+ },
+ {
+  "id": "pl-real-ziameczku-formal",
+  "tone": "formal",
+  "text": "Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.",
+  "note": "captain's real Polish dictation, formal register"
+ },
+ {
+  "id": "pl-real-ziameczku-casual",
+  "tone": "casual",
+  "text": "Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.",
+  "note": "captain's real Polish dictation, casual register"
+ },
+ {
+  "id": "pl-real-ziameczku-neutral",
+  "tone": "neutral",
+  "text": "Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.",
+  "note": "captain's real Polish dictation, neutral register"
+ },
+ {
+  "id": "pl-real-jeszcze-raz-formal",
+  "tone": "formal",
+  "text": "Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.",
+  "note": "captain's real Polish dictation, formal register"
+ },
+ {
+  "id": "pl-real-jeszcze-raz-casual",
+  "tone": "casual",
+  "text": "Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.",
+  "note": "captain's real Polish dictation, casual register"
+ },
+ {
+  "id": "pl-real-jeszcze-raz-neutral",
+  "tone": "neutral",
+  "text": "Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.",
+  "note": "captain's real Polish dictation, neutral register"
+ },
+ {
+  "id": "pl-real-zarzucic-formal",
+  "tone": "formal",
+  "text": "Mogę coś zarzucić za jej w tle.",
+  "note": "captain's real Polish dictation, formal register"
+ },
+ {
+  "id": "pl-real-zarzucic-casual",
+  "tone": "casual",
+  "text": "Mogę coś zarzucić za jej w tle.",
+  "note": "captain's real Polish dictation, casual register"
+ },
+ {
+  "id": "pl-real-zarzucic-neutral",
+  "tone": "neutral",
+  "text": "Mogę coś zarzucić za jej w tle.",
+  "note": "captain's real Polish dictation, neutral register"
+ },
+ {
+  "id": "pl-real-nagrywam-formal",
+  "tone": "formal",
+  "text": "Teraz nagrywam w języku polskim, sprawdzam jak to działa.",
+  "note": "captain's real Polish dictation, formal register"
+ },
+ {
+  "id": "pl-real-nagrywam-casual",
+  "tone": "casual",
+  "text": "Teraz nagrywam w języku polskim, sprawdzam jak to działa.",
+  "note": "captain's real Polish dictation, casual register"
+ },
+ {
+  "id": "pl-real-nagrywam-neutral",
+  "tone": "neutral",
+  "text": "Teraz nagrywam w języku polskim, sprawdzam jak to działa.",
+  "note": "captain's real Polish dictation, neutral register"
+ },
+ {
+  "id": "pl-real-podgrywam-formal",
+  "tone": "formal",
+  "text": "Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.",
+  "note": "captain's real Polish dictation, formal register"
+ },
+ {
+  "id": "pl-real-podgrywam-casual",
+  "tone": "casual",
+  "text": "Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.",
+  "note": "captain's real Polish dictation, casual register"
+ },
+ {
+  "id": "pl-real-podgrywam-neutral",
+  "tone": "neutral",
+  "text": "Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.",
+  "note": "captain's real Polish dictation, neutral register"
+ },
+ {
+  "id": "pl-real-probuje-formal",
+  "tone": "formal",
+  "text": "Teraz próbuję coś nagrać.",
+  "note": "captain's real Polish dictation, formal register"
+ },
+ {
+  "id": "pl-real-probuje-casual",
+  "tone": "casual",
+  "text": "Teraz próbuję coś nagrać.",
+  "note": "captain's real Polish dictation, casual register"
+ },
+ {
+  "id": "pl-real-probuje-neutral",
+  "tone": "neutral",
+  "text": "Teraz próbuję coś nagrać.",
+  "note": "captain's real Polish dictation, neutral register"
+ }
+]
