@@ -54,14 +54,16 @@ final class FreshInstallModelTests: XCTestCase {
     }
 
     /// A real, loadable model in the app's own directory, standing in for one the
-    /// user downloaded: hard-linked from the bundle, under a name of its own, so
-    /// nothing is copied and the file can never be confused with the bundled
-    /// copy. (The bytes are the bundled model's; which weights they are is not
-    /// what this test is about — the selection surviving a launch is.)
+    /// user downloaded, under a name of its own so it can never be confused with
+    /// the bundled copy. (The bytes are the bundled model's; which weights they
+    /// are is not what this test is about — the selection surviving a launch is.)
+    ///
+    /// Copied, not hard-linked: the scratch directory is `TMPDIR` and the built
+    /// bundle can be on another volume, where a link fails with EXDEV.
     private func modelAsIfDownloaded() throws -> URL {
         let destination = fixtureDirectory.appendingPathComponent("ggml-base.en.bin")
         try? FileManager.default.removeItem(at: destination)
-        try FileManager.default.linkItem(at: try bundledModel(), to: destination)
+        try FileManager.default.copyItem(at: try bundledModel(), to: destination)
         return destination
     }
 
