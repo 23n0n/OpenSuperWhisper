@@ -270,8 +270,10 @@ final class TransformService {
         let didRunModel: Bool
         /// Why a tone answer was thrown away in favour of the transcript, or
         /// `nil` when the answer was used (or no tone ran). The dictation report
-        /// shows this next to the notice the user saw.
-        let guardRejection: TransformGuardRejection? = nil
+        /// shows this next to the notice the user saw. A `var` with a default so
+        /// the memberwise initializer carries it as an optional parameter — a
+        /// `let` with a default is dropped from it entirely.
+        var guardRejection: TransformGuardRejection? = nil
     }
 
     /// The only entry point used by the UI.
