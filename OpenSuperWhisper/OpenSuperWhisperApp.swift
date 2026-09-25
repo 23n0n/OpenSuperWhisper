@@ -52,11 +52,28 @@ struct OpenSuperWhisperApp: App {
     }
 
     init() {
-        guard !Self.isRunningTests else { return }
+        // A test host exits without `applicationShouldTerminate`, so a model that a
+        // shared runtime still holds is resident while ggml tears down its Metal
+        // device, and upstream asserts there — `ggml_metal_rsets_free`, "most likely
+        // you haven't deallocated all Metal resources before exiting". The host then
+        // aborts after an otherwise green run. `atexit` runs before C++ static
+        // destructors, which is the order upstream expects.
+        if Self.isRunningTests {
+            atexit(releaseEngineResourcesAtExit)
+            return
+        }
         _ = ShortcutManager.shared
         _ = MicrophoneService.shared
         WhisperModelManager.shared.ensureDefaultModelPresent()
     }
+}
+
+/// Releases the weights a shared runtime is holding, for the exit path described in
+/// `OpenSuperWhisperApp.init`. `TransformRuntime.unload()` is synchronous and
+/// serialised on the runtime's own queue, so it also waits for work still running at
+/// exit instead of freeing underneath it.
+private func releaseEngineResourcesAtExit() {
+    TransformRuntime.shared.unload()
 }
 
 extension OpenSuperWhisperApp {
