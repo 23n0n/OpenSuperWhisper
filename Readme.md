@@ -264,7 +264,8 @@ plus llama.cpp for tone and clean-up) is linked into the app, its Metal
 shaders are embedded in it, and neither needs Homebrew, a background server or a
 listening port. Speech models (and, if you use the tone or clean-up switches, the
 rewrite models: ~1 GB for the model every language can run on, plus an optional
-~5 GB 8B that Polish prefers) are downloaded by the app into its own folder on
+~5 GB 8B that tone rewrites prefer in both languages and Polish clean-up prefers)
+are downloaded by the app into its own folder on
 first use.
 
 On first launch macOS asks for the two permissions the app needs:
