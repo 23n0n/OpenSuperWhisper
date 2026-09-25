@@ -255,8 +255,8 @@ final class TransformServiceTests: XCTestCase {
             reference: "Zenon"
         )
 
-        XCTAssertTrue(system.contains("Rewrite it in a casual tone"), system)
-        XCTAssertTrue(system.contains(ToneMode.casual.instruction), system)
+        XCTAssertTrue(system.contains("Rewrite it in a casual register, in Polish"), system)
+        XCTAssertTrue(system.contains(ToneMode.casual.registerDefinition), system)
         XCTAssertTrue(system.contains("Clean up the dictation and write it as proper Polish sentences"), system)
         XCTAssertTrue(system.contains("Reference"), system)
         XCTAssertTrue(system.contains("Zenon"), system)
