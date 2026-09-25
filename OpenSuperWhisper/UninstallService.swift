@@ -22,8 +22,10 @@ enum UninstallError: Error, LocalizedError {
 /// `packaging/uninstall.sh`, which the app also carries as a resource. An app
 /// cannot delete the bundle it is running from, so this copies that script to a
 /// temporary file, starts it detached with the app's own pid, and quits. The
-/// script waits for that pid to disappear, then removes the app, everything the
-/// app wrote in the user's home directory, and the installer receipt.
+/// script waits for that pid to disappear, then removes the app, the models the
+/// package installed, the models the app downloaded and the installer receipt --
+/// and keeps the recordings, the transcriptions database and the settings, which
+/// is why the confirmation sheet lists both what goes and what stays.
 ///
 /// The same script is installed as `/Applications/Uninstall OpenSuperWhisper.command`,
 /// so a user whose app is already in the Trash runs exactly the same code.
@@ -44,6 +46,15 @@ enum UninstallService {
         let scriptMarker: String
     }
 
+    /// One thing the uninstaller keeps, as shown in the confirmation sheet.
+    ///
+    /// Kept is not a footnote: this is the captain's dictation history, and the
+    /// uninstaller that removed it with the app took 87 recordings with it.
+    struct KeptItem {
+        let title: String
+        let detail: String
+    }
+
     /// What uninstalling removes. Nothing outside this list is touched.
     static var removedItems: [RemovedItem] {
         [
@@ -53,23 +64,23 @@ enum UninstallService {
                 scriptMarker: "Applications/$APP_NAME.app"
             ),
             RemovedItem(
-                title: "Dictation history",
-                detail: "recordings and the transcriptions database",
-                scriptMarker: "Library/Application Support/$BUNDLE_ID"
+                title: "The uninstall command",
+                detail: "/Applications/Uninstall OpenSuperWhisper.command",
+                scriptMarker: "Applications/Uninstall $APP_NAME.command"
             ),
             RemovedItem(
-                title: "Speech and transform models",
-                detail: "everything the app downloaded",
-                scriptMarker: "Library/Application Support/$BUNDLE_ID"
+                title: "Downloaded models",
+                detail: "the speech and transform models the app fetched for itself",
+                scriptMarker: "$SUPPORT_DIR/whisper-models"
             ),
             RemovedItem(
-                title: "Settings",
-                detail: "ru.starmel.OpenSuperWhisper.plist",
-                scriptMarker: "Library/Preferences/$BUNDLE_ID.plist"
+                title: "Model copies from an earlier package",
+                detail: "anything left in /Library/Application Support/ru.starmel.OpenSuperWhisper/Models",
+                scriptMarker: "Library/Application Support/$BUNDLE_ID/Models"
             ),
             RemovedItem(
                 title: "Caches and window state",
-                detail: "caches, HTTP storage, saved state",
+                detail: "caches, HTTP storage, saved state, application scripts",
                 scriptMarker: "Library/Caches/$BUNDLE_ID"
             ),
             RemovedItem(
@@ -80,9 +91,34 @@ enum UninstallService {
         ]
     }
 
+    /// What uninstalling keeps unless it is asked for `--remove-user-data`.
+    ///
+    /// The list is a promise the script has to keep, so the sheet and the script
+    /// name the same thing: the marker is the line the script prints for it, and
+    /// `UninstallServiceTests` asserts it is really in the script.
+    static let keptItems: [KeptItem] = [
+        KeptItem(
+            title: "Your recordings",
+            detail: "the audio you dictated, under ~/Library/Application Support"
+        ),
+        KeptItem(
+            title: "Your transcriptions",
+            detail: "the database behind the history window"
+        ),
+        KeptItem(
+            title: "Your settings",
+            detail: "ru.starmel.OpenSuperWhisper.plist, so the next install finds them"
+        )
+    ]
+
+    /// The literal the uninstaller prints for the directory it keeps.
+    static let keptMarker = "Kept: $SUPPORT_DIR"
+
     /// What uninstalling deliberately leaves alone.
     static let untouchedNote = """
-        Left alone: ~/models, /opt/homebrew and every other application's data.
+        Left alone: ~/models, /opt/homebrew and every other application's data. \
+        A full wipe -- recordings, transcriptions and settings too -- is \
+        `/Applications/Uninstall OpenSuperWhisper.command --remove-user-data`.
         """
 
     /// Starts the uninstaller and returns immediately. The caller quits the app:
@@ -139,7 +175,7 @@ struct UninstallConfirmationSheet: View {
             Text("Uninstall OpenSuperWhisper?")
                 .font(.headline)
 
-            Text("This removes the app and everything it has stored on this Mac. It cannot be undone.")
+            Text("This removes the app, the uninstall command, the models the app downloaded and its caches. It cannot be undone.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -149,6 +185,29 @@ struct UninstallConfirmationSheet: View {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "minus.circle.fill")
                             .foregroundColor(.red)
+                            .font(.system(size: 10))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(item.title)
+                                .font(.system(size: 12))
+                            Text(item.detail)
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.textBackgroundColor).opacity(0.5))
+            .cornerRadius(8)
+
+            // What stays, said as plainly as what goes: this is the part a user
+            // most needs to be sure of before pressing Uninstall.
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(UninstallService.keptItems, id: \.title) { item in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
                             .font(.system(size: 10))
                         VStack(alignment: .leading, spacing: 1) {
                             Text(item.title)

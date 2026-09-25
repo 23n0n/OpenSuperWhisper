@@ -4,8 +4,10 @@
 
   One artifact, one receipt id (ru.starmel.OpenSuperWhisper), no choices: the
   payload is the app plus the uninstall command, and nothing is written to the
-  user's home directory at install time. `@@VERSION@@` is substituted by
-  packaging/build-pkg.sh.
+  user's home directory at install time. The models are downloaded by the app
+  from the URLs and pinned digests it carries; the recordings, the transcriptions
+  database and the settings are the app's to create, and an uninstall keeps them.
+  `@@VERSION@@` is substituted by packaging/build-pkg.sh.
 -->
 <installer-gui-script minSpecVersion="2">
     <title>OpenSuperWhisper @@VERSION@@</title>

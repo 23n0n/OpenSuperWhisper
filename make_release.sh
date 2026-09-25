@@ -284,8 +284,11 @@ cask "opensuperwhisper" do
   # The package's own uninstaller (inside the app, and at
   # /Applications/Uninstall OpenSuperWhisper.command) is the primary operation;
   # this is the Homebrew-side backstop for a cask uninstall. Keep it in step
-  # with packaging/uninstall.sh, which owns the list: the app bundle, its state
-  # and the receipt. It deliberately never touches ~/models or another app.
+  # with packaging/uninstall.sh, which owns the list: the app, the uninstall
+  # command, the installed and downloaded models, the caches and the receipt —
+  # and deliberately not the recordings, the transcriptions or the settings.
+  # `zap` below is the full wipe and is the only thing here that takes them. It
+  # never touches ~/models or another app.
   uninstall quit:    "ru.starmel.OpenSuperWhisper",
             pkgutil: "ru.starmel.OpenSuperWhisper"
 

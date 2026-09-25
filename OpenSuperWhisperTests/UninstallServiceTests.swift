@@ -2,7 +2,8 @@ import XCTest
 @testable import OpenSuperWhisper
 
 /// The app's half of the uninstall contract: the script must be in the bundle,
-/// and the confirmation sheet may only promise what the script actually removes.
+/// the confirmation sheet may only promise what the script actually removes --
+/// and what the sheet says is kept has to be kept.
 final class UninstallServiceTests: XCTestCase {
 
     func testUninstallerScriptShipsInsideTheApp() throws {
@@ -24,6 +25,19 @@ final class UninstallServiceTests: XCTestCase {
                 "the confirmation sheet promises '\(item.title)' (\(item.scriptMarker)) but the uninstaller does not do it"
             )
         }
+    }
+
+    /// Kept is a promise too. The sheet tells the user the recordings, the
+    /// transcriptions and the settings survive, and the script has to be the
+    /// thing that says so.
+    func testTheKeptListIsWhatTheScriptKeeps() throws {
+        let script = try String(contentsOf: try XCTUnwrap(UninstallService.scriptURL), encoding: .utf8)
+
+        XCTAssertFalse(UninstallService.keptItems.isEmpty, "the sheet has to say what stays")
+        XCTAssertTrue(
+            script.contains(UninstallService.keptMarker),
+            "the sheet says the recordings and settings are kept (\(UninstallService.keptMarker)) but the uninstaller does not keep them"
+        )
     }
 
     /// Every removal in the script goes through a path variable that is built
@@ -64,24 +78,62 @@ final class UninstallServiceTests: XCTestCase {
     // touching anything the user owns -- verified from the shell too, by
     // Scripts/verify-packaging.sh.
 
-    func testUninstallRemovesTheScratchInstallAndIsIdempotent() throws {
+    func testUninstallRemovesTheInstallAndIsIdempotent() throws {
         let root = try makeScratchInstall()
 
         let first = try runScript([], root: root)
         XCTAssertEqual(first.status, 0, first.output)
-        XCTAssertFalse(
-            FileManager.default.fileExists(atPath: root.appendingPathComponent("Applications/OpenSuperWhisper.app").path)
-        )
-        XCTAssertFalse(
-            FileManager.default.fileExists(
-                atPath: root.appendingPathComponent("Users/tester/Library/Application Support/ru.starmel.OpenSuperWhisper").path
+
+        for path in removedPaths(in: root) {
+            XCTAssertFalse(
+                FileManager.default.fileExists(atPath: path.path),
+                "\(path.lastPathComponent) should have been removed"
             )
-        )
+        }
 
         // Second run: nothing left to remove, still exit 0.
         let second = try runScript([], root: root)
         XCTAssertEqual(second.status, 0, second.output)
         XCTAssertTrue(second.output.contains("has been removed"))
+    }
+
+    func testUninstallKeepsTheRecordingsAndThePreferences() throws {
+        let root = try makeScratchInstall()
+
+        let result = try runScript([], root: root)
+        XCTAssertEqual(result.status, 0, result.output)
+
+        for path in keptPaths(in: root) {
+            XCTAssertTrue(
+                FileManager.default.fileExists(atPath: path.path),
+                "uninstalling the app must not take \(path.path)"
+            )
+        }
+        XCTAssertTrue(
+            result.output.contains("Kept:"),
+            "the uninstaller has to say what it kept: \(result.output)"
+        )
+    }
+
+    func testRemoveUserDataRemovesTheRecordingsAndThePreferences() throws {
+        let root = try makeScratchInstall()
+
+        let result = try runScript(["--remove-user-data"], root: root)
+        XCTAssertEqual(result.status, 0, result.output)
+
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: supportDirectory(in: root).path),
+            "--remove-user-data is the one thing that takes the recordings and the settings"
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: preferencesPlist(in: root).path),
+            "--remove-user-data has to take the settings too"
+        )
+        // ... and still nothing outside the app's own paths.
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: unrelatedFile(in: root).path),
+            "--remove-user-data must still leave another application's data alone"
+        )
     }
 
     func testUninstallWorksWhenTheAppIsAlreadyGone() throws {
@@ -93,21 +145,21 @@ final class UninstallServiceTests: XCTestCase {
         let result = try runScript([], root: root)
 
         XCTAssertEqual(result.status, 0, result.output)
+        for path in removedPaths(in: root) {
+            XCTAssertFalse(
+                FileManager.default.fileExists(atPath: path.path),
+                "\(path.lastPathComponent) should have been removed even with the app gone"
+            )
+        }
     }
 
     func testUninstallLeavesUnrelatedFilesAlone() throws {
         let root = try makeScratchInstall()
-        let unrelated = root.appendingPathComponent("Users/tester/models/Qwen3-30B-A3B.gguf")
-        try FileManager.default.createDirectory(
-            at: unrelated.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Data("keep me".utf8).write(to: unrelated)
 
         _ = try runScript([], root: root)
 
         XCTAssertTrue(
-            FileManager.default.fileExists(atPath: unrelated.path),
+            FileManager.default.fileExists(atPath: unrelatedFile(in: root).path),
             "the uninstaller must never touch ~/models"
         )
     }
@@ -152,24 +204,109 @@ final class UninstallServiceTests: XCTestCase {
         )
     }
 
-    /// A scratch tree shaped like a real install: the app, the state the app
-    /// writes, and a preferences plist.
+    // MARK: - The scratch tree
+    //
+    // Shaped like a real install: what the package's payload places (the app,
+    // the uninstall command, the models under /Library) and what the app writes
+    // on first use (its own copies of the models, the recordings, the database,
+    // the caches and the preferences).
+
+    private func supportDirectory(in root: URL) -> URL {
+        root.appendingPathComponent("Users/tester/Library/Application Support/ru.starmel.OpenSuperWhisper")
+    }
+
+    private func preferencesDirectory(in root: URL) -> URL {
+        root.appendingPathComponent("Users/tester/Library/Preferences")
+    }
+
+    private func preferencesPlist(in root: URL) -> URL {
+        preferencesDirectory(in: root)
+            .appendingPathComponent("ru.starmel.OpenSuperWhisper.plist")
+    }
+
+    private func shippedModels(in root: URL) -> URL {
+        root.appendingPathComponent("Library/Application Support/ru.starmel.OpenSuperWhisper/Models")
+    }
+
+    private func unrelatedFile(in root: URL) -> URL {
+        root.appendingPathComponent("Users/tester/models/Qwen3-30B-A3B.gguf")
+    }
+
+    /// What the uninstaller has to be gone from the tree after it ran.
+    private func removedPaths(in root: URL) -> [URL] {
+        [
+            root.appendingPathComponent("Applications/OpenSuperWhisper.app"),
+            root.appendingPathComponent("Applications/Uninstall OpenSuperWhisper.command"),
+            shippedModels(in: root),
+            supportDirectory(in: root).appendingPathComponent("whisper-models"),
+            supportDirectory(in: root).appendingPathComponent("transform-models"),
+            root.appendingPathComponent("Users/tester/Library/Caches/ru.starmel.OpenSuperWhisper")
+        ]
+    }
+
+    /// What it has to be still there.
+    private func keptPaths(in root: URL) -> [URL] {
+        [
+            supportDirectory(in: root).appendingPathComponent("recordings/dictation.wav"),
+            supportDirectory(in: root).appendingPathComponent("recordings.sqlite"),
+            preferencesPlist(in: root)
+        ]
+    }
+
     private func makeScratchInstall() throws -> URL {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("osw-uninstall-\(UUID().uuidString)")
-        let support = root.appendingPathComponent("Users/tester/Library/Application Support/ru.starmel.OpenSuperWhisper")
+        let support = supportDirectory(in: root)
         let caches = root.appendingPathComponent("Users/tester/Library/Caches/ru.starmel.OpenSuperWhisper")
-        let preferences = root.appendingPathComponent("Users/tester/Library/Preferences")
+        let preferences = preferencesDirectory(in: root)
         let app = root.appendingPathComponent("Applications/OpenSuperWhisper.app/Contents/MacOS")
+        let shipped = shippedModels(in: root)
 
-        for directory in [app, support.appendingPathComponent("recordings"), support.appendingPathComponent("transform-models"), caches, preferences] {
+        let directories = [
+            app,
+            root.appendingPathComponent("Applications"),
+            support.appendingPathComponent("recordings"),
+            support.appendingPathComponent("whisper-models"),
+            support.appendingPathComponent("transform-models"),
+            caches,
+            preferences,
+            shipped.appendingPathComponent("whisper-models"),
+            shipped.appendingPathComponent("transform-models")
+        ]
+        for directory in directories {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
+
         try Data("app".utf8).write(to: app.appendingPathComponent("OpenSuperWhisper"))
+        try Data("uninstaller".utf8).write(
+            to: root.appendingPathComponent("Applications/Uninstall OpenSuperWhisper.command")
+        )
+        // The models the package installed under /Library.
+        try Data("shipped-whisper".utf8).write(
+            to: shipped.appendingPathComponent("whisper-models/ggml-large-v3-turbo.bin")
+        )
+        try Data("shipped-transform".utf8).write(
+            to: shipped.appendingPathComponent("transform-models/qwen2.5-1.5b-instruct-q4_k_m.gguf")
+        )
+        // The models the app downloaded for itself.
+        try Data("downloaded".utf8).write(
+            to: support.appendingPathComponent("whisper-models/ggml-large-v3-turbo-q5_0.bin")
+        )
+        try Data("downloaded".utf8).write(
+            to: support.appendingPathComponent("transform-models/qwen3-8b-q4_k_m.gguf")
+        )
+        // The user's own data.
         try Data("db".utf8).write(to: support.appendingPathComponent("recordings.sqlite"))
         try Data("wav".utf8).write(to: support.appendingPathComponent("recordings/dictation.wav"))
-        try Data("weights".utf8).write(to: support.appendingPathComponent("transform-models/qwen2.5-1.5b-instruct-q4_k_m.gguf"))
-        try Data("plist".utf8).write(to: preferences.appendingPathComponent("ru.starmel.OpenSuperWhisper.plist"))
+        try Data("plist".utf8).write(to: preferencesPlist(in: root))
+        try Data("cache".utf8).write(to: caches.appendingPathComponent("Cache.db"))
+
+        let unrelated = unrelatedFile(in: root)
+        try FileManager.default.createDirectory(
+            at: unrelated.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("keep me".utf8).write(to: unrelated)
 
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         return root
