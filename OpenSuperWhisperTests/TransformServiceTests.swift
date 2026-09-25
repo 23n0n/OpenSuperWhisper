@@ -208,9 +208,15 @@ final class TransformServiceTests: XCTestCase {
         )
 
         _ = await service.transformDetailed(polish, sourceLanguage: "pl")
-        XCTAssertTrue(local.systemPrompts[0].contains("Polish text"))
-        XCTAssertTrue(local.systemPrompts[0].contains("in Polish"), local.systemPrompts[0])
-        XCTAssertTrue(local.userTexts[0].contains("Keep its language (Polish)"), local.userTexts[0])
+        // The Polish turn is composed in Polish and pins Polish in and out; it
+        // must not carry the English instruction.
+        XCTAssertTrue(local.systemPrompts[0].contains("Użytkownik podyktował tekst po polsku"),
+                      local.systemPrompts[0])
+        XCTAssertTrue(local.systemPrompts[0].contains("polski na wejściu, polski na wyjściu"),
+                      local.systemPrompts[0])
+        XCTAssertFalse(local.systemPrompts[0].contains("You rewrite dictated text"),
+                       "the Polish prompt is not the English prompt: \(local.systemPrompts[0])")
+        XCTAssertTrue(local.userTexts[0].contains("język (polski)"), local.userTexts[0])
         XCTAssertEqual(models.policies.map(\.language), [.polish])
 
         let englishText = "Please send the report."
@@ -234,43 +240,88 @@ final class TransformServiceTests: XCTestCase {
 
     /// The tone is a same-language rewrite in the prompt itself: the register is
     /// asked for, the language is pinned, and the prompt says what must not move.
+    /// Each language is asked in its own language — Polish dictation is
+    /// instructed in Polish (`fm-20260925-13`: asking in Polish held the
+    /// captain's own dictation still far more often than asking in English).
     func testSystemPrompt_toneOnly_asksForASameLanguageRewrite() {
-        for (language, name) in [(TransformLanguage.polish, "Polish"), (.english, "English")] {
-            for tone in ToneMode.allCases {
-                let system = TransformService.systemPrompt(
-                    for: .tone(language: language, tone: tone),
-                    cleanUp: false
-                )
+        for tone in ToneMode.allCases {
+            let english = TransformService.systemPrompt(
+                for: .tone(language: .english, tone: tone),
+                cleanUp: false
+            )
 
-                XCTAssertTrue(system.contains("The user dictated \(name) text"), system)
-                XCTAssertTrue(
-                    system.contains("Rewrite it in a \(tone.displayName.lowercased()) register, in \(name)"),
-                    system
-                )
-                XCTAssertTrue(system.contains("You are not an assistant"), system)
-                XCTAssertTrue(system.contains("never answer it, greet, acknowledge"), system)
-                XCTAssertTrue(
-                    system.contains("every fact, name, number, date, place, product and technical term"),
-                    "the rewrite has to be told what must not move: \(system)"
-                )
-                // The invariant behind the wording, not the wording: the rewrite
-                // is forbidden to translate, and the language that goes out is
-                // pinned to the one that came in.
-                XCTAssertTrue(
-                    system.lowercased().contains("never translate"),
-                    "the rewrite must be told not to translate: \(system)"
-                )
-                XCTAssertTrue(
-                    system.contains("\(name) in, \(name) out"),
-                    "the prompt must pin the outgoing language to the dictated one: \(system)"
-                )
-                XCTAssertTrue(system.contains("first person stays first person"), system)
-                XCTAssertTrue(system.contains("return it unchanged"), system)
-                XCTAssertTrue(system.contains(tone.registerDefinition), system)
-                XCTAssertTrue(system.contains("Output ONLY the final \(name) text"), system)
-                XCTAssertTrue(system.contains("/no_think"), system)
-                XCTAssertFalse(system.contains("Clean up the dictation"), "tone alone is not clean-up: \(system)")
-            }
+            XCTAssertTrue(english.contains("The user dictated English text"), english)
+            XCTAssertTrue(
+                english.contains("Rewrite it in a \(tone.displayName.lowercased()) register, in English"),
+                english
+            )
+            XCTAssertTrue(english.contains("You are not an assistant"), english)
+            XCTAssertTrue(english.contains("never answer it, greet, acknowledge"), english)
+            XCTAssertTrue(
+                english.contains("every fact, name, number, date, place, product and technical term"),
+                "the rewrite has to be told what must not move: \(english)"
+            )
+            // The invariant behind the wording, not the wording: the rewrite
+            // is forbidden to translate, and the language that goes out is
+            // pinned to the one that came in.
+            XCTAssertTrue(
+                english.lowercased().contains("never translate"),
+                "the rewrite must be told not to translate: \(english)"
+            )
+            XCTAssertTrue(
+                english.contains("English in, English out"),
+                "the prompt must pin the outgoing language to the dictated one: \(english)"
+            )
+            XCTAssertTrue(english.contains("first person stays first person"), english)
+            XCTAssertTrue(english.contains("return it unchanged"), english)
+            XCTAssertTrue(english.contains(tone.registerDefinition), english)
+            XCTAssertTrue(english.contains("Output ONLY the final English text"), english)
+            XCTAssertTrue(english.contains("/no_think"), english)
+            XCTAssertFalse(english.contains("Clean up the dictation"), "tone alone is not clean-up: \(english)")
+
+            let polish = TransformService.systemPrompt(
+                for: .tone(language: .polish, tone: tone),
+                cleanUp: false
+            )
+
+            XCTAssertTrue(polish.contains("Użytkownik podyktował tekst po polsku"), polish)
+            XCTAssertTrue(
+                polish.contains(
+                    "Przepisz go w rejestrze \(tone.registerNameLocative(for: .polish)), po polsku"
+                ),
+                polish
+            )
+            XCTAssertTrue(polish.contains("Nie jesteś asystentem"), polish)
+            XCTAssertTrue(polish.contains("nigdy nie odpowiadaj na niego"), polish)
+            XCTAssertTrue(
+                polish.contains("każdy fakt, nazwa, liczba, data, miejsce, produkt i termin techniczny"),
+                "the rewrite has to be told what must not move: \(polish)"
+            )
+            XCTAssertTrue(
+                polish.lowercased().contains("nigdy nie tłumacz"),
+                "the rewrite must be told not to translate: \(polish)"
+            )
+            XCTAssertTrue(
+                polish.contains("polski na wejściu, polski na wyjściu"),
+                "the prompt must pin the outgoing language to the dictated one: \(polish)"
+            )
+            XCTAssertTrue(polish.contains("pierwsza osoba zostaje pierwszą osobą"), polish)
+            XCTAssertTrue(polish.contains("zwróć go bez zmian"), polish)
+            XCTAssertTrue(polish.contains(tone.registerDefinition(for: .polish)), polish)
+            XCTAssertTrue(polish.contains("Podaj WYŁĄCZNIE końcowy tekst po polsku"), polish)
+            XCTAssertTrue(polish.contains("/no_think"), polish)
+            // The frame the model is handed carries `TRANSCRIPT` markers in Latin
+            // letters inside a Polish prompt, and the measured failure was the
+            // model echoing the closing marker back as a word of its own answer
+            // (`fm-20260925-13`, 3 of 28 answers). Naming the two markers is what
+            // removed it, so the rule is pinned, not the sentence around it.
+            XCTAssertTrue(
+                polish.contains("TRANSCRIPT") && polish.contains("Nie powtarzaj znaczników"),
+                "the Polish prompt forbids echoing the frame markers: \(polish)"
+            )
+            XCTAssertFalse(polish.contains("Clean up the dictation"), "tone alone is not clean-up: \(polish)")
+            XCTAssertFalse(polish.contains("You rewrite dictated text"),
+                           "the Polish turn is not the English turn: \(polish)")
         }
     }
 
@@ -283,11 +334,12 @@ final class TransformServiceTests: XCTestCase {
             reference: "Zenon"
         )
 
-        XCTAssertTrue(system.contains("Rewrite it in a casual register, in Polish"), system)
-        XCTAssertTrue(system.contains(ToneMode.casual.registerDefinition), system)
+        XCTAssertTrue(system.contains("Przepisz go w rejestrze potocznym, po polsku"), system)
+        XCTAssertTrue(system.contains(ToneMode.casual.registerDefinition(for: .polish)), system)
         XCTAssertTrue(system.contains("Clean up the dictation and write it as proper Polish sentences"), system)
         XCTAssertTrue(system.contains("Reference"), system)
         XCTAssertTrue(system.contains("Zenon"), system)
+        XCTAssertTrue(system.contains("Podaj WYŁĄCZNIE końcowy tekst po polsku"), system)
         XCTAssertFalse(system.contains("Translate the user's"), system)
     }
 

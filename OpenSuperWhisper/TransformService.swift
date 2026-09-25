@@ -39,6 +39,51 @@ enum ToneMode: String, CaseIterable, Identifiable {
             return "use contractions, everyday words, direct and relaxed phrasing."
         }
     }
+
+    /// The register's name for the language the instruction is written in — the
+    /// English prompt asks for "a formal register", the Polish one for
+    /// "w rejestrze formalnym".
+    func registerName(for language: TransformLanguage) -> String {
+        switch (self, language) {
+        case (.neutral, .english): return "neutral"
+        case (.formal, .english): return "formal"
+        case (.casual, .english): return "casual"
+        case (.neutral, .polish): return "neutralny"
+        case (.formal, .polish): return "formalny"
+        case (.casual, .polish): return "potoczny"
+        }
+    }
+
+    /// The same name in the locative case, which is what Polish needs after
+    /// "w rejestrze".
+    func registerNameLocative(for language: TransformLanguage) -> String {
+        switch (self, language) {
+        case (.neutral, .polish): return "neutralnym"
+        case (.formal, .polish): return "formalnym"
+        case (.casual, .polish): return "potocznym"
+        default: return registerName(for: language)
+        }
+    }
+
+    /// What this register may change, in the language the instruction is written
+    /// in. The English wording is `registerDefinition`, unchanged.
+    func registerDefinition(for language: TransformLanguage) -> String {
+        switch language {
+        case .english:
+            return registerDefinition
+        case .polish:
+            switch self {
+            case .neutral:
+                return "zmieniaj jak najmniej; popraw tylko to, co jest niejasne lub niezgrabne."
+            case .formal:
+                return "pisz pełnymi zdaniami, bez skrótów, bez slangu i wypełniaczy, "
+                    + "grzecznie i profesjonalnie."
+            case .casual:
+                return "używaj form potocznych, codziennych słów, bezpośrednich i swobodnych "
+                    + "sformułowań."
+            }
+        }
+    }
 }
 
 enum TransformError: Error, LocalizedError {
@@ -420,10 +465,19 @@ final class TransformService {
         if let referenceInstruction = referenceInstruction(reference) {
             lines.append(referenceInstruction)
         }
-        lines.append(
-            "Output ONLY the final \(policy.language.displayName) text, with no quotes, "
-            + "labels, or explanation."
-        )
+        // The closing line is written in the language the instruction was written
+        // in, so a Polish dictation gets a Polish prompt end to end. Clean-up
+        // alone keeps the wording it has always had.
+        if policy.promptTone != nil, policy.language == .polish {
+            lines.append(
+                "Podaj WYŁĄCZNIE końcowy tekst po polsku, bez cudzysłowów, etykiet i wyjaśnień."
+            )
+        } else {
+            lines.append(
+                "Output ONLY the final \(policy.language.displayName) text, with no quotes, "
+                + "labels, or explanation."
+            )
+        }
         lines.append("/no_think")
         return lines.joined(separator: "\n")
     }
@@ -432,17 +486,36 @@ final class TransformService {
     /// the explicit "you are not an assistant" rule, the must-not-change list,
     /// and the idempotence and fragment rules.
     ///
-    /// This is the wording measured in `fm-20260924-10`: on the 8B it is
-    /// equal-or-better than the wording it replaces, and the failures a user
-    /// notices on the small model are what the guard and the routing remove.
+    /// Written in the language of the dictation. The English wording is the one
+    /// measured in `fm-20260924-10`; the Polish wording is the one measured in
+    /// `fm-20260925-13`, where asking for the same thing in Polish held the
+    /// captain's own Polish dictation still far more often than asking in English
+    /// (25 of 28 answers byte-identical against 15, one invented word against
+    /// two, one dropped word against four, and zero run-to-run drift).
     static func toneInstruction(for language: TransformLanguage, tone: ToneMode) -> String {
-        let name = language.displayName
+        switch language {
+        case .english: return englishToneInstruction(for: tone)
+        case .polish: return polishToneInstruction(for: tone)
+        }
+    }
+
+    /// The marker line the Polish instruction carries, at the end of its output
+    /// rules: without it the model echoed the closing `TRANSCRIPT>>>` delimiter as
+    /// a line of its own on short dictations (measured, `fm-20260925-13` — 3 of 28
+    /// answers), which is a word the dictation never had. Naming the two markers
+    /// is what removed it; the same rule written without naming them did not.
+    static func polishMarkerInstruction() -> String {
+        "Nie powtarzaj znaczników „<<<TRANSCRIPT” ani „TRANSCRIPT>>>” — podaj wyłącznie "
+            + "przepisany tekst, nic więcej."
+    }
+
+    private static func englishToneInstruction(for tone: ToneMode) -> String {
         let register = tone.displayName.lowercased()
         return """
         You rewrite dictated text. You are not an assistant: never answer it, greet, acknowledge, \
         thank, comment, explain, summarise or continue it.
 
-        The user dictated \(name) text. Rewrite it in a \(register) register, in \(name). \
+        The user dictated English text. Rewrite it in a \(register) register, in English. \
         Nothing else may change.
 
         What the register may change — only these:
@@ -455,8 +528,8 @@ final class TransformService {
         question, an order stays an order;
         - the order and the completeness of the information — never summarise, never elaborate, \
         never finish a half-sentence with new content;
-        - the language: \(name) in, \(name) out. Never translate, not even one word. If a term \
-        has no \(name) equivalent, keep it exactly as spoken.
+        - the language: English in, English out. Never translate, not even one word. If a term \
+        has no English equivalent, keep it exactly as spoken.
 
         Output rules:
         - Output only the rewritten text. No quotes, no labels, no preamble, no closing remark, \
@@ -464,6 +537,45 @@ final class TransformService {
         - Keep the dictated line breaks: do not join separate lines, do not split one line.
         - If the text is already in the \(register) register, return it unchanged.
         - If the text is a fragment, a list, or noise that carries no sentence, return it as it is.
+        """
+    }
+
+    /// The same instruction for a Polish dictation, in Polish. The English branch
+    /// above is a function of the register alone, which is why it can name the
+    /// language as a constant; this one is written out for Polish.
+    static func polishToneInstruction(for tone: ToneMode) -> String {
+        let register = tone.registerName(for: .polish)
+        let locative = tone.registerNameLocative(for: .polish)
+        return """
+        Przepisujesz podyktowany tekst. Nie jesteś asystentem: nigdy nie odpowiadaj na niego, \
+        nie pozdrawiaj, nie potwierdzaj, nie dziękuj, nie komentuj, nie wyjaśniaj, nie streszczaj \
+        i nie kontynuuj go.
+
+        Użytkownik podyktował tekst po polsku. Przepisz go w rejestrze \(locative), po polsku. \
+        Nic innego nie może się zmienić.
+
+        Co może zmienić rejestr — tylko to:
+        - \(register): \(tone.registerDefinition(for: .polish))
+
+        Co musi zostać dokładnie tak, jak podyktowano:
+        - każdy fakt, nazwa, liczba, data, miejsce, produkt i termin techniczny — nigdy nie \
+        dodawaj, nigdy nie usuwaj, nigdy nie przeformułowuj zobowiązania na łagodniejsze ani \
+        ostrzejsze;
+        - kto mówi i do kogo: pierwsza osoba zostaje pierwszą osobą, pytanie zostaje pytaniem, \
+        polecenie zostaje poleceniem;
+        - kolejność i kompletność informacji — nigdy nie streszczaj, nigdy nie rozwijaj, nigdy \
+        nie kończ niedokończonego zdania nową treścią;
+        - język: polski na wejściu, polski na wyjściu. Nigdy nie tłumacz, ani jednego słowa. \
+        Jeśli termin nie ma polskiego odpowiednika, zachowaj go dokładnie tak, jak został \
+        wypowiedziany.
+
+        Zasady wyniku:
+        - Podaj wyłącznie przepisany tekst. Bez cudzysłowów, bez etykiet, bez wstępu, bez uwagi \
+        na koniec, bez markdownu, bez komentarza, bez wyjaśniania, co zmieniłeś.
+        - Zachowaj podziały wierszy: nie łącz osobnych wierszy, nie dziel jednego wiersza.
+        - Jeśli tekst jest już w rejestrze \(locative), zwróć go bez zmian.
+        - Jeśli tekst to fragment, lista albo szum bez zdania, zwróć go takim, jaki jest.
+        \(polishMarkerInstruction())
         """
     }
 
@@ -477,9 +589,26 @@ final class TransformService {
     /// the text begins and ends so nothing inside it can be read as a new
     /// instruction.
     static func userPrompt(for transcript: String, language: TransformLanguage, tone: ToneMode) -> String {
+        switch language {
+        case .english:
+            return englishUserPrompt(for: transcript, tone: tone)
+        case .polish:
+            return """
+            Przepisz ten podyktowany tekst w rejestrze \(tone.registerNameLocative(for: .polish)). \
+            Zachowaj jego język (polski), osobę mówiącą, każdy fakt i każdą liczbę dokładnie tak, \
+            jak podyktowano. Podaj wyłącznie przepisany tekst.
+
+            <<<TRANSCRIPT
+            \(transcript)
+            TRANSCRIPT>>>
+            """
+        }
+    }
+
+    private static func englishUserPrompt(for transcript: String, tone: ToneMode) -> String {
         """
         Rewrite this dictated text in a \(tone.displayName.lowercased()) register. Keep its language \
-        (\(language.displayName)), the speaker, every fact and every number exactly as dictated. \
+        (English), the speaker, every fact and every number exactly as dictated. \
         Output only the rewritten text.
 
         <<<TRANSCRIPT
