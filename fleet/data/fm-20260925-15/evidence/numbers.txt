@@ -1,0 +1,186 @@
+recordings in the log: 87 | measured: 87
+
+== the two anchors, and the short English clip beside them ==
+pl anchor (117.8 s) | 2026-09-25 09:03:01.310 | 117.8 s
+  engine=pl detector raw=pl final=pl flip=no policy=Polish, neutral tone, clean-up guard=none
+  raw->final dropped 0 added 0 | genuinely lost 0 [] | genuinely new 0 []
+  scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+  model: →final: dropped 0 [] | added 0 []
+en anchor (131.1 s) | 2026-09-25 09:06:40.001 | 131.1 s
+  engine=en detector raw=en final=en flip=no policy=English, neutral tone, clean-up guard=none
+  raw->final dropped 0 added 0 | genuinely lost 0 [] | genuinely new 0 []
+  scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+  model: →final: dropped 0 [] | added 0 []
+en short (29.0 s) | 2026-09-25 09:07:32.658 | 29.0 s
+  engine=en detector raw=en final=en flip=no policy=English, neutral tone, clean-up guard=none
+  raw->final dropped 0 added 0 | genuinely lost 0 [] | genuinely new 0 []
+  scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+  model: →final: dropped 0 [] | added 0 []
+
+== library aggregates ==
+ordered diff raw->final: dropped 36, added 26
+  of the drops, by the deterministic scrub: 21
+  model diff (cleaned->final): dropped 16, added 27
+multiset difference raw->final: genuinely lost 35 {'o': 2, 'translation': 2, 'pierwszy': 1, 'test': 2, 'w': 3, 'języku': 3, 'polskim': 3, 'teraz': 1, 'próbuję': 1, 'nagrać': 1, 'jeszcze': 1, 'raz': 1, 'm': 2, 'była': 1, 'prod': 1, 'mmm': 1, 'the': 1, 'binded': 1, 'work': 1, 'want': 1, 'this': 1, 'ones': 1, 'potestuję': 1, 'chwileczkę': 1, 'zajebiaszczego': 1}
+                                genuinely new  25 {'na': 1, 'tłumaczenie': 1, 'transcript': 5, 'am': 2, 'the': 2, 'było': 1, 'transkrypcja': 2, 'product': 1, 'a': 2, 'bound': 1, 'works': 1, 'wants': 1, 'these': 1, 'of': 1, 'poświęcę': 1, 'chwilkę': 1, 'zajebiścze': 1}
+net word change across the library: 24 {'na': 1, 'tłumaczenie': 1, 'transcript': 5, 'am': 2, 'the': 1, 'było': 1, 'transkrypcja': 2, 'product': 1, 'a': 2, 'bound': 1, 'works': 1, 'wants': 1, 'these': 1, 'of': 1, 'poświęcę': 1, 'chwilkę': 1, 'zajebiścze': 1}
+
+== how many recordings each stage changed ==
+scrub changed something: 5
+model changed something: 23
+final differs from the raw transcript at all: 40
+final is byte-identical to the raw transcript: 47
+
+== language ==
+language flips (detector raw vs final, both placed): 0
+output language differs from the input language: 7
+  737B7767-5563-47B8-B3BB-5EEC8A628F7D.wav 16.8 s engine=en raw=unknown final=unknown flip=no
+     raw  : 'I also can see keyboard simulation output.'
+     final: 'I can also see keyboard simulation output.'
+  DC187FEA-7E34-4EA3-A8A7-D38482BCD2B5.wav 1.8 s engine=pl raw=unknown final=unknown flip=no
+     raw  : 'font'
+     final: '<<<TRANSKRYPCJA\nfont\nTRANSKRYPCJA>>>'
+  44D378F5-C3AA-4EA6-B904-DE677A2A8D3E.wav 1.3 s engine=ru raw=unknown final=unknown flip=no
+     raw  : 'Теперь собираем.'
+     final: 'Теперь собираем.'
+  6BF473E5-C9D6-413C-AB7F-F81B9E5CEC08.wav 1.3 s engine=en raw=unknown final=unknown flip=no
+     raw  : 'commit tenders.'
+     final: 'Commit tenders.'
+  AF2AB309-7EE4-47B1-B38B-A1C26F357865.wav 4.6 s engine=en raw=pl final=pl flip=no
+     raw  : 'I think peak hour starts, freeze.'
+     final: 'I think peak hour starts, freeze.'
+  D75DF9D8-07C0-473C-AB8E-38C40D59EDD2.wav 2.4 s engine=en raw=unknown final=unknown flip=no
+     raw  : 'weird as fuck'
+     final: 'weird as fuck'
+  2E1C982B-D7C3-47EA-9C3F-6C435907E3A1.wav 1.1 s engine=en raw=unknown final=unknown flip=no
+     raw  : 'continue work.'
+     final: 'Continue work.'
+
+engine language across the library: {'pl': 27, 'en': 59, 'ru': 1}
+engine and detector disagree on the raw transcript: 1
+  AF2AB309-7EE4-47B1-B38B-A1C26F357865.wav engine=en detector=pl :: 'I think peak hour starts, freeze.'
+
+== guard ==
+guard rejections: 0
+
+== the transform's own prompt delimiter in the output (not caught by the guard) ==
+recordings: 5
+  0D5AA205-7FC2-4F53-AA7B-C2E17A3A33B6.wav 2.8 s guard=none
+     raw  : '<redacted: captain dictation, 38 chars>'
+     final: '<redacted: captain dictation, 38 chars>  \nTRANSCRIPT'
+  4B614AE1-E769-4776-859E-1BD969B3F8E2.wav 2.5 s guard=none
+     raw  : 'Now speaking English'
+     final: 'Now speaking English\nTRANSCRIPT'
+  DC187FEA-7E34-4EA3-A8A7-D38482BCD2B5.wav 1.8 s guard=none
+     raw  : 'font'
+     final: '<<<TRANSKRYPCJA\nfont\nTRANSKRYPCJA>>>'
+  880D1B22-6A4C-4BD6-B718-06D01F55AEBD.wav 1.9 s guard=none
+     raw  : 'Use of pickguard'
+     final: 'Use of pickguard\nTRANSCRIPT'
+  81B50264-1B06-4D5A-95BA-1A88821B90CC.wav 2.5 s guard=none
+     raw  : 'Continue with fixes.'
+     final: '<<<TRANSCRIPT\nContinue with fixes.\nTRANSCRIPT>>>'
+
+== calls that did not run ==
+  44D378F5-C3AA-4EA6-B904-DE677A2A8D3E.wav 1.3 s engine=ru policy=none :: 'Теперь собираем.'
+
+== stored transcript (history) vs the raw transcript of this run ==
+  byte-identical: 49 of 87
+  differing: 38
+    8C6AE9CD-8A9A-4CE4-9C5B-FCD78614C1DA.wav (55.9s) engine=pl
+      stored: 'First test of translation. First test of translation. First test of translation. First test of trans'
+      raw   : 'Pierwszy test o translation. Pierwszy test o translation.'
+    F8B8FD9B-2D96-4F09-81AE-7C63A2FDE2D9.wav (6.6s) engine=pl
+      stored: 'I'
+      raw   : 'Pkt. 1. Zapar świecę Pkt. 2. Powiedz ludusk i zaperalny'
+    D09891A0-7D20-4A43-86C3-AF93EC9CE5A0.wav (5.8s) engine=pl
+      stored: 'Now a test in Polish language.'
+      raw   : 'Teraz test w języku polskim, test w języku polskim.'
+    CB983C4C-B2F1-4852-AA42-5E88E6273D6A.wav (4.2s) engine=pl
+      stored: "Now I'm trying to record in Spanish language"
+      raw   : 'Teraz próbuję nagrać w języku polskim, teraz próbuję nagrać w języku polskim.'
+    20594DC7-489A-494E-ACCC-4D8ED151A01D.wav (5.0s) engine=pl
+      stored: "I'm gonna ask this to you. I asked about shit."
+      raw   : 'Teraz testuję. Raz, dwa, trzy.'
+    ACDC9B38-16AC-4512-BB76-0D1AB436FBFD.wav (2.4s) engine=pl
+      stored: '(speaking in foreign language)'
+      raw   : 'Teraz testuję. Raz, dwa, trzy.'
+    369C2074-CDB1-4AC4-BBB5-A47239B71C94.wav (1.8s) engine=pl
+      stored: '(speaking in foreign language)'
+      raw   : 'Teraz testuję. Raz, dwa, trzy.'
+    4B614AE1-E769-4776-859E-1BD969B3F8E2.wav (2.5s) engine=en
+      stored: 'Now speaking English.'
+      raw   : 'Now speaking English'
+    8F9F9F94-CE6A-4CA4-8E71-1ABC4BD5462D.wav (2.8s) engine=pl
+      stored: 'This is the first time I have a photo school.'
+      raw   : 'Teraz testuję po polsku.'
+    3DB73D67-251B-4E8F-9057-814D9423CE2F.wav (5.2s) engine=pl
+      stored: 'The rest history is now moving to the power of school, so we will be back in school.'
+      raw   : 'Teraz testuję znowu, mówię po polsku, chcę, żeby było po angielsku.'
+    CB5FB432-3D32-460C-83EC-0B862495DE27.wav (7.8s) engine=en
+      stored: 'Now I want to test the English side of up.'
+      raw   : 'Now I want to test the English side of app.'
+    58D13F1F-7A39-4622-AB05-5D4068AB867D.wav (3.2s) engine=pl
+      stored: 'There are some people who are going to go to the airport.'
+      raw   : 'Teraz mówię po polsku i chcę, żeby była po polsku.'
+
+== were the leaked frames already in what history stored? ==
+  0D5AA205-7FC2-4F53-AA7B-C2E17A3A33B6.wav: stored has TRANSCRIPT/TRANSKRYPCJA: False
+     stored: '<redacted: captain dictation, 38 chars>'
+  4B614AE1-E769-4776-859E-1BD969B3F8E2.wav: stored has TRANSCRIPT/TRANSKRYPCJA: False
+     stored: 'Now speaking English.'
+  DC187FEA-7E34-4EA3-A8A7-D38482BCD2B5.wav: stored has TRANSCRIPT/TRANSKRYPCJA: False
+     stored: 'font'
+  880D1B22-6A4C-4BD6-B718-06D01F55AEBD.wav: stored has TRANSCRIPT/TRANSKRYPCJA: False
+     stored: 'Use of pickguard.'
+  81B50264-1B06-4D5A-95BA-1A88821B90CC.wav: stored has TRANSCRIPT/TRANSKRYPCJA: False
+     stored: 'Continue with fixes.'
+
+== engine language x language of what history stored ==
+  engine   en | stored reads en       : 55
+  engine   pl | stored reads en       : 14
+  engine   pl | stored reads pl       : 12
+  engine   en | stored reads unknown  : 3
+  engine   en | stored reads pl       : 1
+  engine   pl | stored reads unknown  : 1
+  engine   ru | stored reads unknown  : 1
+
+== rows where the speech was Polish but history stored English-looking text ==
+  count: 14
+   8C6AE9CD-8A9A-4CE4-9C5B-FCD78614C1DA.wav (55.9s) stored:'First test of translation. First test of translation. First test of tr'
+      today's raw decode : 'Pierwszy test o translation. Pierwszy test o translation.'
+   D09891A0-7D20-4A43-86C3-AF93EC9CE5A0.wav (5.8s) stored:'Now a test in Polish language.'
+      today's raw decode : 'Teraz test w języku polskim, test w języku polskim.'
+   CB983C4C-B2F1-4852-AA42-5E88E6273D6A.wav (4.2s) stored:"Now I'm trying to record in Spanish language"
+      today's raw decode : 'Teraz próbuję nagrać w języku polskim, teraz próbuję nagrać w języku p'
+   20594DC7-489A-494E-ACCC-4D8ED151A01D.wav (5.0s) stored:"I'm gonna ask this to you. I asked about shit."
+      today's raw decode : 'Teraz testuję. Raz, dwa, trzy.'
+   ACDC9B38-16AC-4512-BB76-0D1AB436FBFD.wav (2.4s) stored:'(speaking in foreign language)'
+      today's raw decode : 'Teraz testuję. Raz, dwa, trzy.'
+   369C2074-CDB1-4AC4-BBB5-A47239B71C94.wav (1.8s) stored:'(speaking in foreign language)'
+      today's raw decode : 'Teraz testuję. Raz, dwa, trzy.'
+   8F9F9F94-CE6A-4CA4-8E71-1ABC4BD5462D.wav (2.8s) stored:'This is the first time I have a photo school.'
+      today's raw decode : 'Teraz testuję po polsku.'
+   3DB73D67-251B-4E8F-9057-814D9423CE2F.wav (5.2s) stored:'The rest history is now moving to the power of school, so we will be b'
+      today's raw decode : 'Teraz testuję znowu, mówię po polsku, chcę, żeby było po angielsku.'
+   58D13F1F-7A39-4622-AB05-5D4068AB867D.wav (3.2s) stored:'There are some people who are going to go to the airport.'
+      today's raw decode : 'Teraz mówię po polsku i chcę, żeby była po polsku.'
+   DE9093AC-17EA-4286-A7DC-AF1DF3F8881C.wav (2.7s) stored:'I can do something to say in the background.'
+      today's raw decode : 'Mogę coś zarzucić z AI w tle.'
+   BBE968B1-9218-4035-93A7-EB2AC9CD4045.wav (2.8s) stored:"I can't let something go through the face."
+      today's raw decode : 'Mogę coś zarzucić z ajaj w tle.'
+   33E54ED5-6D1D-4EBB-A9E8-FBB7C655B426.wav (4.1s) stored:'Now the simple thing is even clicking the mouse.'
+      today's raw decode : 'Teraz prosty test nawet kliknięcie myszką'
+   6A8A70E0-0EC2-4D41-9846-9D908A2A82E2.wav (4.5s) stored:'Ok, now a quick text in the window.'
+      today's raw decode : 'Dobra, teraz szybki treścik w oknie.'
+   C487EA0D-FC88-4CD5-82D2-14DBD3533A65.wav (3.0s) stored:"Ok, it's a weird thing."
+      today's raw decode : 'Dobra, to jest mega dziwne.'
+
+== rows where the speech was English but history stored Polish-looking text ==
+  count: 1
+   AF2AB309-7EE4-47B1-B38B-A1C26F357865.wav (4.6s) stored:'I think peak hour starts. Freeze.'
+      today's raw decode : 'I think peak hour starts, freeze.'
+
+  rows with 2026-09-25 timestamps (today): 50
+  of those, stored == today's raw: 27
+  older rows: 37, of which stored == today's raw: 22

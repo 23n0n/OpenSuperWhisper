@@ -1,0 +1,39 @@
+[pair] ===================== THE PAIRING TABLE =====================
+[pair] pl prompt × en prompt | english control words vs control | pl-1 boundary | pl-2 words | verdict
+[pair] none (the shipped default) × none (the shipped default) | NO -2 +7 | yes | yes | FAIL
+[pair] none (the shipped default) × attributed (instruction-shaped) | NO -2 +2 | yes | yes | FAIL
+[pair] none (the shipped default) × c1 (pl) | NO -2 +6 | yes | yes | FAIL
+[pair] none (the shipped default) × c2 (pl) | NO -3 +8 | yes | yes | FAIL
+[pair] none (the shipped default) × c3 (pl, no commas) | NO -2 +6 | yes | yes | FAIL
+[pair] none (the shipped default) × c1 EN | NO -2 +2 | yes | yes | FAIL
+[pair] attributed (instruction-shaped) × none (the shipped default) | NO -2 +7 | yes | yes | FAIL
+[pair] attributed (instruction-shaped) × attributed (instruction-shaped) | NO -2 +2 | yes | yes | FAIL
+[pair] attributed (instruction-shaped) × c1 (pl) | NO -2 +6 | yes | yes | FAIL
+[pair] attributed (instruction-shaped) × c2 (pl) | NO -3 +8 | yes | yes | FAIL
+[pair] attributed (instruction-shaped) × c3 (pl, no commas) | NO -2 +6 | yes | yes | FAIL
+[pair] attributed (instruction-shaped) × c1 EN | NO -2 +2 | yes | yes | FAIL
+[pair] c1 (pl) × none (the shipped default) | NO -2 +7 | NO | yes | FAIL
+[pair] c1 (pl) × attributed (instruction-shaped) | NO -2 +2 | NO | yes | FAIL
+[pair] c1 (pl) × c1 (pl) | NO -2 +6 | NO | yes | FAIL
+[pair] c1 (pl) × c2 (pl) | NO -3 +8 | NO | yes | FAIL
+[pair] c1 (pl) × c3 (pl, no commas) | NO -2 +6 | NO | yes | FAIL
+[pair] c1 (pl) × c1 EN | NO -2 +2 | NO | yes | FAIL
+[pair] c2 (pl) × none (the shipped default) | NO -2 +7 | NO | yes | FAIL
+[pair] c2 (pl) × attributed (instruction-shaped) | NO -2 +2 | NO | yes | FAIL
+[pair] c2 (pl) × c1 (pl) | NO -2 +6 | NO | yes | FAIL
+[pair] c2 (pl) × c2 (pl) | NO -3 +8 | NO | yes | FAIL
+[pair] c2 (pl) × c3 (pl, no commas) | NO -2 +6 | NO | yes | FAIL
+[pair] c2 (pl) × c1 EN | NO -2 +2 | NO | yes | FAIL
+[pair] c3 (pl, no commas) × none (the shipped default) | NO -2 +7 | yes | yes | FAIL
+[pair] c3 (pl, no commas) × attributed (instruction-shaped) | NO -2 +2 | yes | yes | FAIL
+[pair] c3 (pl, no commas) × c1 (pl) | NO -2 +6 | yes | yes | FAIL
+[pair] c3 (pl, no commas) × c2 (pl) | NO -3 +8 | yes | yes | FAIL
+[pair] c3 (pl, no commas) × c3 (pl, no commas) | NO -2 +6 | yes | yes | FAIL
+[pair] c3 (pl, no commas) × c1 EN | NO -2 +2 | yes | yes | FAIL
+[pair] c1 EN × none (the shipped default) | NO -2 +7 | NO | yes | FAIL
+[pair] c1 EN × attributed (instruction-shaped) | NO -2 +2 | NO | yes | FAIL
+[pair] c1 EN × c1 (pl) | NO -2 +6 | NO | yes | FAIL
+[pair] c1 EN × c2 (pl) | NO -3 +8 | NO | yes | FAIL
+[pair] c1 EN × c3 (pl, no commas) | NO -2 +6 | NO | yes | FAIL
+[pair] c1 EN × c1 EN | NO -2 +2 | NO | yes | FAIL
+[pair] ============================================================

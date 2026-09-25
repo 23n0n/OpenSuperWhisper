@@ -1,0 +1,213 @@
+| # | when | file | s | engine | raw | final | match | policy | model/ran | guard | dropped | added | flip |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 2026-09-25 09:03:01.310 | `9039BAB0-CBA2-49B2-82E1-432FF7B94589.wav` | 117.8 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 2 | 2026-09-25 09:06:40.001 | `29EA0AEA-06B0-4FE1-B189-18A21822F35A.wav` | 131.1 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 3 | 2026-09-25 09:07:32.658 | `FD7B4C64-0AD7-4431-84D6-6F9EAFC77512.wav` | 29.0 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 4 | 2026-09-23 13:02:48.869 | `8C6AE9CD-8A9A-4CE4-9C5B-FCD78614C1DA.wav` | 55.9 | pl | unknown | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 6 | 2 | no |
+| 5 | 2026-09-23 13:03:56.460 | `F8B8FD9B-2D96-4F09-81AE-7C63A2FDE2D9.wav` | 6.6 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 6 | 2026-09-23 13:04:05.620 | `D09891A0-7D20-4A43-86C3-AF93EC9CE5A0.wav` | 5.8 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 4 | 0 | no |
+| 7 | 2026-09-23 13:04:34.355 | `CB983C4C-B2F1-4852-AA42-5E88E6273D6A.wav` | 4.2 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 6 | 0 | no |
+| 8 | 2026-09-23 13:05:03.972 | `E768C6B6-CFF6-423A-AA5B-CCEB459DC694.wav` | 4.1 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 9 | 2026-09-23 13:05:13.093 | `7982916A-1DF9-46EF-A69B-A06E1AEFD5B6.wav` | 4.2 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 10 | 2026-09-23 13:05:24.989 | `8BF93E24-77F8-4F88-BB9B-9E908308CEC5.wav` | 4.9 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 5 | 0 | no |
+| 11 | 2026-09-23 13:08:13.520 | `737B7767-5563-47B8-B3BB-5EEC8A628F7D.wav` | 16.8 | en | unknown | unknown | no | English, neutral tone, clean-up | ran=true | none | 1 | 1 | no |
+| 12 | 2026-09-23 13:08:29.604 | `0D5AA205-7FC2-4F53-AA7B-C2E17A3A33B6.wav` | 2.8 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 1 | no |
+| 13 | 2026-09-23 13:08:40.747 | `7DE55EF3-3187-4D4A-8ABE-8368FEBE01D3.wav` | 7.3 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 1 | 1 | no |
+| 14 | 2026-09-23 13:08:53.976 | `D8579DB2-6CE5-49CE-9155-6F60834CAD9F.wav` | 3.0 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 15 | 2026-09-23 13:09:10.063 | `DFBAFE0D-DD94-4ADE-819D-F914EA18FB86.wav` | 6.6 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 16 | 2026-09-23 13:09:18.132 | `07D414C8-D3D9-4CE2-8B3B-9CCFC5F23A25.wav` | 4.5 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 17 | 2026-09-23 13:11:19.856 | `3880A6AD-6CA3-4198-888F-BC4492034169.wav` | 3.2 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 18 | 2026-09-23 13:11:34.033 | `B67BC3EC-1AB0-48B7-8998-BEB7B4EEE5E2.wav` | 5.0 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 19 | 2026-09-23 17:29:09.469 | `20594DC7-489A-494E-ACCC-4D8ED151A01D.wav` | 5.0 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 20 | 2026-09-23 17:29:17.200 | `ACDC9B38-16AC-4512-BB76-0D1AB436FBFD.wav` | 2.4 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 21 | 2026-09-23 17:29:45.874 | `369C2074-CDB1-4AC4-BBB5-A47239B71C94.wav` | 1.8 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 22 | 2026-09-23 17:30:00.376 | `4B614AE1-E769-4776-859E-1BD969B3F8E2.wav` | 2.5 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 1 | no |
+| 23 | 2026-09-23 17:30:09.372 | `8F9F9F94-CE6A-4CA4-8E71-1ABC4BD5462D.wav` | 2.8 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 24 | 2026-09-23 17:30:17.981 | `3DB73D67-251B-4E8F-9057-814D9423CE2F.wav` | 5.2 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 25 | 2026-09-23 17:30:27.578 | `CB5FB432-3D32-460C-83EC-0B862495DE27.wav` | 7.8 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 1 | no |
+| 26 | 2026-09-23 17:32:41.453 | `58D13F1F-7A39-4622-AB05-5D4068AB867D.wav` | 3.2 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 1 | 1 | no |
+| 27 | 2026-09-24 09:05:08.211 | `FDCE39F7-48F7-48A3-A85E-0E55A1B1087C.wav` | 3.0 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 28 | 2026-09-24 09:05:15.322 | `EA4AE368-6639-431B-85A9-9FA44FFFF6E9.wav` | 2.9 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 29 | 2026-09-24 09:05:32.569 | `DC187FEA-7E34-4EA3-A8A7-D38482BCD2B5.wav` | 1.8 | pl | unknown | unknown | no | Polish, neutral tone, clean-up | ran=true | none | 0 | 2 | no |
+| 30 | 2026-09-24 09:08:10.108 | `44D378F5-C3AA-4EA6-B904-DE677A2A8D3E.wav` | 1.3 | ru | unknown | unknown | no | none | ran=false | none | 0 | 0 | no |
+| 31 | 2026-09-24 09:08:16.429 | `FBA76318-617C-47E4-AE5C-CB8BFB8AD66C.wav` | 2.0 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 32 | 2026-09-24 09:08:22.063 | `F5201D71-1EFD-4257-8553-62A0E7E99991.wav` | 2.0 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 33 | 2026-09-24 09:15:24.848 | `04C6FA9C-1C82-4DAC-B2B1-E63E22E78A7B.wav` | 4.8 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 1 | 1 | no |
+| 34 | 2026-09-24 09:16:08.729 | `6BF473E5-C9D6-413C-AB7F-F81B9E5CEC08.wav` | 1.3 | en | unknown | unknown | no | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 35 | 2026-09-24 09:16:19.089 | `84579AFC-DD0C-4F39-8B9F-1E8CB7403F79.wav` | 2.0 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 36 | 2026-09-24 09:34:15.613 | `58E8C9C3-576B-43DA-8019-E360250AA232.wav` | 3.9 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 37 | 2026-09-24 09:51:37.335 | `3F281183-2585-4FDE-941C-DCCC18ADDE07.wav` | 2.2 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 38 | 2026-09-24 09:53:34.940 | `DE9093AC-17EA-4286-A7DC-AF1DF3F8881C.wav` | 2.7 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 39 | 2026-09-24 09:54:00.224 | `BBE968B1-9218-4035-93A7-EB2AC9CD4045.wav` | 2.8 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 40 | 2026-09-24 13:57:22.570 | `33E54ED5-6D1D-4EBB-A9E8-FBB7C655B426.wav` | 4.1 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 41 | 2026-09-25 05:30:45.008 | `8A3495F7-2F39-4747-9A6A-83EC2FE25E60.wav` | 3.9 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 1 | 1 | no |
+| 42 | 2026-09-25 05:31:01.975 | `1C265C78-A4FF-43E3-963B-034B71D8DD36.wav` | 5.0 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 43 | 2026-09-25 05:31:45.803 | `AFD26284-90AD-42AE-B611-1AB2B7055C19.wav` | 26.5 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 1 | 0 | no |
+| 44 | 2026-09-25 05:32:25.830 | `6A8A70E0-0EC2-4D41-9846-9D908A2A82E2.wav` | 4.5 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 45 | 2026-09-25 05:33:32.314 | `5C68BFAC-5EC8-45CC-8239-3B5659272C1A.wav` | 12.1 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 46 | 2026-09-25 05:38:47.148 | `0A7B9345-1A70-46CC-8370-0A423D0738E2.wav` | 5.7 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 47 | 2026-09-25 05:40:24.082 | `7F754FC2-3C5E-413F-A62F-5F7D42F0BE39.wav` | 16.8 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 1 | 0 | no |
+| 48 | 2026-09-25 05:43:45.882 | `B1C7319C-2AF4-444E-A33E-F41AEB564C1E.wav` | 6.3 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 49 | 2026-09-25 05:47:35.952 | `B2EA9010-97C9-40AB-A7A2-746323A45297.wav` | 23.3 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 50 | 2026-09-25 05:48:44.577 | `D92A0B10-EB8D-4D47-80B9-A9F3A88C112F.wav` | 33.0 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 1 | no |
+| 51 | 2026-09-25 05:49:09.143 | `0C0BB509-AB63-47C2-ACEC-294B1330AE9D.wav` | 4.0 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 52 | 2026-09-25 05:49:35.550 | `D3E5FB60-2C96-4534-BB40-A6871E6C3F4D.wav` | 14.1 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 1 | 1 | no |
+| 53 | 2026-09-25 05:56:37.663 | `B8ABA45F-52F8-47AD-AEE9-204D03C11061.wav` | 10.0 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 1 | no |
+| 54 | 2026-09-25 05:59:13.217 | `795074AD-6266-4FA8-87AE-30317867FF41.wav` | 27.2 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 1 | 1 | no |
+| 55 | 2026-09-25 06:00:27.629 | `DE461E49-742B-4165-AF7B-65DB31A39AEB.wav` | 14.1 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 56 | 2026-09-25 06:00:58.468 | `AF2AB309-7EE4-47B1-B38B-A1C26F357865.wav` | 4.6 | en | pl | pl | no | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 57 | 2026-09-25 06:01:07.930 | `DEE9F67E-0432-4711-B66C-70702F5D6662.wav` | 2.6 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 58 | 2026-09-25 06:25:32.059 | `5F222575-8810-4742-B3B8-DCE3117481C8.wav` | 26.3 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 59 | 2026-09-25 06:26:01.765 | `98E3F31B-FA83-4FB9-A022-B0134C6E46FB.wav` | 6.6 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 60 | 2026-09-25 06:28:24.786 | `02FE5354-07AE-47E7-9C55-46B50BEEDC4D.wav` | 2.4 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 61 | 2026-09-25 06:28:37.714 | `2E44ECF5-7673-46F9-80D7-D51B4776A2C4.wav` | 2.2 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 62 | 2026-09-25 06:28:46.307 | `D75DF9D8-07C0-473C-AB8E-38C40D59EDD2.wav` | 2.4 | en | unknown | unknown | no | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 63 | 2026-09-25 06:28:54.402 | `1FBE27E3-333D-4C48-934E-FB36B32615B3.wav` | 2.5 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 64 | 2026-09-25 06:29:13.500 | `C487EA0D-FC88-4CD5-82D2-14DBD3533A65.wav` | 3.0 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 65 | 2026-09-25 06:59:24.495 | `CEE8B8D2-6BCC-41A7-B75C-8D1C442912AC.wav` | 5.3 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 66 | 2026-09-25 07:01:47.355 | `AAA66F70-4FF9-454A-875C-DDAF7E4FAE69.wav` | 7.7 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 67 | 2026-09-25 07:02:52.195 | `9568E84D-20BF-477E-AC68-E57056645CC4.wav` | 8.2 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 68 | 2026-09-25 07:03:29.494 | `F0BE688D-6EA9-4DE5-A700-69D89E597B8C.wav` | 13.7 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 1 | 2 | no |
+| 69 | 2026-09-25 07:08:18.537 | `C456B7C8-97B8-4278-A5BD-9590B077F716.wav` | 3.8 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 70 | 2026-09-25 07:09:00.746 | `880D1B22-6A4C-4BD6-B718-06D01F55AEBD.wav` | 1.9 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 1 | no |
+| 71 | 2026-09-25 07:10:48.957 | `1A9E80B4-A561-4FF5-B8E8-D89A8C60AED1.wav` | 4.8 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 72 | 2026-09-25 07:13:53.727 | `2E1C982B-D7C3-47EA-9C3F-6C435907E3A1.wav` | 1.1 | en | unknown | unknown | no | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 73 | 2026-09-25 07:23:53.558 | `25E06FCE-8A3C-43B9-80BE-15BF3B2FF515.wav` | 4.7 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 2 | 1 | no |
+| 74 | 2026-09-25 07:29:03.237 | `D4A3E9D4-1960-4238-80F3-1D00E3D8F7C9.wav` | 3.5 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 75 | 2026-09-25 07:35:10.264 | `CECAAF27-9F1E-4A3A-A272-697F833EDFD2.wav` | 2.9 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 1 | no |
+| 76 | 2026-09-25 07:36:45.040 | `1F71B87C-CEF9-4C83-8513-A966FE24F3FB.wav` | 4.4 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 77 | 2026-09-25 07:36:58.404 | `A462D8A6-FD35-4D8A-8186-815D4AAEFCD5.wav` | 3.8 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 78 | 2026-09-25 07:37:21.247 | `28F9ADC4-6026-415D-8A6B-27223805C7DB.wav` | 1.8 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 79 | 2026-09-25 07:46:00.528 | `68AFDB3F-4F57-4FDC-A80C-1F2248A6ED81.wav` | 2.1 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 80 | 2026-09-25 07:47:42.622 | `5BEEBA91-297A-4945-ABBD-916E4BDD5E09.wav` | 10.2 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 81 | 2026-09-25 07:58:08.994 | `81B50264-1B06-4D5A-95BA-1A88821B90CC.wav` | 2.5 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 2 | no |
+| 82 | 2026-09-25 08:04:21.633 | `74326DBE-4FF9-4B46-8749-954536447FC5.wav` | 2.0 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 83 | 2026-09-25 08:14:01.032 | `6C341398-3355-4949-9905-2D36E82D8A67.wav` | 2.2 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 84 | 2026-09-25 08:35:35.498 | `2E8405CC-ED43-4021-BF22-9CF8321A9584.wav` | 8.8 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 1 | 1 | no |
+| 85 | 2026-09-25 08:36:40.557 | `6AAFDC20-C276-41F4-94BE-919C259A570F.wav` | 20.6 | pl | pl | pl | yes | Polish, neutral tone, clean-up | ran=true | none | 2 | 2 | no |
+| 86 | 2026-09-25 08:39:18.112 | `B9F27354-458C-411A-9BD1-B041670BE72B.wav` | 2.9 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+| 87 | 2026-09-25 09:10:15.394 | `EECE4B5C-F48A-4B20-9C93-CE434F38166C.wav` | 3.8 | en | en | en | yes | English, neutral tone, clean-up | ran=true | none | 0 | 0 | no |
+recordings in log: 87
+measured: 87
+language flips: 0
+output language != input language: 7
+guard rejections: 0
+dropped words (raw -> final), total: 36
+added words (raw -> final), total: 26
+== stored text vs this decode ==
+stored == raw: 49 of 87
+stored-text census: {'pl': 13, 'en': 69, 'unknown': 5}
+== recordings where the model changed the cleaned text ==
+  8C6AE9CD-8A9A-4CE4-9C5B-FCD78614C1DA.wav: →final: dropped 2 ["o", "translation"] | added 2 ["na", "tłumaczenie"]
+  8BF93E24-77F8-4F88-BB9B-9E908308CEC5.wav: →final: dropped 0 [] | added 1 ["Transkrypcja"]
+  737B7767-5563-47B8-B3BB-5EEC8A628F7D.wav: →final: dropped 1 ["also"] | added 1 ["also"]
+  0D5AA205-7FC2-4F53-AA7B-C2E17A3A33B6.wav: →final: dropped 0 [] | added 1 ["TRANSCRIPT"]
+  7DE55EF3-3187-4D4A-8ABE-8368FEBE01D3.wav: →final: dropped 1 ["m"] | added 1 ["am"]
+  4B614AE1-E769-4776-859E-1BD969B3F8E2.wav: →final: dropped 0 [] | added 1 ["TRANSCRIPT"]
+  CB5FB432-3D32-460C-83EC-0B862495DE27.wav: →final: dropped 0 [] | added 1 ["the"]
+  58D13F1F-7A39-4622-AB05-5D4068AB867D.wav: →final: dropped 1 ["była"] | added 1 ["było"]
+  DC187FEA-7E34-4EA3-A8A7-D38482BCD2B5.wav: →final: dropped 0 [] | added 2 ["TRANSKRYPCJA", "TRANSKRYPCJA"]
+  04C6FA9C-1C82-4DAC-B2B1-E63E22E78A7B.wav: →final: dropped 1 ["prod"] | added 1 ["product"]
+  8A3495F7-2F39-4747-9A6A-83EC2FE25E60.wav: →final: dropped 1 ["m"] | added 1 ["am"]
+  7F754FC2-3C5E-413F-A62F-5F7D42F0BE39.wav: →final: dropped 1 ["the"] | added 0 []
+  D92A0B10-EB8D-4D47-80B9-A9F3A88C112F.wav: →final: dropped 0 [] | added 1 ["a"]
+  D3E5FB60-2C96-4534-BB40-A6871E6C3F4D.wav: →final: dropped 1 ["binded"] | added 1 ["bound"]
+  B8ABA45F-52F8-47AD-AEE9-204D03C11061.wav: →final: dropped 0 [] | added 1 ["the"]
+  795074AD-6266-4FA8-87AE-30317867FF41.wav: →final: dropped 1 ["work"] | added 1 ["works"]
+  F0BE688D-6EA9-4DE5-A700-69D89E597B8C.wav: →final: dropped 1 ["want"] | added 2 ["wants", "a"]
+  880D1B22-6A4C-4BD6-B718-06D01F55AEBD.wav: →final: dropped 0 [] | added 1 ["TRANSCRIPT"]
+  25E06FCE-8A3C-43B9-80BE-15BF3B2FF515.wav: →final: dropped 2 ["this", "ones"] | added 1 ["these"]
+  CECAAF27-9F1E-4A3A-A272-697F833EDFD2.wav: →final: dropped 0 [] | added 1 ["of"]
+  81B50264-1B06-4D5A-95BA-1A88821B90CC.wav: →final: dropped 0 [] | added 2 ["TRANSCRIPT", "TRANSCRIPT"]
+  2E8405CC-ED43-4021-BF22-9CF8321A9584.wav: →final: dropped 1 ["potestuję"] | added 1 ["poświęcę"]
+  6AAFDC20-C276-41F4-94BE-919C259A570F.wav: →final: dropped 2 ["chwileczkę", "zajebiaszczego"] | added 2 ["chwilkę", "zajebiścze"]
+== language flips, quoted ==
+== guard rejections ==
+== per-recording deltas ==
+  9039BAB0-CBA2-49B2-82E1-432FF7B94589.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  29EA0AEA-06B0-4FE1-B189-18A21822F35A.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  FD7B4C64-0AD7-4431-84D6-6F9EAFC77512.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  8C6AE9CD-8A9A-4CE4-9C5B-FCD78614C1DA.wav | scrub: removed fillers 0 repetitions 4 annotations 0 | dropped 4 ["Pierwszy", "test", "o", "translation"] | added 0 [] | model: →final: dropped 2 ["o", "translation"] | added 2 ["na", "tłumaczenie"] | whole: →final: dropped 6 ["o", "translation", "Pierwszy", "test", "o", "translation"] | added 2 ["na", "tłumaczenie"]
+  F8B8FD9B-2D96-4F09-81AE-7C63A2FDE2D9.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  D09891A0-7D20-4A43-86C3-AF93EC9CE5A0.wav | scrub: removed fillers 0 repetitions 4 annotations 0 | dropped 4 ["test", "w", "języku", "polskim"] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 4 ["test", "w", "języku", "polskim"] | added 0 []
+  CB983C4C-B2F1-4852-AA42-5E88E6273D6A.wav | scrub: removed fillers 0 repetitions 6 annotations 0 | dropped 6 ["teraz", "próbuję", "nagrać", "w", "języku", "polskim"] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 6 ["teraz", "próbuję", "nagrać", "w", "języku", "polskim"] | added 0 []
+  E768C6B6-CFF6-423A-AA5B-CCEB459DC694.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  7982916A-1DF9-46EF-A69B-A06E1AEFD5B6.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  8BF93E24-77F8-4F88-BB9B-9E908308CEC5.wav | scrub: removed fillers 0 repetitions 6 annotations 0 | dropped 6 ["jeszcze", "raz", "transkrypcja", "w", "języku", "polskim"] | added 0 [] | model: →final: dropped 0 [] | added 1 ["Transkrypcja"] | whole: →final: dropped 5 ["jeszcze", "raz", "w", "języku", "polskim"] | added 0 []
+  737B7767-5563-47B8-B3BB-5EEC8A628F7D.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 1 ["also"] | added 1 ["also"] | whole: →final: dropped 1 ["also"] | added 1 ["also"]
+  0D5AA205-7FC2-4F53-AA7B-C2E17A3A33B6.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 1 ["TRANSCRIPT"] | whole: →final: dropped 0 [] | added 1 ["TRANSCRIPT"]
+  7DE55EF3-3187-4D4A-8ABE-8368FEBE01D3.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 1 ["m"] | added 1 ["am"] | whole: →final: dropped 1 ["m"] | added 1 ["am"]
+  D8579DB2-6CE5-49CE-9155-6F60834CAD9F.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  DFBAFE0D-DD94-4ADE-819D-F914EA18FB86.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  07D414C8-D3D9-4CE2-8B3B-9CCFC5F23A25.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  3880A6AD-6CA3-4198-888F-BC4492034169.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  B67BC3EC-1AB0-48B7-8998-BEB7B4EEE5E2.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  20594DC7-489A-494E-ACCC-4D8ED151A01D.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  ACDC9B38-16AC-4512-BB76-0D1AB436FBFD.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  369C2074-CDB1-4AC4-BBB5-A47239B71C94.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  4B614AE1-E769-4776-859E-1BD969B3F8E2.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 1 ["TRANSCRIPT"] | whole: →final: dropped 0 [] | added 1 ["TRANSCRIPT"]
+  8F9F9F94-CE6A-4CA4-8E71-1ABC4BD5462D.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  3DB73D67-251B-4E8F-9057-814D9423CE2F.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  CB5FB432-3D32-460C-83EC-0B862495DE27.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 1 ["the"] | whole: →final: dropped 0 [] | added 1 ["the"]
+  58D13F1F-7A39-4622-AB05-5D4068AB867D.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 1 ["była"] | added 1 ["było"] | whole: →final: dropped 1 ["była"] | added 1 ["było"]
+  FDCE39F7-48F7-48A3-A85E-0E55A1B1087C.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  EA4AE368-6639-431B-85A9-9FA44FFFF6E9.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  DC187FEA-7E34-4EA3-A8A7-D38482BCD2B5.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 2 ["TRANSKRYPCJA", "TRANSKRYPCJA"] | whole: →final: dropped 0 [] | added 2 ["TRANSKRYPCJA", "TRANSKRYPCJA"]
+  44D378F5-C3AA-4EA6-B904-DE677A2A8D3E.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  FBA76318-617C-47E4-AE5C-CB8BFB8AD66C.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  F5201D71-1EFD-4257-8553-62A0E7E99991.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  04C6FA9C-1C82-4DAC-B2B1-E63E22E78A7B.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 1 ["prod"] | added 1 ["product"] | whole: →final: dropped 1 ["prod"] | added 1 ["product"]
+  6BF473E5-C9D6-413C-AB7F-F81B9E5CEC08.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  84579AFC-DD0C-4F39-8B9F-1E8CB7403F79.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  58E8C9C3-576B-43DA-8019-E360250AA232.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  3F281183-2585-4FDE-941C-DCCC18ADDE07.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  DE9093AC-17EA-4286-A7DC-AF1DF3F8881C.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  BBE968B1-9218-4035-93A7-EB2AC9CD4045.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  33E54ED5-6D1D-4EBB-A9E8-FBB7C655B426.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  8A3495F7-2F39-4747-9A6A-83EC2FE25E60.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 1 ["m"] | added 1 ["am"] | whole: →final: dropped 1 ["m"] | added 1 ["am"]
+  1C265C78-A4FF-43E3-963B-034B71D8DD36.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  AFD26284-90AD-42AE-B611-1AB2B7055C19.wav | scrub: removed fillers 1 repetitions 0 annotations 0 | dropped 1 ["Mmm"] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 1 ["Mmm"] | added 0 []
+  6A8A70E0-0EC2-4D41-9846-9D908A2A82E2.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  5C68BFAC-5EC8-45CC-8239-3B5659272C1A.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  0A7B9345-1A70-46CC-8370-0A423D0738E2.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  7F754FC2-3C5E-413F-A62F-5F7D42F0BE39.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 1 ["the"] | added 0 [] | whole: →final: dropped 1 ["the"] | added 0 []
+  B1C7319C-2AF4-444E-A33E-F41AEB564C1E.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  B2EA9010-97C9-40AB-A7A2-746323A45297.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  D92A0B10-EB8D-4D47-80B9-A9F3A88C112F.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 1 ["a"] | whole: →final: dropped 0 [] | added 1 ["a"]
+  0C0BB509-AB63-47C2-ACEC-294B1330AE9D.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  D3E5FB60-2C96-4534-BB40-A6871E6C3F4D.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 1 ["binded"] | added 1 ["bound"] | whole: →final: dropped 1 ["binded"] | added 1 ["bound"]
+  B8ABA45F-52F8-47AD-AEE9-204D03C11061.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 1 ["the"] | whole: →final: dropped 0 [] | added 1 ["the"]
+  795074AD-6266-4FA8-87AE-30317867FF41.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 1 ["work"] | added 1 ["works"] | whole: →final: dropped 1 ["work"] | added 1 ["works"]
+  DE461E49-742B-4165-AF7B-65DB31A39AEB.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  AF2AB309-7EE4-47B1-B38B-A1C26F357865.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  DEE9F67E-0432-4711-B66C-70702F5D6662.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  5F222575-8810-4742-B3B8-DCE3117481C8.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  98E3F31B-FA83-4FB9-A022-B0134C6E46FB.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  02FE5354-07AE-47E7-9C55-46B50BEEDC4D.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  2E44ECF5-7673-46F9-80D7-D51B4776A2C4.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  D75DF9D8-07C0-473C-AB8E-38C40D59EDD2.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  1FBE27E3-333D-4C48-934E-FB36B32615B3.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  C487EA0D-FC88-4CD5-82D2-14DBD3533A65.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  CEE8B8D2-6BCC-41A7-B75C-8D1C442912AC.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  AAA66F70-4FF9-454A-875C-DDAF7E4FAE69.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  9568E84D-20BF-477E-AC68-E57056645CC4.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  F0BE688D-6EA9-4DE5-A700-69D89E597B8C.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 1 ["want"] | added 2 ["wants", "a"] | whole: →final: dropped 1 ["want"] | added 2 ["wants", "a"]
+  C456B7C8-97B8-4278-A5BD-9590B077F716.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  880D1B22-6A4C-4BD6-B718-06D01F55AEBD.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 1 ["TRANSCRIPT"] | whole: →final: dropped 0 [] | added 1 ["TRANSCRIPT"]
+  1A9E80B4-A561-4FF5-B8E8-D89A8C60AED1.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  2E1C982B-D7C3-47EA-9C3F-6C435907E3A1.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  25E06FCE-8A3C-43B9-80BE-15BF3B2FF515.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 2 ["this", "ones"] | added 1 ["these"] | whole: →final: dropped 2 ["this", "ones"] | added 1 ["these"]
+  D4A3E9D4-1960-4238-80F3-1D00E3D8F7C9.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  CECAAF27-9F1E-4A3A-A272-697F833EDFD2.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 1 ["of"] | whole: →final: dropped 0 [] | added 1 ["of"]
+  1F71B87C-CEF9-4C83-8513-A966FE24F3FB.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  A462D8A6-FD35-4D8A-8186-815D4AAEFCD5.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  28F9ADC4-6026-415D-8A6B-27223805C7DB.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  68AFDB3F-4F57-4FDC-A80C-1F2248A6ED81.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  5BEEBA91-297A-4945-ABBD-916E4BDD5E09.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  81B50264-1B06-4D5A-95BA-1A88821B90CC.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 2 ["TRANSCRIPT", "TRANSCRIPT"] | whole: →final: dropped 0 [] | added 2 ["TRANSCRIPT", "TRANSCRIPT"]
+  74326DBE-4FF9-4B46-8749-954536447FC5.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  6C341398-3355-4949-9905-2D36E82D8A67.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  2E8405CC-ED43-4021-BF22-9CF8321A9584.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 1 ["potestuję"] | added 1 ["poświęcę"] | whole: →final: dropped 1 ["potestuję"] | added 1 ["poświęcę"]
+  6AAFDC20-C276-41F4-94BE-919C259A570F.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 2 ["chwileczkę", "zajebiaszczego"] | added 2 ["chwilkę", "zajebiścze"] | whole: →final: dropped 2 ["chwileczkę", "zajebiaszczego"] | added 2 ["chwilkę", "zajebiścze"]
+  B9F27354-458C-411A-9BD1-B041670BE72B.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []
+  EECE4B5C-F48A-4B20-9C93-CE434F38166C.wav | scrub: removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 [] | model: →final: dropped 0 [] | added 0 [] | whole: →final: dropped 0 [] | added 0 []

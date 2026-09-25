@@ -1,0 +1,1326 @@
+[bilingual] ============================================================
+[bilingual] decoding through WhisperEngine, the app's own path
+[bilingual]   recordings /Volumes/home/zenon/Library/Application Support/ru.starmel.OpenSuperWhisper/recordings
+[bilingual]   database /Volumes/home/zenon/Library/Application Support/ru.starmel.OpenSuperWhisper/recordings.sqlite
+[bilingual]   whisper model /Volumes/home/zenon/Library/Application Support/ru.starmel.OpenSuperWhisper/whisper-models/ggml-large-v3-turbo.bin
+[bilingual]   captain's switches (his domain, read at run time): tone=true cleanUp=true toneMode=neutral reference="" initialPrompt="" longPausesEndSentences=false → pause policy upstream
+[bilingual]   budget for the whole library: 5400 s
+[bilingual]   library: 87 rows in the database, 87 with audio present, 0 without
+[bilingual]   stored-text language census, the app's own LanguageDetector: pl 13 | en 69 | unknown 5
+[bilingual]   transform weights: shipped 1.5B present true | optional 8B present true | 8B verified true
+[bilingual]   model routing: tone in either language → qwen3-8b-q4_k_m; clean-up in pl → qwen3-8b-q4_k_m; clean-up in en → qwen2.5-1.5b-instruct-q4_k_m
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 1/87 | pl anchor (117.8 s) | 2026-09-25 09:03:01.310 | 9039BAB0-CBA2-49B2-82E1-432FF7B94589.wav | 117.8 s | status completed
+[bilingual] DECODE 12.3 s | segments 40 | engine language pl
+[bilingual] STORED: Ok, więc teraz muszę przez dwie minuty coś dyktować w języku polskim. Będzie to długi tekst. To na pewno. Nie wiem co by tutaj poczytać, bo nie mam nic pod ręką. Więc będę mówił wyłącznie o takich prostych rzeczach. Jak mój telefon, który leży na biurku. Klawiatura, myszka. I porozmawiamy trochę o rybkach. Przy czym jedna wygląda na lekko chorą. Chyba do gorywa. Tak to wygląda. Niestety ostatnie danio perłowe. Na te wszystkie dane perłowe były raczej marnego zdrowia. Z czterech ostał się jeden. Ledwo wszędzie. Na szczęście samce kupików całkiem nieźle sobie radzą. Więc im najwyraźniej nic nie grozi. Teraz delikatnie podkarmę je. Póki jeszcze lampka się nie świeci w akwarium. To kupiki nie powinny być takie aktywne w się jedzeniu. On jest tysał. Trochę powinno spać dla krewetek. To jest bardzo istotne. Jeżeli chodzi o to. Z takich mniej istotnych rzeczy. To teraz muszę dalej to nagrywać. No bo jednak coś tam musi się przetworzyć. I zobaczymy też w jaki sposób dłuższe teksty są obrabiane. Czego jestem bardzo ciekawy. Mam nadzieję, że to będzie moja wymarzona klawatura. Będę mógł odinstalować płatną wersję płatnego kuzyna Super Whispera. I zostaniemy tylko na Open Super Whisperze. Który ma najważniejsze dla mnie funkcje. Bo to, że on mi tam będzie formatował jako mail. To jest jakby niezbyt istotna funkcja. Sam jestem w stanie to zrobić. To nie jest coś, czego bardzo potrzebuję. No bo tylko sobie uszkodziłem jedną rękę. I drugą mam całkiem sprawną. Więc mogę dalej dyktować.
+[bilingual] STORED LANG: pl
+[bilingual] RAW: Ok, więc teraz muszę przez dwie minuty coś dyktować w języku polskim. Będzie to długi tekst. To na pewno. Nie wiem co by tutaj poczytać, bo nie mam nic pod ręką. Więc będę mówił wyłącznie o takich prostych rzeczach. Jak mój telefon, który leży na biurku. Klawiatura, myszka. I porozmawiamy trochę o rybkach. Przy czym jedna wygląda na lekko chorą. Chyba do gorywa. Tak to wygląda. Niestety ostatnie danio perłowe. Na te wszystkie dane perłowe były raczej marnego zdrowia. Z czterech ostał się jeden. Ledwo wszędzie. Na szczęście samce kupików całkiem nieźle sobie radzą. Więc im najwyraźniej nic nie grozi. Teraz delikatnie podkarmę je. Póki jeszcze lampka się nie świeci w akwarium. To kupiki nie powinny być takie aktywne w się jedzeniu. On jest tysał. Trochę powinno spać dla krewetek. To jest bardzo istotne. Jeżeli chodzi o to. Z takich mniej istotnych rzeczy. To teraz muszę dalej to nagrywać. No bo jednak coś tam musi się przetworzyć. I zobaczymy też w jaki sposób dłuższe teksty są obrabiane. Czego jestem bardzo ciekawy. Mam nadzieję, że to będzie moja wymarzona klawatura. Będę mógł odinstalować płatną wersję płatnego kuzyna Super Whispera. I zostaniemy tylko na Open Super Whisperze. Który ma najważniejsze dla mnie funkcje. Bo to, że on mi tam będzie formatował jako mail. To jest jakby niezbyt istotna funkcja. Sam jestem w stanie to zrobić. To nie jest coś, czego bardzo potrzebuję. No bo tylko sobie uszkodziłem jedną rękę. I drugą mam całkiem sprawną. Więc mogę dalej dyktować.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Ok, więc teraz muszę przez dwie minuty coś dyktować w języku polskim. Będzie to długi tekst. To na pewno. Nie wiem co by tutaj poczytać, bo nie mam nic pod ręką. Więc będę mówił wyłącznie o takich prostych rzeczach. Jak mój telefon, który leży na biurku. Klawiatura, myszka. I porozmawiamy trochę o rybkach. Przy czym jedna wygląda na lekko chorą. Chyba do gorywa. Tak to wygląda. Niestety ostatnie danio perłowe. Na te wszystkie dane perłowe były raczej marnego zdrowia. Z czterech ostał się jeden. Ledwo wszędzie. Na szczęście samce kupików całkiem nieźle sobie radzą. Więc im najwyraźniej nic nie grozi. Teraz delikatnie podkarmę je. Póki jeszcze lampka się nie świeci w akwarium. To kupiki nie powinny być takie aktywne w się jedzeniu. On jest tysał. Trochę powinno spać dla krewetek. To jest bardzo istotne. Jeżeli chodzi o to. Z takich mniej istotnych rzeczy. To teraz muszę dalej to nagrywać. No bo jednak coś tam musi się przetworzyć. I zobaczymy też w jaki sposób dłuższe teksty są obrabiane. Czego jestem bardzo ciekawy. Mam nadzieję, że to będzie moja wymarzona klawatura. Będę mógł odinstalować płatną wersję płatnego kuzyna Super Whispera. I zostaniemy tylko na Open Super Whisperze. Który ma najważniejsze dla mnie funkcje. Bo to, że on mi tam będzie formatował jako mail. To jest jakby niezbyt istotna funkcja. Sam jestem w stanie to zrobić. To nie jest coś, czego bardzo potrzebuję. No bo tylko sobie uszkodziłem jedną rękę. I drugą mam całkiem sprawną. Więc mogę dalej dyktować.
+[bilingual] TRANSFORM 32.5 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Ok, więc teraz muszę przez dwie minuty coś dyktować w języku polskim. Będzie to długi tekst. To na pewno. Nie wiem, co by tutaj poczytać, bo nie mam nic pod ręką. Więc będę mówił wyłącznie o takich prostych rzeczach. Jak mój telefon, który leży na biurku. Klawiatura, myszka. I porozmawiamy trochę o rybkach. Przy czym jedna wygląda na lekko chorą. Chyba do gorywa. Tak to wygląda. Niestety, ostatnie danio perłowe. Na te wszystkie dane perłowe były raczej marnego zdrowia. Z czterech ostał się jeden. Ledwo wszędzie. Na szczęście samce kupików całkiem nieźle sobie radzą. Więc im najwyraźniej nic nie grozi. Teraz delikatnie podkarmę je. Póki jeszcze lampka się nie świeci w akwarium. To kupiki nie powinny być takie aktywne w się jedzeniu. On jest tysał. Trochę powinno spać dla krewetek. To jest bardzo istotne. Jeżeli chodzi o to. Z takich mniej istotnych rzeczy. To teraz muszę dalej to nagrywać. No bo jednak coś tam musi się przetworzyć. I zobaczymy też, w jaki sposób dłuższe teksty są obrabiane. Czego jestem bardzo ciekawy. Mam nadzieję, że to będzie moja wymarzona klawatura. Będę mógł odinstalować płatną wersję płatnego kuzyna Super Whispera. I zostaniemy tylko na Open Super Whisperze. Który ma najważniejsze dla mnie funkcje. Bo to, że on mi tam będzie formatował jako mail. To jest jakby niezbyt istotna funkcja. Sam jestem w stanie to zrobić. To nie jest coś, czego bardzo potrzebuję. No bo tylko sobie uszkodziłem jedną rękę. I drugą mam całkiem sprawną. Więc mogę dalej dyktować.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): ["to", "To", "do", "to", "To", "On", "To", "to", "To", "to", "No", "to", "to", "on", "To", "to", "To", "No"]
+[bilingual] TABLE | 2026-09-25 09:03:01.310 | 9039BAB0-CBA2-49B2-82E1-432FF7B94589.wav | 117.8 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=12.3 | transformS=32.5
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 2/87 | en anchor (131.1 s) | 2026-09-25 09:06:40.001 | 29EA0AEA-06B0-4FE1-B189-18A21822F35A.wav | 131.1 s | status completed
+[bilingual] DECODE 11.3 s | segments 26 | engine language en
+[bilingual] STORED: Okay, now I'm recording in English. So we can have some reference material. I will say something about my keyboard that is laying on my desk, about mouse, about the aquarium and the shrimps that are basically in them. There are two species of shrimps. Mono shrimp and the red cherry shrimp. Some guppies, a sick, danio, peruv danio. And there's also snails. I'm very proud of my own desk on this aquarium. Also, I have few stages. Of characters from the Friends sitcom laying on my monitor. Figurine of Alien. From Alien vs Predator also hanging from my monitor that I printed myself with my FDM printer. So I'm recording something pretty long. There is a traffic outside and today it's very cloudy. Yeah, very cloudy, not really pleasant and cold outside. And starting, yeah, fall is starting. So it's cold, it's wet. It's not pleasant to be outside. The leaves are falling off the trees. The grass is still green, but it will not take long to pretty much stop growing. So I sleep for a winter. So yeah, this is the longer recording that I'm recording to test the English transcription function. My wife is sitting next to me playing Heroes Might of Magic 3. And she is really pretty damn looking. She is like a hot one.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Okay, now I'm recording in English. So we can have some reference material. I will say something about my keyboard that is laying on my desk, about mouse, about the aquarium and the shrimps that are basically in them. There are two species of shrimps. Mono shrimp and the red cherry shrimp. Some guppies, a sick, danio, peruv danio. And there's also snails. I'm very proud of my own desk on this aquarium. Also, I have few stages. Of characters from the Friends sitcom laying on my monitor. Figurine of Alien. From Alien vs Predator also hanging from my monitor that I printed myself with my FDM printer. So I'm recording something pretty long. There is a traffic outside and today it's very cloudy. Yeah, very cloudy, not really pleasant and cold outside. And starting, yeah, fall is starting. So it's cold, it's wet. It's not pleasant to be outside. The leaves are falling off the trees. The grass is still green, but it will not take long to pretty much stop growing. So I sleep for a winter. So yeah, this is the longer recording that I'm recording to test the English transcription function. My wife is sitting next to me playing Heroes Might of Magic 3. And she is really pretty damn looking. She is like a hot one.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Okay, now I'm recording in English. So we can have some reference material. I will say something about my keyboard that is laying on my desk, about mouse, about the aquarium and the shrimps that are basically in them. There are two species of shrimps. Mono shrimp and the red cherry shrimp. Some guppies, a sick, danio, peruv danio. And there's also snails. I'm very proud of my own desk on this aquarium. Also, I have few stages. Of characters from the Friends sitcom laying on my monitor. Figurine of Alien. From Alien vs Predator also hanging from my monitor that I printed myself with my FDM printer. So I'm recording something pretty long. There is a traffic outside and today it's very cloudy. Yeah, very cloudy, not really pleasant and cold outside. And starting, yeah, fall is starting. So it's cold, it's wet. It's not pleasant to be outside. The leaves are falling off the trees. The grass is still green, but it will not take long to pretty much stop growing. So I sleep for a winter. So yeah, this is the longer recording that I'm recording to test the English transcription function. My wife is sitting next to me playing Heroes Might of Magic 3. And she is really pretty damn looking. She is like a hot one.
+[bilingual] TRANSFORM 18.9 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Okay, now I'm recording in English. So we can have some reference material. I will say something about my keyboard that is laying on my desk, about mouse, about the aquarium and the shrimps that are basically in them. There are two species of shrimps. Mono shrimp and the red cherry shrimp. Some guppies, a sick, danio, peruv danio. And there's also snails. I'm very proud of my own desk on this aquarium. Also, I have few stages. Of characters from the Friends sitcom laying on my monitor. Figurine of Alien. From Alien vs Predator also hanging from my monitor that I printed myself with my FDM printer. So I'm recording something pretty long. There is a traffic outside and today it's very cloudy. Yeah, very cloudy, not really pleasant and cold outside. And starting, yeah, fall is starting. So it's cold, it's wet. It's not pleasant to be outside. The leaves are falling off the trees. The grass is still green, but it will not take long to pretty much stop growing. So I sleep for a winter. So yeah, this is the longer recording that I'm recording to test the English transcription function. My wife is sitting next to me playing Heroes Might of Magic 3. And she is really pretty damn looking. She is like a hot one.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 09:06:40.001 | 29EA0AEA-06B0-4FE1-B189-18A21822F35A.wav | 131.1 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=11.3 | transformS=18.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 3/87 | en short (29.0 s) | 2026-09-25 09:07:32.658 | FD7B4C64-0AD7-4431-84D6-6F9EAFC77512.wav | 29.0 s | status completed
+[bilingual] DECODE 2.9 s | segments 1 | engine language en
+[bilingual] STORED: I check if my recordings are okay, if it's good to test with them.
+[bilingual] STORED LANG: en
+[bilingual] RAW: I check if my recordings are okay, if it's good to test with them.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: I check if my recordings are okay, if it's good to test with them.
+[bilingual] TRANSFORM 3.4 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: I check if my recordings are okay, if it's good to test with them.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 09:07:32.658 | FD7B4C64-0AD7-4431-84D6-6F9EAFC77512.wav | 29.0 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.9 | transformS=3.4
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 4/87 | library | 2026-09-23 13:02:48.869 | 8C6AE9CD-8A9A-4CE4-9C5B-FCD78614C1DA.wav | 55.9 s | status completed
+[bilingual] DECODE 4.7 s | segments 2 | engine language pl
+[bilingual] STORED: First test of translation. First test of translation. First test of translation. First test of translation. First test of translation. First test of translation. First test of translation.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Pierwszy test o translation. Pierwszy test o translation.
+[bilingual] SCRUB removed fillers 0 repetitions 4 annotations 0 | dropped 4 ["Pierwszy", "test", "o", "translation"] | added 0 []
+[bilingual] CLEANED: Pierwszy test o translation.
+[bilingual] TRANSFORM 3.0 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Pierwszy test na tłumaczenie.
+[bilingual] DELTA cleaned→final: dropped 2 ["o", "translation"] | added 2 ["na", "tłumaczenie"]
+[bilingual] DELTA raw→final: dropped 6 ["o", "translation", "Pierwszy", "test", "o", "translation"] | added 2 ["na", "tłumaczenie"]
+[bilingual] LANG engine=pl gate=pl raw=unknown cleaned=unknown final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-23 13:02:48.869 | 8C6AE9CD-8A9A-4CE4-9C5B-FCD78614C1DA.wav | 55.9 | engine=pl | raw=unknown | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=6 | added=2 | flip=no | decodeS=4.7 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 5/87 | library | 2026-09-23 13:03:56.460 | F8B8FD9B-2D96-4F09-81AE-7C63A2FDE2D9.wav | 6.6 s | status completed
+[bilingual] DECODE 2.3 s | segments 2 | engine language pl
+[bilingual] STORED: I
+[bilingual] STORED LANG: pl
+[bilingual] RAW: Pkt. 1. Zapar świecę Pkt. 2. Powiedz ludusk i zaperalny
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Pkt. 1. Zapar świecę Pkt. 2. Powiedz ludusk i zaperalny
+[bilingual] TRANSFORM 4.2 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Pkt. 1. Zapar świecę. Pkt. 2. Powiedz ludusk i zaperalny.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-23 13:03:56.460 | F8B8FD9B-2D96-4F09-81AE-7C63A2FDE2D9.wav | 6.6 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.3 | transformS=4.2
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 6/87 | library | 2026-09-23 13:04:05.620 | D09891A0-7D20-4A43-86C3-AF93EC9CE5A0.wav | 5.8 s | status completed
+[bilingual] DECODE 3.6 s | segments 1 | engine language pl
+[bilingual] STORED: Now a test in Polish language.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Teraz test w języku polskim, test w języku polskim.
+[bilingual] SCRUB removed fillers 0 repetitions 4 annotations 0 | dropped 4 ["test", "w", "języku", "polskim"] | added 0 []
+[bilingual] CLEANED: Teraz, test w języku polskim.
+[bilingual] TRANSFORM 3.7 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz test w języku polskim.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 4 ["test", "w", "języku", "polskim"] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-23 13:04:05.620 | D09891A0-7D20-4A43-86C3-AF93EC9CE5A0.wav | 5.8 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=4 | added=0 | flip=no | decodeS=3.6 | transformS=3.7
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 7/87 | library | 2026-09-23 13:04:34.355 | CB983C4C-B2F1-4852-AA42-5E88E6273D6A.wav | 4.2 s | status completed
+[bilingual] DECODE 2.2 s | segments 1 | engine language pl
+[bilingual] STORED: Now I'm trying to record in Spanish language
+[bilingual] STORED LANG: en
+[bilingual] RAW: Teraz próbuję nagrać w języku polskim, teraz próbuję nagrać w języku polskim.
+[bilingual] SCRUB removed fillers 0 repetitions 6 annotations 0 | dropped 6 ["teraz", "próbuję", "nagrać", "w", "języku", "polskim"] | added 0 []
+[bilingual] CLEANED: Teraz próbuję nagrać w języku polskim.
+[bilingual] TRANSFORM 3.3 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz próbuję nagrać w języku polskim.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 6 ["teraz", "próbuję", "nagrać", "w", "języku", "polskim"] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-23 13:04:34.355 | CB983C4C-B2F1-4852-AA42-5E88E6273D6A.wav | 4.2 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=6 | added=0 | flip=no | decodeS=2.2 | transformS=3.3
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 8/87 | library | 2026-09-23 13:05:03.972 | E768C6B6-CFF6-423A-AA5B-CCEB459DC694.wav | 4.1 s | status completed
+[bilingual] DECODE 2.2 s | segments 1 | engine language pl
+[bilingual] STORED: Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+[bilingual] STORED LANG: pl
+[bilingual] RAW: Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+[bilingual] TRANSFORM 4.1 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-23 13:05:03.972 | E768C6B6-CFF6-423A-AA5B-CCEB459DC694.wav | 4.1 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.2 | transformS=4.1
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 9/87 | library | 2026-09-23 13:05:13.093 | 7982916A-1DF9-46EF-A69B-A06E1AEFD5B6.wav | 4.2 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language pl
+[bilingual] STORED: Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+[bilingual] STORED LANG: pl
+[bilingual] RAW: Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+[bilingual] TRANSFORM 3.7 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): ["to"]
+[bilingual] TABLE | 2026-09-23 13:05:13.093 | 7982916A-1DF9-46EF-A69B-A06E1AEFD5B6.wav | 4.2 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.7
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 10/87 | library | 2026-09-23 13:05:24.989 | 8BF93E24-77F8-4F88-BB9B-9E908308CEC5.wav | 4.9 s | status completed
+[bilingual] DECODE 2.2 s | segments 1 | engine language pl
+[bilingual] STORED: Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+[bilingual] STORED LANG: pl
+[bilingual] RAW: Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+[bilingual] SCRUB removed fillers 0 repetitions 6 annotations 0 | dropped 6 ["jeszcze", "raz", "transkrypcja", "w", "języku", "polskim"] | added 0 []
+[bilingual] CLEANED: Jeszcze raz transkrypcja w języku polskim.
+[bilingual] TRANSFORM 3.7 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Jeszcze raz transkrypcja w języku polskim. Transkrypcja>>>
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 1 ["Transkrypcja"]
+[bilingual] DELTA raw→final: dropped 5 ["jeszcze", "raz", "w", "języku", "polskim"] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-23 13:05:24.989 | 8BF93E24-77F8-4F88-BB9B-9E908308CEC5.wav | 4.9 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=5 | added=0 | flip=no | decodeS=2.2 | transformS=3.7
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 11/87 | library | 2026-09-23 13:08:13.520 | 737B7767-5563-47B8-B3BB-5EEC8A628F7D.wav | 16.8 s | status completed
+[bilingual] DECODE 2.4 s | segments 1 | engine language en
+[bilingual] STORED: I also can see keyboard simulation output.
+[bilingual] STORED LANG: unknown
+[bilingual] RAW: I also can see keyboard simulation output.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: I also can see keyboard simulation output.
+[bilingual] TRANSFORM 2.9 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: I can also see keyboard simulation output.
+[bilingual] DELTA cleaned→final: dropped 1 ["also"] | added 1 ["also"]
+[bilingual] DELTA raw→final: dropped 1 ["also"] | added 1 ["also"]
+[bilingual] LANG engine=en gate=en raw=unknown cleaned=unknown final=unknown | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-23 13:08:13.520 | 737B7767-5563-47B8-B3BB-5EEC8A628F7D.wav | 16.8 | engine=en | raw=unknown | final=unknown | match=no | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=1 | added=1 | flip=no | decodeS=2.4 | transformS=2.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 12/87 | library | 2026-09-23 13:08:29.604 | 0D5AA205-7FC2-4F53-AA7B-C2E17A3A33B6.wav | 2.8 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: <redacted: captain dictation, 38 chars>
+[bilingual] STORED LANG: en
+[bilingual] RAW: <redacted: captain dictation, 38 chars>
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: <redacted: captain dictation, 38 chars>
+[bilingual] TRANSFORM 3.0 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: <redacted: captain dictation, 38 chars>  
+TRANSCRIPT
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 1 ["TRANSCRIPT"]
+[bilingual] DELTA raw→final: dropped 0 [] | added 1 ["TRANSCRIPT"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-23 13:08:29.604 | 0D5AA205-7FC2-4F53-AA7B-C2E17A3A33B6.wav | 2.8 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=1 | flip=no | decodeS=2.0 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 13/87 | library | 2026-09-23 13:08:40.747 | 7DE55EF3-3187-4D4A-8ABE-8368FEBE01D3.wav | 7.3 s | status completed
+[bilingual] DECODE 2.2 s | segments 1 | engine language en
+[bilingual] STORED: I'm not now writing with your open whisper.
+[bilingual] STORED LANG: en
+[bilingual] RAW: I'm not now writing with your open whisper.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: I'm not now writing with your open whisper.
+[bilingual] TRANSFORM 3.1 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: I am not now writing with your open whisper.
+[bilingual] DELTA cleaned→final: dropped 1 ["m"] | added 1 ["am"]
+[bilingual] DELTA raw→final: dropped 1 ["m"] | added 1 ["am"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-23 13:08:40.747 | 7DE55EF3-3187-4D4A-8ABE-8368FEBE01D3.wav | 7.3 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=1 | added=1 | flip=no | decodeS=2.2 | transformS=3.1
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 14/87 | library | 2026-09-23 13:08:53.976 | D8579DB2-6CE5-49CE-9155-6F60834CAD9F.wav | 3.0 s | status completed
+[bilingual] DECODE 2.2 s | segments 1 | engine language en
+[bilingual] STORED: I am not writing with your upper whisper.
+[bilingual] STORED LANG: en
+[bilingual] RAW: I am not writing with your upper whisper.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: I am not writing with your upper whisper.
+[bilingual] TRANSFORM 3.0 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: I am not writing with your upper whisper.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-23 13:08:53.976 | D8579DB2-6CE5-49CE-9155-6F60834CAD9F.wav | 3.0 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.2 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 15/87 | library | 2026-09-23 13:09:10.063 | DFBAFE0D-DD94-4ADE-819D-F914EA18FB86.wav | 6.6 s | status completed
+[bilingual] DECODE 2.2 s | segments 2 | engine language en
+[bilingual] STORED: keyboard simulation is working from time to time. It's not always working.
+[bilingual] STORED LANG: en
+[bilingual] RAW: keyboard simulation is working from time to time. It's not always working.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: keyboard simulation is working from time to time. It's not always working.
+[bilingual] TRANSFORM 3.3 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Keyboard simulation is working from time to time. It's not always working.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-23 13:09:10.063 | DFBAFE0D-DD94-4ADE-819D-F914EA18FB86.wav | 6.6 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.2 | transformS=3.3
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 16/87 | library | 2026-09-23 13:09:18.132 | 07D414C8-D3D9-4CE2-8B3B-9CCFC5F23A25.wav | 4.5 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language en
+[bilingual] STORED: Most of the time it's only recording
+[bilingual] STORED LANG: en
+[bilingual] RAW: Most of the time it's only recording
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Most of the time it's only recording
+[bilingual] TRANSFORM 3.0 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Most of the time, it's only recording.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-23 13:09:18.132 | 07D414C8-D3D9-4CE2-8B3B-9CCFC5F23A25.wav | 4.5 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 17/87 | library | 2026-09-23 13:11:19.856 | 3880A6AD-6CA3-4198-888F-BC4492034169.wav | 3.2 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language en
+[bilingual] STORED: It looks like this is just open whisper.
+[bilingual] STORED LANG: en
+[bilingual] RAW: It looks like this is just open whisper.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: It looks like this is just open whisper.
+[bilingual] TRANSFORM 3.0 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: It looks like this is just open whisper.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-23 13:11:19.856 | 3880A6AD-6CA3-4198-888F-BC4492034169.wav | 3.2 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 18/87 | library | 2026-09-23 13:11:34.033 | B67BC3EC-1AB0-48B7-8998-BEB7B4EEE5E2.wav | 5.0 s | status completed
+[bilingual] DECODE 2.2 s | segments 1 | engine language en
+[bilingual] STORED: Now I'm trying Oppo Whisper in different mode, maybe this time it will be working.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Now I'm trying Oppo Whisper in different mode, maybe this time it will be working.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Now I'm trying Oppo Whisper in different mode, maybe this time it will be working.
+[bilingual] TRANSFORM 3.5 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Now I'm trying Oppo Whisper in different mode, maybe this time it will be working.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-23 13:11:34.033 | B67BC3EC-1AB0-48B7-8998-BEB7B4EEE5E2.wav | 5.0 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.2 | transformS=3.5
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 19/87 | library | 2026-09-23 17:29:09.469 | 20594DC7-489A-494E-ACCC-4D8ED151A01D.wav | 5.0 s | status completed
+[bilingual] DECODE 2.1 s | segments 2 | engine language pl
+[bilingual] STORED: I'm gonna ask this to you. I asked about shit.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Teraz testuję. Raz, dwa, trzy.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Teraz testuję. Raz, dwa, trzy.
+[bilingual] TRANSFORM 3.2 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz testuję. Raz, dwa, trzy.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-23 17:29:09.469 | 20594DC7-489A-494E-ACCC-4D8ED151A01D.wav | 5.0 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.2
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 20/87 | library | 2026-09-23 17:29:17.200 | ACDC9B38-16AC-4512-BB76-0D1AB436FBFD.wav | 2.4 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language pl
+[bilingual] STORED: (speaking in foreign language)
+[bilingual] STORED LANG: en
+[bilingual] RAW: Teraz testuję. Raz, dwa, trzy.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Teraz testuję. Raz, dwa, trzy.
+[bilingual] TRANSFORM 3.2 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz testuję. Raz, dwa, trzy.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-23 17:29:17.200 | ACDC9B38-16AC-4512-BB76-0D1AB436FBFD.wav | 2.4 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=3.2
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 21/87 | library | 2026-09-23 17:29:45.874 | 369C2074-CDB1-4AC4-BBB5-A47239B71C94.wav | 1.8 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language pl
+[bilingual] STORED: (speaking in foreign language)
+[bilingual] STORED LANG: en
+[bilingual] RAW: Teraz testuję. Raz, dwa, trzy.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Teraz testuję. Raz, dwa, trzy.
+[bilingual] TRANSFORM 3.2 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz testuję. Raz, dwa, trzy.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-23 17:29:45.874 | 369C2074-CDB1-4AC4-BBB5-A47239B71C94.wav | 1.8 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=3.2
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 22/87 | library | 2026-09-23 17:30:00.376 | 4B614AE1-E769-4776-859E-1BD969B3F8E2.wav | 2.5 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: Now speaking English.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Now speaking English
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Now speaking English
+[bilingual] TRANSFORM 2.8 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Now speaking English
+TRANSCRIPT
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 1 ["TRANSCRIPT"]
+[bilingual] DELTA raw→final: dropped 0 [] | added 1 ["TRANSCRIPT"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-23 17:30:00.376 | 4B614AE1-E769-4776-859E-1BD969B3F8E2.wav | 2.5 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=1 | flip=no | decodeS=2.0 | transformS=2.8
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 23/87 | library | 2026-09-23 17:30:09.372 | 8F9F9F94-CE6A-4CA4-8E71-1ABC4BD5462D.wav | 2.8 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language pl
+[bilingual] STORED: This is the first time I have a photo school.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Teraz testuję po polsku.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Teraz testuję po polsku.
+[bilingual] TRANSFORM 2.9 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz testuję po polsku.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-23 17:30:09.372 | 8F9F9F94-CE6A-4CA4-8E71-1ABC4BD5462D.wav | 2.8 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=2.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 24/87 | library | 2026-09-23 17:30:17.981 | 3DB73D67-251B-4E8F-9057-814D9423CE2F.wav | 5.2 s | status completed
+[bilingual] DECODE 2.2 s | segments 1 | engine language pl
+[bilingual] STORED: The rest history is now moving to the power of school, so we will be back in school.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Teraz testuję znowu, mówię po polsku, chcę, żeby było po angielsku.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Teraz testuję znowu, mówię po polsku, chcę, żeby było po angielsku.
+[bilingual] TRANSFORM 3.9 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz testuję znowu, mówię po polsku, chcę, żeby było po angielsku.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-23 17:30:17.981 | 3DB73D67-251B-4E8F-9057-814D9423CE2F.wav | 5.2 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.2 | transformS=3.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 25/87 | library | 2026-09-23 17:30:27.578 | CB5FB432-3D32-460C-83EC-0B862495DE27.wav | 7.8 s | status completed
+[bilingual] DECODE 2.2 s | segments 1 | engine language en
+[bilingual] STORED: Now I want to test the English side of up.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Now I want to test the English side of app.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Now I want to test the English side of app.
+[bilingual] TRANSFORM 3.2 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Now I want to test the English side of the app.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 1 ["the"]
+[bilingual] DELTA raw→final: dropped 0 [] | added 1 ["the"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-23 17:30:27.578 | CB5FB432-3D32-460C-83EC-0B862495DE27.wav | 7.8 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=1 | flip=no | decodeS=2.2 | transformS=3.2
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 26/87 | library | 2026-09-23 17:32:41.453 | 58D13F1F-7A39-4622-AB05-5D4068AB867D.wav | 3.2 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language pl
+[bilingual] STORED: There are some people who are going to go to the airport.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Teraz mówię po polsku i chcę, żeby była po polsku.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Teraz mówię po polsku i chcę, żeby była po polsku.
+[bilingual] TRANSFORM 3.6 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz mówię po polsku i chcę, żeby było po polsku.
+[bilingual] DELTA cleaned→final: dropped 1 ["była"] | added 1 ["było"]
+[bilingual] DELTA raw→final: dropped 1 ["była"] | added 1 ["było"]
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-23 17:32:41.453 | 58D13F1F-7A39-4622-AB05-5D4068AB867D.wav | 3.2 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=1 | added=1 | flip=no | decodeS=2.1 | transformS=3.6
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 27/87 | library | 2026-09-24 09:05:08.211 | FDCE39F7-48F7-48A3-A85E-0E55A1B1087C.wav | 3.0 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: Make the button same size as the font.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Make the button same size as the font.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Make the button same size as the font.
+[bilingual] TRANSFORM 3.0 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Make the button same size as the font.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-24 09:05:08.211 | FDCE39F7-48F7-48A3-A85E-0E55A1B1087C.wav | 3.0 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 28/87 | library | 2026-09-24 09:05:15.322 | EA4AE368-6639-431B-85A9-9FA44FFFF6E9.wav | 2.9 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: Make the button same size as the font.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Make the button same size as the font.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Make the button same size as the font.
+[bilingual] TRANSFORM 3.0 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Make the button same size as the font.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-24 09:05:15.322 | EA4AE368-6639-431B-85A9-9FA44FFFF6E9.wav | 2.9 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 29/87 | library | 2026-09-24 09:05:32.569 | DC187FEA-7E34-4EA3-A8A7-D38482BCD2B5.wav | 1.8 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language pl
+[bilingual] STORED: font
+[bilingual] STORED LANG: unknown
+[bilingual] RAW: font
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: font
+[bilingual] TRANSFORM 3.3 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: <<<TRANSKRYPCJA
+font
+TRANSKRYPCJA>>>
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 2 ["TRANSKRYPCJA", "TRANSKRYPCJA"]
+[bilingual] DELTA raw→final: dropped 0 [] | added 2 ["TRANSKRYPCJA", "TRANSKRYPCJA"]
+[bilingual] LANG engine=pl gate=pl raw=unknown cleaned=unknown final=unknown | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-24 09:05:32.569 | DC187FEA-7E34-4EA3-A8A7-D38482BCD2B5.wav | 1.8 | engine=pl | raw=unknown | final=unknown | match=no | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=2 | flip=no | decodeS=1.9 | transformS=3.3
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 30/87 | library | 2026-09-24 09:08:10.108 | 44D378F5-C3AA-4EA6-B904-DE677A2A8D3E.wav | 1.3 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language ru
+[bilingual] STORED: Теперь собираем.
+[bilingual] STORED LANG: unknown
+[bilingual] RAW: Теперь собираем.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Теперь собираем.
+[bilingual] TRANSFORM 0.0 s | policy none | didRunModel false | guard none
+[bilingual] FINAL: Теперь собираем.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=ru gate=ru raw=unknown cleaned=unknown final=unknown | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (ru in): []
+[bilingual] TABLE | 2026-09-24 09:08:10.108 | 44D378F5-C3AA-4EA6-B904-DE677A2A8D3E.wav | 1.3 | engine=ru | raw=unknown | final=unknown | match=no | policy=none | didRunModel=false | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=0.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 31/87 | library | 2026-09-24 09:08:16.429 | FBA76318-617C-47E4-AE5C-CB8BFB8AD66C.wav | 2.0 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: Now I'm testing.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Now I'm testing.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Now I'm testing.
+[bilingual] TRANSFORM 2.8 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Now I'm testing.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-24 09:08:16.429 | FBA76318-617C-47E4-AE5C-CB8BFB8AD66C.wav | 2.0 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=2.8
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 32/87 | library | 2026-09-24 09:08:22.063 | F5201D71-1EFD-4257-8553-62A0E7E99991.wav | 2.0 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: This is working just fine.
+[bilingual] STORED LANG: en
+[bilingual] RAW: This is working just fine.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: This is working just fine.
+[bilingual] TRANSFORM 4.3 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: This is working just fine.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-24 09:08:22.063 | F5201D71-1EFD-4257-8553-62A0E7E99991.wav | 2.0 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=4.3
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 33/87 | library | 2026-09-24 09:15:24.848 | 04C6FA9C-1C82-4DAC-B2B1-E63E22E78A7B.wav | 4.8 s | status completed
+[bilingual] DECODE 2.4 s | segments 1 | engine language en
+[bilingual] STORED: dispatch prod after you finish
+[bilingual] STORED LANG: en
+[bilingual] RAW: dispatch prod after you finish
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: dispatch prod after you finish
+[bilingual] TRANSFORM 2.9 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Dispatch product after you finish.
+[bilingual] DELTA cleaned→final: dropped 1 ["prod"] | added 1 ["product"]
+[bilingual] DELTA raw→final: dropped 1 ["prod"] | added 1 ["product"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-24 09:15:24.848 | 04C6FA9C-1C82-4DAC-B2B1-E63E22E78A7B.wav | 4.8 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=1 | added=1 | flip=no | decodeS=2.4 | transformS=2.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 34/87 | library | 2026-09-24 09:16:08.729 | 6BF473E5-C9D6-413C-AB7F-F81B9E5CEC08.wav | 1.3 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: commit tenders.
+[bilingual] STORED LANG: unknown
+[bilingual] RAW: commit tenders.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: commit tenders.
+[bilingual] TRANSFORM 2.7 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Commit tenders.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=unknown cleaned=unknown final=unknown | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-24 09:16:08.729 | 6BF473E5-C9D6-413C-AB7F-F81B9E5CEC08.wav | 1.3 | engine=en | raw=unknown | final=unknown | match=no | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=2.7
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 35/87 | library | 2026-09-24 09:16:19.089 | 84579AFC-DD0C-4F39-8B9F-1E8CB7403F79.wav | 2.0 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: Commit changes to main.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Commit changes to main.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Commit changes to main.
+[bilingual] TRANSFORM 2.8 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Commit changes to main.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-24 09:16:19.089 | 84579AFC-DD0C-4F39-8B9F-1E8CB7403F79.wav | 2.0 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=2.8
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 36/87 | library | 2026-09-24 09:34:15.613 | 58E8C9C3-576B-43DA-8019-E360250AA232.wav | 3.9 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language en
+[bilingual] STORED: Remove my PR from the original repo.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Remove my PR from the original repo.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Remove my PR from the original repo.
+[bilingual] TRANSFORM 3.0 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Remove my PR from the original repo.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-24 09:34:15.613 | 58E8C9C3-576B-43DA-8019-E360250AA232.wav | 3.9 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 37/87 | library | 2026-09-24 09:51:37.335 | 3F281183-2585-4FDE-941C-DCCC18ADDE07.wav | 2.2 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language pl
+[bilingual] STORED: Mogę coś zarzucić za jej w tle.
+[bilingual] STORED LANG: pl
+[bilingual] RAW: Mogę coś zarzucić za jej w tle.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Mogę coś zarzucić za jej w tle.
+[bilingual] TRANSFORM 3.3 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Mogę coś zarzucić za jej w tle.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-24 09:51:37.335 | 3F281183-2585-4FDE-941C-DCCC18ADDE07.wav | 2.2 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.3
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 38/87 | library | 2026-09-24 09:53:34.940 | DE9093AC-17EA-4286-A7DC-AF1DF3F8881C.wav | 2.7 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language pl
+[bilingual] STORED: I can do something to say in the background.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Mogę coś zarzucić z AI w tle.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Mogę coś zarzucić z AI w tle.
+[bilingual] TRANSFORM 3.3 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Mogę coś zarzucić z AI w tle.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-24 09:53:34.940 | DE9093AC-17EA-4286-A7DC-AF1DF3F8881C.wav | 2.7 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.3
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 39/87 | library | 2026-09-24 09:54:00.224 | BBE968B1-9218-4035-93A7-EB2AC9CD4045.wav | 2.8 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language pl
+[bilingual] STORED: I can't let something go through the face.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Mogę coś zarzucić z ajaj w tle.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Mogę coś zarzucić z ajaj w tle.
+[bilingual] TRANSFORM 3.3 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Mogę coś zarzucić z ajaj w tle.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-24 09:54:00.224 | BBE968B1-9218-4035-93A7-EB2AC9CD4045.wav | 2.8 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.3
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 40/87 | library | 2026-09-24 13:57:22.570 | 33E54ED5-6D1D-4EBB-A9E8-FBB7C655B426.wav | 4.1 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language pl
+[bilingual] STORED: Now the simple thing is even clicking the mouse.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Teraz prosty test nawet kliknięcie myszką
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Teraz prosty test nawet kliknięcie myszką
+[bilingual] TRANSFORM 3.1 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz prosty test – nawet kliknięcie myszką
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-24 13:57:22.570 | 33E54ED5-6D1D-4EBB-A9E8-FBB7C655B426.wav | 4.1 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.1
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 41/87 | library | 2026-09-25 05:30:45.008 | 8A3495F7-2F39-4747-9A6A-83EC2FE25E60.wav | 3.9 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: Now I'm trying to record something.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Now I'm trying to record something.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Now I'm trying to record something.
+[bilingual] TRANSFORM 2.9 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Now I am trying to record something.
+[bilingual] DELTA cleaned→final: dropped 1 ["m"] | added 1 ["am"]
+[bilingual] DELTA raw→final: dropped 1 ["m"] | added 1 ["am"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 05:30:45.008 | 8A3495F7-2F39-4747-9A6A-83EC2FE25E60.wav | 3.9 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=1 | added=1 | flip=no | decodeS=2.0 | transformS=2.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 42/87 | library | 2026-09-25 05:31:01.975 | 1C265C78-A4FF-43E3-963B-034B71D8DD36.wav | 5.0 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language pl
+[bilingual] STORED: Teraz próbuję coś nagrać.
+[bilingual] STORED LANG: pl
+[bilingual] RAW: Teraz próbuję coś nagrać.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Teraz próbuję coś nagrać.
+[bilingual] TRANSFORM 3.0 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz próbuję coś nagrać.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-25 05:31:01.975 | 1C265C78-A4FF-43E3-963B-034B71D8DD36.wav | 5.0 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 43/87 | library | 2026-09-25 05:31:45.803 | AFD26284-90AD-42AE-B611-1AB2B7055C19.wav | 26.5 s | status completed
+[bilingual] DECODE 2.9 s | segments 9 | engine language en
+[bilingual] STORED: Now say something... ...word... ...maybe not need but maybe should be... ...somehow... ...treamed?
+[bilingual] STORED LANG: en
+[bilingual] RAW: Now, say something... Ehhh... Word... Ah, maybe... Not need, but... Maybe should be... Mmm... Somehow... Dreamed?
+[bilingual] SCRUB removed fillers 1 repetitions 0 annotations 0 | dropped 1 ["Mmm"] | added 0 []
+[bilingual] CLEANED: Now, say something... Ehhh... Word... Ah, maybe... Not need, but... Maybe should be...... Somehow... Dreamed?
+[bilingual] TRANSFORM 4.1 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Now, say something... Ehhh... Word... Ah, maybe... Not need, but... Maybe should be...... Somehow... Dreamed?
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 1 ["Mmm"] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 05:31:45.803 | AFD26284-90AD-42AE-B611-1AB2B7055C19.wav | 26.5 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=1 | added=0 | flip=no | decodeS=2.9 | transformS=4.1
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 44/87 | library | 2026-09-25 05:32:25.830 | 6A8A70E0-0EC2-4D41-9846-9D908A2A82E2.wav | 4.5 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language pl
+[bilingual] STORED: Ok, now a quick text in the window.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Dobra, teraz szybki treścik w oknie.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Dobra, teraz szybki treścik w oknie.
+[bilingual] TRANSFORM 5.4 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Dobra, teraz szybki treścik w oknie.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-25 05:32:25.830 | 6A8A70E0-0EC2-4D41-9846-9D908A2A82E2.wav | 4.5 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=5.4
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 45/87 | library | 2026-09-25 05:33:32.314 | 5C68BFAC-5EC8-45CC-8239-3B5659272C1A.wav | 12.1 s | status completed
+[bilingual] DECODE 2.5 s | segments 2 | engine language pl
+[bilingual] STORED: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+[bilingual] STORED LANG: pl
+[bilingual] RAW: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[bilingual] TRANSFORM 5.0 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Dobra, ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): ["to"]
+[bilingual] TABLE | 2026-09-25 05:33:32.314 | 5C68BFAC-5EC8-45CC-8239-3B5659272C1A.wav | 12.1 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.5 | transformS=5.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 46/87 | library | 2026-09-25 05:38:47.148 | 0A7B9345-1A70-46CC-8370-0A423D0738E2.wav | 5.7 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language en
+[bilingual] STORED: Do both. I want A and B to be done.
+[bilingual] STORED LANG: en
+[bilingual] RAW: I want A and B to be done.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: I want A and B to be done.
+[bilingual] TRANSFORM 2.9 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: I want A and B to be done.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 05:38:47.148 | 0A7B9345-1A70-46CC-8370-0A423D0738E2.wav | 5.7 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=2.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 47/87 | library | 2026-09-25 05:40:24.082 | 7F754FC2-3C5E-413F-A62F-5F7D42F0BE39.wav | 16.8 s | status completed
+[bilingual] DECODE 2.7 s | segments 5 | engine language en
+[bilingual] STORED: Let's check the times once more. Which time is now here in Wlodslaw, Poland? And which time is now UTC? And what are peak hours time? Check it once again.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Let's check the times once more. Which time is now here in the Wlodslaw, Poland? And which time is now UTC? And what are peak hours time? Check it once again.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Let's check the times once more. Which time is now here in the Wlodslaw, Poland? And which time is now UTC? And what are peak hours time? Check it once again.
+[bilingual] TRANSFORM 4.7 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Let's check the times once more. Which time is now here in Wlodslaw, Poland? And which time is now UTC? And what are peak hours time? Check it once again.
+[bilingual] DELTA cleaned→final: dropped 1 ["the"] | added 0 []
+[bilingual] DELTA raw→final: dropped 1 ["the"] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 05:40:24.082 | 7F754FC2-3C5E-413F-A62F-5F7D42F0BE39.wav | 16.8 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=1 | added=0 | flip=no | decodeS=2.7 | transformS=4.7
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 48/87 | library | 2026-09-25 05:43:45.882 | B1C7319C-2AF4-444E-A33E-F41AEB564C1E.wav | 6.3 s | status completed
+[bilingual] DECODE 2.1 s | segments 2 | engine language en
+[bilingual] STORED: It just won't work until peak hours. And that's all with a timer.
+[bilingual] STORED LANG: en
+[bilingual] RAW: just won't work until peak hours. And that's all with a timer.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: just won't work until peak hours. And that's all with a timer.
+[bilingual] TRANSFORM 3.3 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Just won't work until peak hours. And that's all with a timer.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 05:43:45.882 | B1C7319C-2AF4-444E-A33E-F41AEB564C1E.wav | 6.3 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.3
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 49/87 | library | 2026-09-25 05:47:35.952 | B2EA9010-97C9-40AB-A7A2-746323A45297.wav | 23.3 s | status completed
+[bilingual] DECODE 2.9 s | segments 5 | engine language pl
+[bilingual] STORED: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[bilingual] STORED LANG: pl
+[bilingual] RAW: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Będę super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Będę super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[bilingual] TRANSFORM 5.3 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Będę super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-25 05:47:35.952 | B2EA9010-97C9-40AB-A7A2-746323A45297.wav | 23.3 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.9 | transformS=5.3
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 50/87 | library | 2026-09-25 05:48:44.577 | D92A0B10-EB8D-4D47-80B9-A9F3A88C112F.wav | 33.0 s | status completed
+[bilingual] DECODE 3.1 s | segments 4 | engine language en
+[bilingual] STORED: Also add feature to ignore pauses. Basically how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Also add feature to ignore pauses. Basically how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Also add feature to ignore pauses. Basically how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[bilingual] TRANSFORM 4.2 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Also add a feature to ignore pauses. Basically, how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 1 ["a"]
+[bilingual] DELTA raw→final: dropped 0 [] | added 1 ["a"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 05:48:44.577 | D92A0B10-EB8D-4D47-80B9-A9F3A88C112F.wav | 33.0 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=1 | flip=no | decodeS=3.1 | transformS=4.2
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 51/87 | library | 2026-09-25 05:49:09.143 | 0C0BB509-AB63-47C2-ACEC-294B1330AE9D.wav | 4.0 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: The problem is only with polish.
+[bilingual] STORED LANG: en
+[bilingual] RAW: The problem is only with polish.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: The problem is only with polish.
+[bilingual] TRANSFORM 2.8 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: The problem is only with polish.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 05:49:09.143 | 0C0BB509-AB63-47C2-ACEC-294B1330AE9D.wav | 4.0 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=2.8
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 52/87 | library | 2026-09-25 05:49:35.550 | D3E5FB60-2C96-4534-BB40-A6871E6C3F4D.wav | 14.1 s | status completed
+[bilingual] DECODE 2.4 s | segments 2 | engine language en
+[bilingual] STORED: Also the transcription, Tom transcription is also binded slightly with Polish. English Tom transcription works well.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Also the transcription, Tom transcription is also binded slightly with Polish. English Tom transcription works well.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Also the transcription, Tom transcription is also binded slightly with Polish. English Tom transcription works well.
+[bilingual] TRANSFORM 3.7 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Also, the transcription, Tom transcription is also bound slightly with Polish. English Tom transcription works well.
+[bilingual] DELTA cleaned→final: dropped 1 ["binded"] | added 1 ["bound"]
+[bilingual] DELTA raw→final: dropped 1 ["binded"] | added 1 ["bound"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 05:49:35.550 | D3E5FB60-2C96-4534-BB40-A6871E6C3F4D.wav | 14.1 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=1 | added=1 | flip=no | decodeS=2.4 | transformS=3.7
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 53/87 | library | 2026-09-25 05:56:37.663 | B8ABA45F-52F8-47AD-AEE9-204D03C11061.wav | 10.0 s | status completed
+[bilingual] DECODE 2.3 s | segments 2 | engine language en
+[bilingual] STORED: I want both models to use same root. Polish and English. Same root for tone transformation.
+[bilingual] STORED LANG: en
+[bilingual] RAW: I want both models to use same root, Polish and English. Same root for tone transformation.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: I want both models to use same root, Polish and English. Same root for tone transformation.
+[bilingual] TRANSFORM 3.5 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: I want both models to use the same root, Polish and English. Same root for tone transformation.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 1 ["the"]
+[bilingual] DELTA raw→final: dropped 0 [] | added 1 ["the"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 05:56:37.663 | B8ABA45F-52F8-47AD-AEE9-204D03C11061.wav | 10.0 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=1 | flip=no | decodeS=2.3 | transformS=3.5
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 54/87 | library | 2026-09-25 05:59:13.217 | 795074AD-6266-4FA8-87AE-30317867FF41.wav | 27.2 s | status completed
+[bilingual] DECODE 3.0 s | segments 4 | engine language en
+[bilingual] STORED: I just want to keep everything simple. So one model to rule them all. So one route for tone transcription that work for Polish and English. If it's already in place nothing should be done.
+[bilingual] STORED LANG: en
+[bilingual] RAW: I just want to keep everything simple. So one model to rule them all. So one route for tone transcription that work for Polish and English. If it's already in place nothing should be done.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: I just want to keep everything simple. So one model to rule them all. So one route for tone transcription that work for Polish and English. If it's already in place nothing should be done.
+[bilingual] TRANSFORM 4.8 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: I just want to keep everything simple. So one model to rule them all. So one route for tone transcription that works for Polish and English. If it's already in place, nothing should be done.
+[bilingual] DELTA cleaned→final: dropped 1 ["work"] | added 1 ["works"]
+[bilingual] DELTA raw→final: dropped 1 ["work"] | added 1 ["works"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 05:59:13.217 | 795074AD-6266-4FA8-87AE-30317867FF41.wav | 27.2 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=1 | added=1 | flip=no | decodeS=3.0 | transformS=4.8
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 55/87 | library | 2026-09-25 06:00:27.629 | DE461E49-742B-4165-AF7B-65DB31A39AEB.wav | 14.1 s | status completed
+[bilingual] DECODE 2.4 s | segments 2 | engine language en
+[bilingual] STORED: What will be the total memory cost of this solution? Especially the budget for key value cache.
+[bilingual] STORED LANG: en
+[bilingual] RAW: What will be the total memory cost of this solution? Especially the budget for key value cache.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: What will be the total memory cost of this solution? Especially the budget for key value cache.
+[bilingual] TRANSFORM 3.4 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: What will be the total memory cost of this solution? Especially the budget for key value cache.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 06:00:27.629 | DE461E49-742B-4165-AF7B-65DB31A39AEB.wav | 14.1 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.4 | transformS=3.4
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 56/87 | library | 2026-09-25 06:00:58.468 | AF2AB309-7EE4-47B1-B38B-A1C26F357865.wav | 4.6 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: I think peak hour starts. Freeze.
+[bilingual] STORED LANG: pl
+[bilingual] RAW: I think peak hour starts, freeze.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: I think peak hour starts, freeze.
+[bilingual] TRANSFORM 2.9 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: I think peak hour starts, freeze.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 06:00:58.468 | AF2AB309-7EE4-47B1-B38B-A1C26F357865.wav | 4.6 | engine=en | raw=pl | final=pl | match=no | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=2.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 57/87 | library | 2026-09-25 06:01:07.930 | DEE9F67E-0432-4711-B66C-70702F5D6662.wav | 2.6 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language en
+[bilingual] STORED: Please all the work.
+[bilingual] STORED LANG: en
+[bilingual] RAW: freeze all the work.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: freeze all the work.
+[bilingual] TRANSFORM 2.8 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Freeze all the work.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 06:01:07.930 | DEE9F67E-0432-4711-B66C-70702F5D6662.wav | 2.6 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=1.9 | transformS=2.8
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 58/87 | library | 2026-09-25 06:25:32.059 | 5F222575-8810-4742-B3B8-DCE3117481C8.wav | 26.3 s | status completed
+[bilingual] DECODE 3.0 s | segments 4 | engine language en
+[bilingual] STORED: Our teams are getting the message that the tickets will be cancelled after a certain period of time at least three times. First on the triage from us, then on the first and second escalations. So there's no mercy.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Our teams are getting the message that the tickets will be cancelled after a certain period of time, at least three times. First on the triage from us, then on the first and second escalations. So there's no mercy.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Our teams are getting the message that the tickets will be cancelled after a certain period of time, at least three times. First on the triage from us, then on the first and second escalations. So there's no mercy.
+[bilingual] TRANSFORM 5.1 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Our teams are getting the message that the tickets will be cancelled after a certain period of time, at least three times. First on the triage from us, then on the first and second escalations. So there's no mercy.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 06:25:32.059 | 5F222575-8810-4742-B3B8-DCE3117481C8.wav | 26.3 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=3.0 | transformS=5.1
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 59/87 | library | 2026-09-25 06:26:01.765 | 98E3F31B-FA83-4FB9-A022-B0134C6E46FB.wav | 6.6 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language en
+[bilingual] STORED: Our customers are getting information on the violations.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Our customers are getting information on the violations
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Our customers are getting information on the violations
+[bilingual] TRANSFORM 2.9 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Our customers are getting information on the violations.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 06:26:01.765 | 98E3F31B-FA83-4FB9-A022-B0134C6E46FB.wav | 6.6 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=2.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 60/87 | library | 2026-09-25 06:28:24.786 | 02FE5354-07AE-47E7-9C55-46B50BEEDC4D.wav | 2.4 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language en
+[bilingual] STORED: I'm trying to record something here.
+[bilingual] STORED LANG: en
+[bilingual] RAW: I'm trying to record something here.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: I'm trying to record something here.
+[bilingual] TRANSFORM 2.9 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: I'm trying to record something here.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 06:28:24.786 | 02FE5354-07AE-47E7-9C55-46B50BEEDC4D.wav | 2.4 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=1.9 | transformS=2.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 61/87 | library | 2026-09-25 06:28:37.714 | 2E44ECF5-7673-46F9-80D7-D51B4776A2C4.wav | 2.2 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language en
+[bilingual] STORED: And I'm trying to record something here.
+[bilingual] STORED LANG: en
+[bilingual] RAW: And I'm trying to record something here.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: And I'm trying to record something here.
+[bilingual] TRANSFORM 2.9 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: And I'm trying to record something here.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 06:28:37.714 | 2E44ECF5-7673-46F9-80D7-D51B4776A2C4.wav | 2.2 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=1.9 | transformS=2.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 62/87 | library | 2026-09-25 06:28:46.307 | D75DF9D8-07C0-473C-AB8E-38C40D59EDD2.wav | 2.4 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language en
+[bilingual] STORED: Weird as fuck.
+[bilingual] STORED LANG: unknown
+[bilingual] RAW: weird as fuck
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: weird as fuck
+[bilingual] TRANSFORM 2.7 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: weird as fuck
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=unknown cleaned=unknown final=unknown | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 06:28:46.307 | D75DF9D8-07C0-473C-AB8E-38C40D59EDD2.wav | 2.4 | engine=en | raw=unknown | final=unknown | match=no | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=1.9 | transformS=2.7
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 63/87 | library | 2026-09-25 06:28:54.402 | 1FBE27E3-333D-4C48-934E-FB36B32615B3.wav | 2.5 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language pl
+[bilingual] STORED: Teraz próbuję tutaj coś nagrać.
+[bilingual] STORED LANG: pl
+[bilingual] RAW: Teraz próbuję tutaj coś nagrać.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Teraz próbuję tutaj coś nagrać.
+[bilingual] TRANSFORM 3.0 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Teraz próbuję tutaj coś nagrać.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): []
+[bilingual] TABLE | 2026-09-25 06:28:54.402 | 1FBE27E3-333D-4C48-934E-FB36B32615B3.wav | 2.5 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 64/87 | library | 2026-09-25 06:29:13.500 | C487EA0D-FC88-4CD5-82D2-14DBD3533A65.wav | 3.0 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language pl
+[bilingual] STORED: Ok, it's a weird thing.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Dobra, to jest mega dziwne.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Dobra, to jest mega dziwne.
+[bilingual] TRANSFORM 3.0 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Dobra, to jest mega dziwne.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (pl in): ["to"]
+[bilingual] TABLE | 2026-09-25 06:29:13.500 | C487EA0D-FC88-4CD5-82D2-14DBD3533A65.wav | 3.0 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 65/87 | library | 2026-09-25 06:59:24.495 | CEE8B8D2-6BCC-41A7-B75C-8D1C442912AC.wav | 5.3 s | status completed
+[bilingual] DECODE 2.1 s | segments 2 | engine language en
+[bilingual] STORED: Is this thing secure? Are the RLS policies good?
+[bilingual] STORED LANG: en
+[bilingual] RAW: Is this thing secure? Are the RLS policies good?
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Is this thing secure? Are the RLS policies good?
+[bilingual] TRANSFORM 3.1 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Is this thing secure? Are the RLS policies good?
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 06:59:24.495 | CEE8B8D2-6BCC-41A7-B75C-8D1C442912AC.wav | 5.3 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.1
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 66/87 | library | 2026-09-25 07:01:47.355 | AAA66F70-4FF9-454A-875C-DDAF7E4FAE69.wav | 7.7 s | status completed
+[bilingual] DECODE 2.2 s | segments 1 | engine language en
+[bilingual] STORED: Is this portfolio AI distribution fun and will be well working with all the harnesses?
+[bilingual] STORED LANG: en
+[bilingual] RAW: Is this portfolio AI distribution fun and will be well working with all the harnesses?
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Is this portfolio AI distribution fun and will be well working with all the harnesses?
+[bilingual] TRANSFORM 3.4 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Is this portfolio AI distribution fun and will be well working with all the harnesses?
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:01:47.355 | AAA66F70-4FF9-454A-875C-DDAF7E4FAE69.wav | 7.7 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.2 | transformS=3.4
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 67/87 | library | 2026-09-25 07:02:52.195 | 9568E84D-20BF-477E-AC68-E57056645CC4.wav | 8.2 s | status completed
+[bilingual] DECODE 2.2 s | segments 1 | engine language en
+[bilingual] STORED: Alright, so create end-to-end assessment and output only the gaps.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Alright, so create end-to-end assessment and output only the gaps.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Alright, so create end-to-end assessment and output only the gaps.
+[bilingual] TRANSFORM 3.2 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Alright, so create end-to-end assessment and output only the gaps.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:02:52.195 | 9568E84D-20BF-477E-AC68-E57056645CC4.wav | 8.2 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.2 | transformS=3.2
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 68/87 | library | 2026-09-25 07:03:29.494 | F0BE688D-6EA9-4DE5-A700-69D89E597B8C.wav | 13.7 s | status completed
+[bilingual] DECODE 2.5 s | segments 4 | engine language en
+[bilingual] STORED: Especially focus on the questions. If they are enough to determine what site the customer wants to build or maybe more robust questionnaire would be better.
+[bilingual] STORED LANG: en
+[bilingual] RAW: especially focus on the questions. If they are enough to determine what site the customer want to build, or maybe more robust questionnaire would be better.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: especially focus on the questions. If they are enough to determine what site the customer want to build, or maybe more robust questionnaire would be better.
+[bilingual] TRANSFORM 4.2 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: especially focus on the questions. If they are enough to determine what site the customer wants to build, or maybe a more robust questionnaire would be better.
+[bilingual] DELTA cleaned→final: dropped 1 ["want"] | added 2 ["wants", "a"]
+[bilingual] DELTA raw→final: dropped 1 ["want"] | added 2 ["wants", "a"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:03:29.494 | F0BE688D-6EA9-4DE5-A700-69D89E597B8C.wav | 13.7 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=1 | added=2 | flip=no | decodeS=2.5 | transformS=4.2
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 69/87 | library | 2026-09-25 07:08:18.537 | C456B7C8-97B8-4278-A5BD-9590B077F716.wav | 3.8 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: Go through the report and improve the project.
+[bilingual] STORED LANG: en
+[bilingual] RAW: go through the report and improve the project
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: go through the report and improve the project
+[bilingual] TRANSFORM 2.9 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Go through the report and improve the project.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:08:18.537 | C456B7C8-97B8-4278-A5BD-9590B077F716.wav | 3.8 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=2.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 70/87 | library | 2026-09-25 07:09:00.746 | 880D1B22-6A4C-4BD6-B718-06D01F55AEBD.wav | 1.9 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language en
+[bilingual] STORED: Use of pickguard.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Use of pickguard
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Use of pickguard
+[bilingual] TRANSFORM 2.8 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Use of pickguard
+TRANSCRIPT
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 1 ["TRANSCRIPT"]
+[bilingual] DELTA raw→final: dropped 0 [] | added 1 ["TRANSCRIPT"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:09:00.746 | 880D1B22-6A4C-4BD6-B718-06D01F55AEBD.wav | 1.9 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=1 | flip=no | decodeS=1.9 | transformS=2.8
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 71/87 | library | 2026-09-25 07:10:48.957 | 1A9E80B4-A561-4FF5-B8E8-D89A8C60AED1.wav | 4.8 s | status completed
+[bilingual] DECODE 2.1 s | segments 2 | engine language en
+[bilingual] STORED: Prepare session to handle. We need to restart.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Prepare session to handoff. We need to restart.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Prepare session to handoff. We need to restart.
+[bilingual] TRANSFORM 3.0 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Prepare session to handoff. We need to restart.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:10:48.957 | 1A9E80B4-A561-4FF5-B8E8-D89A8C60AED1.wav | 4.8 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 72/87 | library | 2026-09-25 07:13:53.727 | 2E1C982B-D7C3-47EA-9C3F-6C435907E3A1.wav | 1.1 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language en
+[bilingual] STORED: Continue working.
+[bilingual] STORED LANG: en
+[bilingual] RAW: continue work.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: continue work.
+[bilingual] TRANSFORM 2.6 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Continue work.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=unknown cleaned=unknown final=unknown | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:13:53.727 | 2E1C982B-D7C3-47EA-9C3F-6C435907E3A1.wav | 1.1 | engine=en | raw=unknown | final=unknown | match=no | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=1.9 | transformS=2.6
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 73/87 | library | 2026-09-25 07:23:53.558 | 25E06FCE-8A3C-43B9-80BE-15BF3B2FF515.wav | 4.7 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language en
+[bilingual] STORED: Can off-peak guard be distributed as a package like this one?
+[bilingual] STORED LANG: en
+[bilingual] RAW: Can off-peak guard be distributed as a package like this ones?
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Can off-peak guard be distributed as a package like this ones?
+[bilingual] TRANSFORM 3.2 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Can off-peak guard be distributed as a package like these?
+[bilingual] DELTA cleaned→final: dropped 2 ["this", "ones"] | added 1 ["these"]
+[bilingual] DELTA raw→final: dropped 2 ["this", "ones"] | added 1 ["these"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:23:53.558 | 25E06FCE-8A3C-43B9-80BE-15BF3B2FF515.wav | 4.7 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=2 | added=1 | flip=no | decodeS=2.1 | transformS=3.2
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 74/87 | library | 2026-09-25 07:29:03.237 | D4A3E9D4-1960-4238-80F3-1D00E3D8F7C9.wav | 3.5 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: Do the same thing for project boundary hook.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Do the same thing for project boundary hook.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Do the same thing for project boundary hook.
+[bilingual] TRANSFORM 2.9 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Do the same thing for project boundary hook.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:29:03.237 | D4A3E9D4-1960-4238-80F3-1D00E3D8F7C9.wav | 3.5 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=2.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 75/87 | library | 2026-09-25 07:35:10.264 | CECAAF27-9F1E-4A3A-A272-697F833EDFD2.wav | 2.9 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: Scan me out a couple hundred bucks.
+[bilingual] STORED LANG: en
+[bilingual] RAW: - Scan me out a couple hundred bucks.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Scan me out a couple hundred bucks.
+[bilingual] TRANSFORM 3.0 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Scan me out a couple of hundred bucks.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 1 ["of"]
+[bilingual] DELTA raw→final: dropped 0 [] | added 1 ["of"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:35:10.264 | CECAAF27-9F1E-4A3A-A272-697F833EDFD2.wav | 2.9 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=1 | flip=no | decodeS=2.0 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 76/87 | library | 2026-09-25 07:36:45.040 | 1F71B87C-CEF9-4C83-8513-A966FE24F3FB.wav | 4.4 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language en
+[bilingual] STORED: Make it clear that the golf pick card is for deep seek.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Make it clear that the golf pick card is for deep seek.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Make it clear that the golf pick card is for deep seek.
+[bilingual] TRANSFORM 3.2 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Make it clear that the golf pick card is for deep seek.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:36:45.040 | 1F71B87C-CEF9-4C83-8513-A966FE24F3FB.wav | 4.4 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.2
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 77/87 | library | 2026-09-25 07:36:58.404 | A462D8A6-FD35-4D8A-8186-815D4AAEFCD5.wav | 3.8 s | status completed
+[bilingual] DECODE 2.1 s | segments 1 | engine language en
+[bilingual] STORED: Make it very explicit that the off-pick guard is for deep seek.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Make it very explicit that the off-pick guard is for deep seek.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Make it very explicit that the off-pick guard is for deep seek.
+[bilingual] TRANSFORM 3.3 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Make it very explicit that the off-pick guard is for deep seek.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:36:58.404 | A462D8A6-FD35-4D8A-8186-815D4AAEFCD5.wav | 3.8 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.1 | transformS=3.3
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 78/87 | library | 2026-09-25 07:37:21.247 | 28F9ADC4-6026-415D-8A6B-27223805C7DB.wav | 1.8 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language en
+[bilingual] STORED: Make it very explicit.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Make it very explicit.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Make it very explicit.
+[bilingual] TRANSFORM 2.7 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Make it very explicit.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:37:21.247 | 28F9ADC4-6026-415D-8A6B-27223805C7DB.wav | 1.8 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=1.9 | transformS=2.7
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 79/87 | library | 2026-09-25 07:46:00.528 | 68AFDB3F-4F57-4FDC-A80C-1F2248A6ED81.wav | 2.1 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language en
+[bilingual] STORED: We check against new person.
+[bilingual] STORED LANG: en
+[bilingual] RAW: We check against new personnel.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: We check against new personnel.
+[bilingual] TRANSFORM 2.8 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: We check against new personnel.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:46:00.528 | 68AFDB3F-4F57-4FDC-A80C-1F2248A6ED81.wav | 2.1 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=1.9 | transformS=2.8
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 80/87 | library | 2026-09-25 07:47:42.622 | 5BEEBA91-297A-4945-ABBD-916E4BDD5E09.wav | 10.2 s | status completed
+[bilingual] DECODE 2.3 s | segments 1 | engine language en
+[bilingual] STORED: I'm aware that nothing is running and this is only AI distribution so it is bithub text only.
+[bilingual] STORED LANG: en
+[bilingual] RAW: I'm aware that nothing is running and this is only AI distribution, so it is Bithub text only.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: I'm aware that nothing is running and this is only AI distribution, so it is Bithub text only.
+[bilingual] TRANSFORM 3.8 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: I'm aware that nothing is running and this is only AI distribution, so it is Bithub text only.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:47:42.622 | 5BEEBA91-297A-4945-ABBD-916E4BDD5E09.wav | 10.2 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.3 | transformS=3.8
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 81/87 | library | 2026-09-25 07:58:08.994 | 81B50264-1B06-4D5A-95BA-1A88821B90CC.wav | 2.5 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language en
+[bilingual] STORED: Continue with fixes.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Continue with fixes.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Continue with fixes.
+[bilingual] TRANSFORM 3.0 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: <<<TRANSCRIPT
+Continue with fixes.
+TRANSCRIPT>>>
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 2 ["TRANSCRIPT", "TRANSCRIPT"]
+[bilingual] DELTA raw→final: dropped 0 [] | added 2 ["TRANSCRIPT", "TRANSCRIPT"]
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 07:58:08.994 | 81B50264-1B06-4D5A-95BA-1A88821B90CC.wav | 2.5 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=2 | flip=no | decodeS=1.9 | transformS=3.0
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 82/87 | library | 2026-09-25 08:04:21.633 | 74326DBE-4FF9-4B46-8749-954536447FC5.wav | 2.0 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language en
+[bilingual] STORED: Is it dumb?
+[bilingual] STORED LANG: en
+[bilingual] RAW: Is it dumb?
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Is it dumb?
+[bilingual] TRANSFORM 2.7 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Is it dumb?
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 08:04:21.633 | 74326DBE-4FF9-4B46-8749-954536447FC5.wav | 2.0 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=1.9 | transformS=2.7
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 83/87 | library | 2026-09-25 08:14:01.032 | 6C341398-3355-4949-9905-2D36E82D8A67.wav | 2.2 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language en
+[bilingual] STORED: Now install both the files.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Now install both the files.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Now install both the files.
+[bilingual] TRANSFORM 2.8 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Now install both the files.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 08:14:01.032 | 6C341398-3355-4949-9905-2D36E82D8A67.wav | 2.2 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=1.9 | transformS=2.8
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 84/87 | library | 2026-09-25 08:35:35.498 | 2E8405CC-ED43-4021-BF22-9CF8321A9584.wav | 8.8 s | status completed
+[bilingual] DECODE 2.4 s | segments 2 | engine language pl
+[bilingual] STORED: Dobra, a teraz sobie potestuję troszeczkę, tak żeby coś z tego wyszło. Zobaczymy jaki teraz mamy ton ustawiony i jak wyjdzie to nagranie.
+[bilingual] STORED LANG: pl
+[bilingual] RAW: Dobra, a teraz sobie potestuję troszeczkę, tak żeby coś z tego wyszło. Zobaczymy jaki teraz mamy ton ustawiony i jak wyjdzie to nagranie.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Dobra, a teraz sobie potestuję troszeczkę, tak żeby coś z tego wyszło. Zobaczymy jaki teraz mamy ton ustawiony i jak wyjdzie to nagranie.
+[bilingual] TRANSFORM 5.5 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Dobra, a teraz sobie poświęcę troszeczkę, tak żeby coś z tego wyszło. Zobaczymy, jaki teraz mamy ton ustawiony i jak wyjdzie to nagranie.
+[bilingual] DELTA cleaned→final: dropped 1 ["potestuję"] | added 1 ["poświęcę"]
+[bilingual] DELTA raw→final: dropped 1 ["potestuję"] | added 1 ["poświęcę"]
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): ["a", "to"]
+[bilingual] TABLE | 2026-09-25 08:35:35.498 | 2E8405CC-ED43-4021-BF22-9CF8321A9584.wav | 8.8 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=1 | added=1 | flip=no | decodeS=2.4 | transformS=5.5
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 85/87 | library | 2026-09-25 08:36:40.557 | 6AAFDC20-C276-41F4-94BE-919C259A570F.wav | 20.6 s | status completed
+[bilingual] DECODE 3.0 s | segments 5 | engine language pl
+[bilingual] STORED: Dobrze, teraz poświęcę chwileczkę, żeby tutaj coś z tego wyszło. Robimy kolejne nagranie. Patrzymy jak działa przepisywanie tonu. No i zrobimy coś naprawdę zajebiaszczego. Takiego 6-7, żeby zobaczyć jak to działa.
+[bilingual] STORED LANG: pl
+[bilingual] RAW: Dobrze, teraz poświęcę chwileczkę, żeby tutaj coś z tego wyszło. Robimy kolejne nagranie. Patrzymy jak działa przepisywanie tonu. No i zrobimy coś naprawdę zajebiaszczego. Takiego 6-7, żeby zobaczyć jak to działa.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Dobrze, teraz poświęcę chwileczkę, żeby tutaj coś z tego wyszło. Robimy kolejne nagranie. Patrzymy jak działa przepisywanie tonu. No i zrobimy coś naprawdę zajebiaszczego. Takiego 6-7, żeby zobaczyć jak to działa.
+[bilingual] TRANSFORM 6.9 s | policy Polish, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Dobrze, teraz poświęcę chwilkę, żeby tutaj coś z tego wyszło. Robimy kolejne nagranie. Patrzymy, jak działa przepisywanie tonu. No i zrobimy coś naprawdę zajebiścze. Takiego 6-7, żeby zobaczyć, jak to działa.
+[bilingual] DELTA cleaned→final: dropped 2 ["chwileczkę", "zajebiaszczego"] | added 2 ["chwilkę", "zajebiścze"]
+[bilingual] DELTA raw→final: dropped 2 ["chwileczkę", "zajebiaszczego"] | added 2 ["chwilkę", "zajebiścze"]
+[bilingual] LANG engine=pl gate=pl raw=pl cleaned=pl final=pl | flip=no | polishDiacriticsInFinal=true
+[bilingual] FOREIGN TOKENS (pl in): ["No", "to"]
+[bilingual] TABLE | 2026-09-25 08:36:40.557 | 6AAFDC20-C276-41F4-94BE-919C259A570F.wav | 20.6 | engine=pl | raw=pl | final=pl | match=yes | policy=Polish, neutral tone, clean-up | didRunModel=true | guard=none | dropped=2 | added=2 | flip=no | decodeS=3.0 | transformS=6.9
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 86/87 | library | 2026-09-25 08:39:18.112 | B9F27354-458C-411A-9BD1-B041670BE72B.wav | 2.9 s | status completed
+[bilingual] DECODE 1.9 s | segments 1 | engine language en
+[bilingual] STORED: Restore last lost session.
+[bilingual] STORED LANG: en
+[bilingual] RAW: Restore last lost session.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: Restore last lost session.
+[bilingual] TRANSFORM 2.7 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: Restore last lost session.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 08:39:18.112 | B9F27354-458C-411A-9BD1-B041670BE72B.wav | 2.9 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=1.9 | transformS=2.7
+[bilingual] ------------------------------------------------------------
+[bilingual] RECORDING 87/87 | library | 2026-09-25 09:10:15.394 | EECE4B5C-F48A-4B20-9C93-CE434F38166C.wav | 3.8 s | status completed
+[bilingual] DECODE 2.0 s | segments 1 | engine language en
+[bilingual] STORED: First mate report how far you are from finishing all the tasks.
+[bilingual] STORED LANG: en
+[bilingual] RAW: First mate report how far you are from finishing all the tasks.
+[bilingual] SCRUB removed fillers 0 repetitions 0 annotations 0 | dropped 0 [] | added 0 []
+[bilingual] CLEANED: First mate report how far you are from finishing all the tasks.
+[bilingual] TRANSFORM 3.2 s | policy English, neutral tone, clean-up | didRunModel true | guard none
+[bilingual] FINAL: First mate, report how far you are from finishing all the tasks.
+[bilingual] DELTA cleaned→final: dropped 0 [] | added 0 []
+[bilingual] DELTA raw→final: dropped 0 [] | added 0 []
+[bilingual] LANG engine=en gate=en raw=en cleaned=en final=en | flip=no | polishDiacriticsInFinal=false
+[bilingual] FOREIGN TOKENS (en in): []
+[bilingual] TABLE | 2026-09-25 09:10:15.394 | EECE4B5C-F48A-4B20-9C93-CE434F38166C.wav | 3.8 | engine=en | raw=en | final=en | match=yes | policy=English, neutral tone, clean-up | didRunModel=true | guard=none | dropped=0 | added=0 | flip=no | decodeS=2.0 | transformS=3.2
+[bilingual] ------------------------------------------------------------
+[bilingual] SUMMARY processed 87 of 87 | skipped for budget 0 | undecodable 0 | anchors processed 3/3 | elapsed 549.4 s
+[bilingual] SUMMARY audio 862.1 s | decode 212.4 s | transform 336.7 s (model call plus prompt building)

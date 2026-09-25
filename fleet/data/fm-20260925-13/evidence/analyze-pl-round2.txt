@@ -1,0 +1,314 @@
+
+## per variant
+control run1: n=28 unchanged=15 invented=2 lost=4 guard_rejects=0 detector_flips=0 latency median=1.75s (0.65-3.59)
+control run2: n=28 unchanged=15 invented=2 lost=4 guard_rejects=0 detector_flips=0 latency median=1.36s (0.52-2.61)
+pl-instruction run1: n=28 unchanged=22 invented=4 lost=1 guard_rejects=0 detector_flips=0 latency median=2.33s (1.10-4.73)
+pl-instruction run2: n=28 unchanged=22 invented=4 lost=1 guard_rejects=0 detector_flips=0 latency median=2.21s (1.10-3.45)
+pl-no-echo run1: n=28 unchanged=22 invented=4 lost=1 guard_rejects=0 detector_flips=0 latency median=2.38s (1.40-3.60)
+pl-no-echo run2: n=28 unchanged=22 invented=4 lost=1 guard_rejects=0 detector_flips=0 latency median=2.37s (1.39-3.71)
+pl-no-echo-named run1: n=28 unchanged=25 invented=1 lost=1 guard_rejects=0 detector_flips=0 latency median=2.37s (1.40-3.66)
+pl-no-echo-named run2: n=28 unchanged=25 invented=1 lost=1 guard_rejects=0 detector_flips=0 latency median=2.37s (1.40-3.60)
+
+## per variant, both runs pooled
+control: n=56 unchanged=30 invented=4 lost=8 guard_rejects=0 detector_flips=0 latency median=1.50s (0.52-3.59)
+pl-instruction: n=56 unchanged=44 invented=8 lost=2 guard_rejects=0 detector_flips=0 latency median=2.26s (1.10-4.73)
+pl-no-echo: n=56 unchanged=44 invented=8 lost=2 guard_rejects=0 detector_flips=0 latency median=2.37s (1.39-3.71)
+pl-no-echo-named: n=56 unchanged=50 invented=2 lost=2 guard_rejects=0 detector_flips=0 latency median=2.37s (1.40-3.66)
+
+## determinism: identical prompt, two runs
+control: 2 of 28 answers differ between run1 and run2
+pl-instruction: 0 of 28 answers differ between run1 and run2
+pl-no-echo: 1 of 28 answers differ between run1 and run2
+pl-no-echo-named: 0 of 28 answers differ between run1 and run2
+
+## per-case table (run 1): case | tone | variant | guard | unchanged | added | dropped | output
+| pl-imperative | formal | control | ok | no | — | — | `Wyślij raport do klienta dzisiaj` |
+| pl-imperative | formal | pl-instruction | ok | no | — | — | `Wyślij raport do klienta dzisiaj.` |
+| pl-imperative | formal | pl-no-echo | ok | no | — | — | `Wyślij raport do klienta dzisiaj` |
+| pl-imperative | formal | pl-no-echo-named | ok | no | — | — | `Wyślij raport do klienta dzisiaj.` |
+| pl-question | formal | control | ok | no | — | — | `Czy możemy przenieść spotkanie na przyszły tydzień` |
+| pl-question | formal | pl-instruction | ok | no | — | — | `Czy możemy przenieść spotkanie na przyszły tydzień` |
+| pl-question | formal | pl-no-echo | ok | no | — | — | `Czy możemy przenieść spotkanie na przyszły tydzień` |
+| pl-question | formal | pl-no-echo-named | ok | no | — | — | `Czy możemy przenieść spotkanie na przyszły tydzień` |
+| pl-already-formal | formal | control | ok | yes | — | — | `Proszę o wysłanie raportu do klienta jeszcze dziś oraz o przesłanie mi kopii odpowiedzi.` |
+| pl-already-formal | formal | pl-instruction | ok | yes | — | — | `Proszę o wysłanie raportu do klienta jeszcze dziś oraz o przesłanie mi kopii odpowiedzi.` |
+| pl-already-formal | formal | pl-no-echo | ok | yes | — | — | `Proszę o wysłanie raportu do klienta jeszcze dziś oraz o przesłanie mi kopii odpowiedzi.` |
+| pl-already-formal | formal | pl-no-echo-named | ok | yes | — | — | `Proszę o wysłanie raportu do klienta jeszcze dziś oraz o przesłanie mi kopii odpowiedzi.` |
+| pl-run-on | casual | control | ok | no | — | — | `no więc myślę, że po prostu powinniśmy to wypuścić w piątek, jeśli nic się nie zepsuje` |
+| pl-run-on | casual | pl-instruction | ok | yes | — | — | `no więc myślę że po prostu powinniśmy to wypuścić w piątek jeśli nic się nie zepsuje` |
+| pl-run-on | casual | pl-no-echo | ok | yes | — | — | `no więc myślę że po prostu powinniśmy to wypuścić w piątek jeśli nic się nie zepsuje` |
+| pl-run-on | casual | pl-no-echo-named | ok | yes | — | — | `no więc myślę że po prostu powinniśmy to wypuścić w piątek jeśli nic się nie zepsuje` |
+| pl-numbers | casual | control | ok | yes | — | — | `numer faktury to 423 a kwota to trzy tysiące złotych` |
+| pl-numbers | casual | pl-instruction | ok | yes | — | — | `numer faktury to 423 a kwota to trzy tysiące złotych` |
+| pl-numbers | casual | pl-no-echo | ok | yes | — | — | `numer faktury to 423 a kwota to trzy tysiące złotych` |
+| pl-numbers | casual | pl-no-echo-named | ok | yes | — | — | `numer faktury to 423 a kwota to trzy tysiące złotych` |
+| pl-filler | neutral | control | ok | no | — | — | `yyy no więc w sumie chciałem powiedzieć, że że wdrożenie jest zrobione` |
+| pl-filler | neutral | pl-instruction | ok | yes | — | — | `yyy no więc w sumie chciałem powiedzieć że że wdrożenie jest zrobione` |
+| pl-filler | neutral | pl-no-echo | ok | yes | — | — | `yyy no więc w sumie chciałem powiedzieć że że wdrożenie jest zrobione` |
+| pl-filler | neutral | pl-no-echo-named | ok | yes | — | — | `yyy no więc w sumie chciałem powiedzieć że że wdrożenie jest zrobione` |
+| pl-plan-run-on | formal | control | ok | no | — | jest no plan taki więc | `Najpierw testujemy, potem wdrażamy, a potem patrzymy w logi.` |
+| pl-plan-run-on | formal | pl-instruction | ok | no | że | no więc | `Plan jest taki, że najpierw testujemy, potem wdrażamy, a potem patrzymy w logi.` |
+| pl-plan-run-on | formal | pl-no-echo | ok | no | że | no więc | `Plan jest taki, że najpierw testujemy, potem wdrażamy, a potem patrzymy w logi.` |
+| pl-plan-run-on | formal | pl-no-echo-named | ok | no | że | no więc | `Plan jest taki, że najpierw testujemy, potem wdrażamy, a potem patrzymy w logi.` |
+| pl-real-odzyskalem-formal | formal | control | ok | yes | — | — | `Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.` |
+| pl-real-odzyskalem-formal | formal | pl-instruction | ok | yes | — | — | `Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.` |
+| pl-real-odzyskalem-formal | formal | pl-no-echo | ok | yes | — | — | `Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.` |
+| pl-real-odzyskalem-formal | formal | pl-no-echo-named | ok | yes | — | — | `Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.` |
+| pl-real-odzyskalem-casual | casual | control | ok | no | to | jest | `Dobra wiadomość to taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.` |
+| pl-real-odzyskalem-casual | casual | pl-instruction | ok | yes | — | — | `Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.` |
+| pl-real-odzyskalem-casual | casual | pl-no-echo | ok | yes | — | — | `Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.` |
+| pl-real-odzyskalem-casual | casual | pl-no-echo-named | ok | yes | — | — | `Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.` |
+| pl-real-odzyskalem-neutral | neutral | control | ok | yes | — | — | `Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.` |
+| pl-real-odzyskalem-neutral | neutral | pl-instruction | ok | yes | — | — | `Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.` |
+| pl-real-odzyskalem-neutral | neutral | pl-no-echo | ok | yes | — | — | `Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.` |
+| pl-real-odzyskalem-neutral | neutral | pl-no-echo-named | ok | yes | — | — | `Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.` |
+| pl-real-ziameczku-formal | formal | control | ok | no | — | — | `Dobra, ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.` |
+| pl-real-ziameczku-formal | formal | pl-instruction | ok | yes | — | — | `Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.` |
+| pl-real-ziameczku-formal | formal | pl-no-echo | ok | yes | — | — | `Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.` |
+| pl-real-ziameczku-formal | formal | pl-no-echo-named | ok | yes | — | — | `Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.` |
+| pl-real-ziameczku-casual | casual | control | ok | no | — | — | `Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.` |
+| pl-real-ziameczku-casual | casual | pl-instruction | ok | yes | — | — | `Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.` |
+| pl-real-ziameczku-casual | casual | pl-no-echo | ok | yes | — | — | `Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.` |
+| pl-real-ziameczku-casual | casual | pl-no-echo-named | ok | yes | — | — | `Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.` |
+| pl-real-ziameczku-neutral | neutral | control | ok | no | — | — | `Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.` |
+| pl-real-ziameczku-neutral | neutral | pl-instruction | ok | yes | — | — | `Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.` |
+| pl-real-ziameczku-neutral | neutral | pl-no-echo | ok | yes | — | — | `Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.` |
+| pl-real-ziameczku-neutral | neutral | pl-no-echo-named | ok | yes | — | — | `Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.` |
+| pl-real-jeszcze-raz-formal | formal | control | ok | yes | — | — | `Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.` |
+| pl-real-jeszcze-raz-formal | formal | pl-instruction | ok | no | transcript | — | `Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+TRANSCRIPT` |
+| pl-real-jeszcze-raz-formal | formal | pl-no-echo | ok | no | transcript | — | `Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+TRANSCRIPT` |
+| pl-real-jeszcze-raz-formal | formal | pl-no-echo-named | ok | yes | — | — | `Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.` |
+| pl-real-jeszcze-raz-casual | casual | control | ok | yes | — | — | `Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.` |
+| pl-real-jeszcze-raz-casual | casual | pl-instruction | ok | no | transcript | — | `Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+TRANSCRIPT` |
+| pl-real-jeszcze-raz-casual | casual | pl-no-echo | ok | no | transcript | — | `Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+TRANSCRIPT` |
+| pl-real-jeszcze-raz-casual | casual | pl-no-echo-named | ok | yes | — | — | `Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.` |
+| pl-real-jeszcze-raz-neutral | neutral | control | ok | yes | — | — | `Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.` |
+| pl-real-jeszcze-raz-neutral | neutral | pl-instruction | ok | no | transcript | — | `Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+TRANSCRIPT` |
+| pl-real-jeszcze-raz-neutral | neutral | pl-no-echo | ok | no | transcript | — | `Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+TRANSCRIPT` |
+| pl-real-jeszcze-raz-neutral | neutral | pl-no-echo-named | ok | yes | — | — | `Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.` |
+| pl-real-zarzucic-formal | formal | control | ok | yes | — | — | `Mogę coś zarzucić za jej w tle.` |
+| pl-real-zarzucic-formal | formal | pl-instruction | ok | yes | — | — | `Mogę coś zarzucić za jej w tle.` |
+| pl-real-zarzucic-formal | formal | pl-no-echo | ok | yes | — | — | `Mogę coś zarzucić za jej w tle.` |
+| pl-real-zarzucic-formal | formal | pl-no-echo-named | ok | yes | — | — | `Mogę coś zarzucić za jej w tle.` |
+| pl-real-zarzucic-casual | casual | control | ok | yes | — | — | `Mogę coś zarzucić za jej w tle.` |
+| pl-real-zarzucic-casual | casual | pl-instruction | ok | yes | — | — | `Mogę coś zarzucić za jej w tle.` |
+| pl-real-zarzucic-casual | casual | pl-no-echo | ok | yes | — | — | `Mogę coś zarzucić za jej w tle.` |
+| pl-real-zarzucic-casual | casual | pl-no-echo-named | ok | yes | — | — | `Mogę coś zarzucić za jej w tle.` |
+| pl-real-zarzucic-neutral | neutral | control | ok | yes | — | — | `Mogę coś zarzucić za jej w tle.` |
+| pl-real-zarzucic-neutral | neutral | pl-instruction | ok | yes | — | — | `Mogę coś zarzucić za jej w tle.` |
+| pl-real-zarzucic-neutral | neutral | pl-no-echo | ok | yes | — | — | `Mogę coś zarzucić za jej w tle.` |
+| pl-real-zarzucic-neutral | neutral | pl-no-echo-named | ok | yes | — | — | `Mogę coś zarzucić za jej w tle.` |
+| pl-real-nagrywam-formal | formal | control | ok | no | — | — | `Teraz nagrywam w języku polskim, sprawdzam, jak to działa.` |
+| pl-real-nagrywam-formal | formal | pl-instruction | ok | yes | — | — | `Teraz nagrywam w języku polskim, sprawdzam jak to działa.` |
+| pl-real-nagrywam-formal | formal | pl-no-echo | ok | yes | — | — | `Teraz nagrywam w języku polskim, sprawdzam jak to działa.` |
+| pl-real-nagrywam-formal | formal | pl-no-echo-named | ok | yes | — | — | `Teraz nagrywam w języku polskim, sprawdzam jak to działa.` |
+| pl-real-nagrywam-casual | casual | control | ok | no | po polsku | języku polskim w | `Teraz nagrywam po polsku, sprawdzam jak to działa.` |
+| pl-real-nagrywam-casual | casual | pl-instruction | ok | yes | — | — | `Teraz nagrywam w języku polskim, sprawdzam jak to działa.` |
+| pl-real-nagrywam-casual | casual | pl-no-echo | ok | yes | — | — | `Teraz nagrywam w języku polskim, sprawdzam jak to działa.` |
+| pl-real-nagrywam-casual | casual | pl-no-echo-named | ok | yes | — | — | `Teraz nagrywam w języku polskim, sprawdzam jak to działa.` |
+| pl-real-nagrywam-neutral | neutral | control | ok | no | — | — | `Teraz nagrywam w języku polskim, sprawdzam, jak to działa.` |
+| pl-real-nagrywam-neutral | neutral | pl-instruction | ok | yes | — | — | `Teraz nagrywam w języku polskim, sprawdzam jak to działa.` |
+| pl-real-nagrywam-neutral | neutral | pl-no-echo | ok | yes | — | — | `Teraz nagrywam w języku polskim, sprawdzam jak to działa.` |
+| pl-real-nagrywam-neutral | neutral | pl-no-echo-named | ok | yes | — | — | `Teraz nagrywam w języku polskim, sprawdzam jak to działa.` |
+| pl-real-podgrywam-formal | formal | control | ok | yes | — | — | `Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.` |
+| pl-real-podgrywam-formal | formal | pl-instruction | ok | yes | — | — | `Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.` |
+| pl-real-podgrywam-formal | formal | pl-no-echo | ok | yes | — | — | `Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.` |
+| pl-real-podgrywam-formal | formal | pl-no-echo-named | ok | yes | — | — | `Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.` |
+| pl-real-podgrywam-casual | casual | control | ok | no | — | języku | `Teraz podgrywam w polskim, teraz nagrywam w polskim.` |
+| pl-real-podgrywam-casual | casual | pl-instruction | ok | yes | — | — | `Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.` |
+| pl-real-podgrywam-casual | casual | pl-no-echo | ok | yes | — | — | `Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.` |
+| pl-real-podgrywam-casual | casual | pl-no-echo-named | ok | yes | — | — | `Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.` |
+| pl-real-podgrywam-neutral | neutral | control | ok | yes | — | — | `Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.` |
+| pl-real-podgrywam-neutral | neutral | pl-instruction | ok | yes | — | — | `Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.` |
+| pl-real-podgrywam-neutral | neutral | pl-no-echo | ok | yes | — | — | `Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.` |
+| pl-real-podgrywam-neutral | neutral | pl-no-echo-named | ok | yes | — | — | `Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.` |
+| pl-real-probuje-formal | formal | control | ok | yes | — | — | `Teraz próbuję coś nagrać.` |
+| pl-real-probuje-formal | formal | pl-instruction | ok | yes | — | — | `Teraz próbuję coś nagrać.` |
+| pl-real-probuje-formal | formal | pl-no-echo | ok | yes | — | — | `Teraz próbuję coś nagrać.` |
+| pl-real-probuje-formal | formal | pl-no-echo-named | ok | yes | — | — | `Teraz próbuję coś nagrać.` |
+| pl-real-probuje-casual | casual | control | ok | yes | — | — | `Teraz próbuję coś nagrać.` |
+| pl-real-probuje-casual | casual | pl-instruction | ok | yes | — | — | `Teraz próbuję coś nagrać.` |
+| pl-real-probuje-casual | casual | pl-no-echo | ok | yes | — | — | `Teraz próbuję coś nagrać.` |
+| pl-real-probuje-casual | casual | pl-no-echo-named | ok | yes | — | — | `Teraz próbuję coś nagrać.` |
+| pl-real-probuje-neutral | neutral | control | ok | yes | — | — | `Teraz próbuję coś nagrać.` |
+| pl-real-probuje-neutral | neutral | pl-instruction | ok | yes | — | — | `Teraz próbuję coś nagrać.` |
+| pl-real-probuje-neutral | neutral | pl-no-echo | ok | yes | — | — | `Teraz próbuję coś nagrać.` |
+| pl-real-probuje-neutral | neutral | pl-no-echo-named | ok | yes | — | — | `Teraz próbuję coś nagrać.` |
+
+## where a candidate differs from the control (run 1), verbatim
+[pl-filler / neutral]
+  control : yyy no więc w sumie chciałem powiedzieć, że że wdrożenie jest zrobione
+  pl-instruction: yyy no więc w sumie chciałem powiedzieć że że wdrożenie jest zrobione
+  control added=[] dropped=[] | pl-instruction added=[] dropped=[]
+[pl-imperative / formal]
+  control : Wyślij raport do klienta dzisiaj
+  pl-instruction: Wyślij raport do klienta dzisiaj.
+  control added=[] dropped=[] | pl-instruction added=[] dropped=[]
+[pl-plan-run-on / formal]
+  control : Najpierw testujemy, potem wdrażamy, a potem patrzymy w logi.
+  pl-instruction: Plan jest taki, że najpierw testujemy, potem wdrażamy, a potem patrzymy w logi.
+  control added=[] dropped=['jest', 'no', 'plan', 'taki', 'więc'] | pl-instruction added=['że'] dropped=['no', 'więc']
+[pl-real-jeszcze-raz-casual / casual]
+  control : Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+  pl-instruction: Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+TRANSCRIPT
+  control added=[] dropped=[] | pl-instruction added=['transcript'] dropped=[]
+[pl-real-jeszcze-raz-formal / formal]
+  control : Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+  pl-instruction: Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+TRANSCRIPT
+  control added=[] dropped=[] | pl-instruction added=['transcript'] dropped=[]
+[pl-real-jeszcze-raz-neutral / neutral]
+  control : Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+  pl-instruction: Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+TRANSCRIPT
+  control added=[] dropped=[] | pl-instruction added=['transcript'] dropped=[]
+[pl-real-nagrywam-casual / casual]
+  control : Teraz nagrywam po polsku, sprawdzam jak to działa.
+  pl-instruction: Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+  control added=['po', 'polsku'] dropped=['języku', 'polskim', 'w'] | pl-instruction added=[] dropped=[]
+[pl-real-nagrywam-formal / formal]
+  control : Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+  pl-instruction: Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+  control added=[] dropped=[] | pl-instruction added=[] dropped=[]
+[pl-real-nagrywam-neutral / neutral]
+  control : Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+  pl-instruction: Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+  control added=[] dropped=[] | pl-instruction added=[] dropped=[]
+[pl-real-odzyskalem-casual / casual]
+  control : Dobra wiadomość to taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+  pl-instruction: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+  control added=['to'] dropped=['jest'] | pl-instruction added=[] dropped=[]
+[pl-real-podgrywam-casual / casual]
+  control : Teraz podgrywam w polskim, teraz nagrywam w polskim.
+  pl-instruction: Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+  control added=[] dropped=['języku'] | pl-instruction added=[] dropped=[]
+[pl-real-ziameczku-casual / casual]
+  control : Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+  pl-instruction: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+  control added=[] dropped=[] | pl-instruction added=[] dropped=[]
+[pl-real-ziameczku-formal / formal]
+  control : Dobra, ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+  pl-instruction: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+  control added=[] dropped=[] | pl-instruction added=[] dropped=[]
+[pl-real-ziameczku-neutral / neutral]
+  control : Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+  pl-instruction: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+  control added=[] dropped=[] | pl-instruction added=[] dropped=[]
+[pl-run-on / casual]
+  control : no więc myślę, że po prostu powinniśmy to wypuścić w piątek, jeśli nic się nie zepsuje
+  pl-instruction: no więc myślę że po prostu powinniśmy to wypuścić w piątek jeśli nic się nie zepsuje
+  control added=[] dropped=[] | pl-instruction added=[] dropped=[]
+[pl-filler / neutral]
+  control : yyy no więc w sumie chciałem powiedzieć, że że wdrożenie jest zrobione
+  pl-no-echo: yyy no więc w sumie chciałem powiedzieć że że wdrożenie jest zrobione
+  control added=[] dropped=[] | pl-no-echo added=[] dropped=[]
+[pl-plan-run-on / formal]
+  control : Najpierw testujemy, potem wdrażamy, a potem patrzymy w logi.
+  pl-no-echo: Plan jest taki, że najpierw testujemy, potem wdrażamy, a potem patrzymy w logi.
+  control added=[] dropped=['jest', 'no', 'plan', 'taki', 'więc'] | pl-no-echo added=['że'] dropped=['no', 'więc']
+[pl-real-jeszcze-raz-casual / casual]
+  control : Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+  pl-no-echo: Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+TRANSCRIPT
+  control added=[] dropped=[] | pl-no-echo added=['transcript'] dropped=[]
+[pl-real-jeszcze-raz-formal / formal]
+  control : Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+  pl-no-echo: Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+TRANSCRIPT
+  control added=[] dropped=[] | pl-no-echo added=['transcript'] dropped=[]
+[pl-real-jeszcze-raz-neutral / neutral]
+  control : Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+  pl-no-echo: Jeszcze raz transkrypcja w języku polskim, jeszcze raz transkrypcja w języku polskim.
+TRANSCRIPT
+  control added=[] dropped=[] | pl-no-echo added=['transcript'] dropped=[]
+[pl-real-nagrywam-casual / casual]
+  control : Teraz nagrywam po polsku, sprawdzam jak to działa.
+  pl-no-echo: Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+  control added=['po', 'polsku'] dropped=['języku', 'polskim', 'w'] | pl-no-echo added=[] dropped=[]
+[pl-real-nagrywam-formal / formal]
+  control : Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+  pl-no-echo: Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+  control added=[] dropped=[] | pl-no-echo added=[] dropped=[]
+[pl-real-nagrywam-neutral / neutral]
+  control : Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+  pl-no-echo: Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+  control added=[] dropped=[] | pl-no-echo added=[] dropped=[]
+[pl-real-odzyskalem-casual / casual]
+  control : Dobra wiadomość to taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+  pl-no-echo: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+  control added=['to'] dropped=['jest'] | pl-no-echo added=[] dropped=[]
+[pl-real-podgrywam-casual / casual]
+  control : Teraz podgrywam w polskim, teraz nagrywam w polskim.
+  pl-no-echo: Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+  control added=[] dropped=['języku'] | pl-no-echo added=[] dropped=[]
+[pl-real-ziameczku-casual / casual]
+  control : Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+  pl-no-echo: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+  control added=[] dropped=[] | pl-no-echo added=[] dropped=[]
+[pl-real-ziameczku-formal / formal]
+  control : Dobra, ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+  pl-no-echo: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+  control added=[] dropped=[] | pl-no-echo added=[] dropped=[]
+[pl-real-ziameczku-neutral / neutral]
+  control : Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+  pl-no-echo: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+  control added=[] dropped=[] | pl-no-echo added=[] dropped=[]
+[pl-run-on / casual]
+  control : no więc myślę, że po prostu powinniśmy to wypuścić w piątek, jeśli nic się nie zepsuje
+  pl-no-echo: no więc myślę że po prostu powinniśmy to wypuścić w piątek jeśli nic się nie zepsuje
+  control added=[] dropped=[] | pl-no-echo added=[] dropped=[]
+[pl-filler / neutral]
+  control : yyy no więc w sumie chciałem powiedzieć, że że wdrożenie jest zrobione
+  pl-no-echo-named: yyy no więc w sumie chciałem powiedzieć że że wdrożenie jest zrobione
+  control added=[] dropped=[] | pl-no-echo-named added=[] dropped=[]
+[pl-imperative / formal]
+  control : Wyślij raport do klienta dzisiaj
+  pl-no-echo-named: Wyślij raport do klienta dzisiaj.
+  control added=[] dropped=[] | pl-no-echo-named added=[] dropped=[]
+[pl-plan-run-on / formal]
+  control : Najpierw testujemy, potem wdrażamy, a potem patrzymy w logi.
+  pl-no-echo-named: Plan jest taki, że najpierw testujemy, potem wdrażamy, a potem patrzymy w logi.
+  control added=[] dropped=['jest', 'no', 'plan', 'taki', 'więc'] | pl-no-echo-named added=['że'] dropped=['no', 'więc']
+[pl-real-nagrywam-casual / casual]
+  control : Teraz nagrywam po polsku, sprawdzam jak to działa.
+  pl-no-echo-named: Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+  control added=['po', 'polsku'] dropped=['języku', 'polskim', 'w'] | pl-no-echo-named added=[] dropped=[]
+[pl-real-nagrywam-formal / formal]
+  control : Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+  pl-no-echo-named: Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+  control added=[] dropped=[] | pl-no-echo-named added=[] dropped=[]
+[pl-real-nagrywam-neutral / neutral]
+  control : Teraz nagrywam w języku polskim, sprawdzam, jak to działa.
+  pl-no-echo-named: Teraz nagrywam w języku polskim, sprawdzam jak to działa.
+  control added=[] dropped=[] | pl-no-echo-named added=[] dropped=[]
+[pl-real-odzyskalem-casual / casual]
+  control : Dobra wiadomość to taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+  pl-no-echo-named: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+  control added=['to'] dropped=['jest'] | pl-no-echo-named added=[] dropped=[]
+[pl-real-podgrywam-casual / casual]
+  control : Teraz podgrywam w polskim, teraz nagrywam w polskim.
+  pl-no-echo-named: Teraz podgrywam w języku polskim, teraz nagrywam w języku polskim.
+  control added=[] dropped=['języku'] | pl-no-echo-named added=[] dropped=[]
+[pl-real-ziameczku-casual / casual]
+  control : Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+  pl-no-echo-named: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+  control added=[] dropped=[] | pl-no-echo-named added=[] dropped=[]
+[pl-real-ziameczku-formal / formal]
+  control : Dobra, ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+  pl-no-echo-named: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+  control added=[] dropped=[] | pl-no-echo-named added=[] dropped=[]
+[pl-real-ziameczku-neutral / neutral]
+  control : Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś pieprzył po całości.
+  pl-no-echo-named: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+  control added=[] dropped=[] | pl-no-echo-named added=[] dropped=[]
+[pl-run-on / casual]
+  control : no więc myślę, że po prostu powinniśmy to wypuścić w piątek, jeśli nic się nie zepsuje
+  pl-no-echo-named: no więc myślę że po prostu powinniśmy to wypuścić w piątek jeśli nic się nie zepsuje
+  control added=[] dropped=[] | pl-no-echo-named added=[] dropped=[]

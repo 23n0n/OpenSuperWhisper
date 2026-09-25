@@ -1,0 +1,13 @@
+The Polish-only candidates change nothing in English.
+
+pl-instruction: English system+user turn == control on all 11 cases: True
+pl-no-echo: English system+user turn == control on all 11 cases: True
+pl-no-echo-named: English system+user turn == control on all 11 cases: True
+
+And byte-equality against the compiled service, per (register), system+user, for the same three
+candidates and the control (bin/prompt-harness prints the real TransformService):
+
+control: [True, True, True]
+pl-instruction: [True, True, True]
+pl-no-echo: [True, True, True]
+pl-no-echo-named: [True, True, True]

@@ -1,0 +1,118 @@
+    // MARK: - The shipped configuration
+
+    /// The brief's pass criterion, asserted on the shipped defaults.
+    ///
+    /// Everything else in this class measures arms; this case measures the app:
+    /// `initialPrompt` empty (a new install, and the captain's domain) with the
+    /// switch on (a new install) is the configuration a dictation now runs in, so
+    /// the prompt the decoder is handed comes from `WhisperEngine.decoderPrompt`
+    /// and the language is the engine's own measurement of the utterance — the
+    /// pre-pass — not a value this test names.
+    ///
+    /// Two things are asserted, and the second is what makes the first about the
+    /// app rather than about a table:
+    ///
+    /// * the criterion: the English control's words are the switch-off control's
+    ///   words (nothing invented, nothing lost), `pl-1` reads one sentence more
+    ///   than the control *and* ends the sentence at the pause, and `pl-2` carries
+    ///   `Open Super Whisper` and `Dodałem`;
+    /// * the shipped path is the arm the table names: the same audio decoded with
+    ///   the language's prompt written out by hand must give the same text, which
+    ///   is also the evidence that the language pre-pass changes nothing about
+    ///   the transcription it precedes.
+    func testTheShippedConfigurationKeepsTheEnglishControlCleanAndThePolishWin() async throws {
+        let directory = try recordingsDirectory()
+        let modelURL = try TestFixtures.multilingualModel()
+        let vadModelPath = try XCTUnwrap(WhisperEngine.vadModelPath, "Silero VAD model must be bundled")
+
+        let engine = WhisperEngine(modelPath: modelURL.path)
+        try await engine.initialize()
+        let vad = try XCTUnwrap(MyWhisperVadContext(modelPath: vadModelPath))
+
+        TestFixtures.report("[pair] ================= the shipped configuration =================")
+        for recording in Self.recordings {
+            let audioURL = directory.appendingPathComponent(recording.fileName)
+            guard FileManager.default.fileExists(atPath: audioURL.path) else {
+                throw XCTSkip("\(recording.fileName) is not in \(directory.path)")
+            }
+            let converted = try await engine.convertAudioToPCM(fileURL: audioURL)
+            let samples = try XCTUnwrap(converted, "\(recording.fileName) did not convert to PCM")
+            let segments = try XCTUnwrap(vad.speechSegments(in: samples))
+
+            // 1. The control: the switch off, which sends no prompt at all.
+            let control = try await measure(
+                engine: engine,
+                audioURL: audioURL,
+                policy: Self.controlPolicy,
+                arm: Self.controlLabel,
+                prompt: "",
+                recording: recording,
+                samples: samples,
+                segments: segments,
+                baseline: nil
+            )
+
+            // 2. The shipped configuration: no stored prompt, the switch on, and
+            //    the language measured by the engine itself.
+            let shipped = try await measure(
+                engine: engine,
+                audioURL: audioURL,
+                policy: Self.switchOnPolicy,
+                arm: "shipped (no stored prompt, switch on)",
+                prompt: "",
+                recording: recording,
+                samples: samples,
+                segments: segments,
+                baseline: control.text
+            )
+
+            // 3. The same audio with the language's prompt written out by hand,
+            //    which the table has to reproduce.
+            let language = shipped.languageAtDecode
+            let namedPrompt = WhisperEngine.defaultDecoderPrompt(forLanguage: language)
+            TestFixtures.report(
+                "[pair] \(recording.label) shipped | the engine measured \(language ?? "unknown") | "
+                    + "the table's prompt for it: \(namedPrompt.isEmpty ? "none" : namedPrompt)"
+            )
+            let named = try await measure(
+                engine: engine,
+                audioURL: audioURL,
+                policy: Self.switchOnPolicy,
+                arm: "shipped: the same prompt, written out",
+                prompt: namedPrompt,
+                recording: recording,
+                samples: samples,
+                segments: segments,
+                baseline: control.text
+            )
+            XCTAssertEqual(
+                shipped.text,
+                named.text,
+                "\(recording.label): the shipped path did not send the prompt its language names"
+            )
+
+            // 4. The criterion itself.
+            if let win = recording.win {
+                let missing = win.mustContain.filter { !shipped.text.contains($0) }
+                XCTAssertTrue(
+                    missing.isEmpty,
+                    "\(recording.label): the shipped configuration lost \(missing) — \(shipped.text)"
+                )
+                if win.mustGainASentence {
+                    XCTAssertGreaterThan(
+                        shipped.sentences,
+                        control.sentences,
+                        "\(recording.label): the shipped configuration did not gain the pause's boundary"
+                    )
+                }
+            } else {
+                let delta = wordDelta(baseline: control.text, text: shipped.text)
+                XCTAssertTrue(
+                    delta.removed.isEmpty && delta.added.isEmpty,
+                    "\(recording.label): the shipped configuration changed words — "
+                        + "-\(delta.removed) +\(delta.added)"
+                )
+            }
+        }
+        TestFixtures.report("[pair] ============================================================")
+    }

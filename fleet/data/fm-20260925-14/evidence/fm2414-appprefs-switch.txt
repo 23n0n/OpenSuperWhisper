@@ -1,0 +1,24 @@
+    /// "Long Pauses End the Sentence" — the switch that keeps a pause instead of
+    /// dissolving it.
+    ///
+    /// The name says what the behaviour is, not what the captain first asked
+    /// for: the nonsense came from *dissolving* the pause into a 0.1 s breath,
+    /// so "ignore pauses" would name the defect. On, a pause of at least
+    /// `PauseBoundaryPolicy.restored.sentenceThreshold` between two speech
+    /// segments is kept as real silence (up to `maxPause`) and closes the
+    /// sentence in the assembled text when the decoder did not close it.
+    ///
+    /// **On by default, because the pairing was measured.** The switch on its own
+    /// fixes the Polish the complaint is about — but with the decoder prompt this
+    /// app used to send, none, it also made the English control invent a fragment
+    /// ("based, no,") that the switch off does not produce, so it shipped off.
+    /// It ships on now that a deliberate prompt is sent for the language spoken
+    /// (`WhisperEngine.decoderPrompt`): on the captain's own recordings, through
+    /// this app's own decode path, the switch on with that default keeps `pl-1`'s
+    /// sentence boundary and `pl-2`'s "Open Super Whisper"/"Dodałem", and leaves
+    /// the English control word-for-word what the switch off gives. Off remains
+    /// byte-for-byte the behaviour every earlier build had, and flipping it back
+    /// is this one line. The tables are in `WhisperPauseBoundaryPairingTests` and
+    /// `fleet/data/fm-20260925-14/report.md`.
+    @UserDefault(key: "longPausesEndSentences", defaultValue: true)
+    var longPausesEndSentences: Bool

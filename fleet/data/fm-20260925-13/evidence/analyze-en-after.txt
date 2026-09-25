@@ -1,0 +1,40 @@
+
+## per variant
+control run1: n=11 unchanged=4 invented=1 lost=2 guard_rejects=0 detector_flips=0 latency median=1.06s (0.46-2.41)
+control run2: n=11 unchanged=4 invented=1 lost=2 guard_rejects=0 detector_flips=0 latency median=0.78s (0.31-1.64)
+winner run1: n=11 unchanged=4 invented=1 lost=2 guard_rejects=0 detector_flips=0 latency median=0.77s (0.31-1.65)
+winner run2: n=11 unchanged=4 invented=1 lost=2 guard_rejects=0 detector_flips=0 latency median=0.83s (0.31-1.66)
+
+## per variant, both runs pooled
+control: n=22 unchanged=8 invented=2 lost=4 guard_rejects=0 detector_flips=0 latency median=0.90s (0.31-2.41)
+winner: n=22 unchanged=8 invented=2 lost=4 guard_rejects=0 detector_flips=0 latency median=0.80s (0.31-1.66)
+
+## determinism: identical prompt, two runs
+control: 0 of 11 answers differ between run1 and run2
+winner: 0 of 11 answers differ between run1 and run2
+
+## per-case table (run 1): case | tone | variant | guard | unchanged | added | dropped | output
+| en-imperative | formal | control | ok | no | — | — | `Send the report tomorrow.` |
+| en-imperative | formal | winner | ok | no | — | — | `Send the report tomorrow.` |
+| en-question | formal | control | ok | no | — | — | `Can we move the meeting to next week?` |
+| en-question | formal | winner | ok | no | — | — | `Can we move the meeting to next week?` |
+| en-already-formal | formal | control | ok | yes | — | — | `Please send the report to the client today, and copy me on the reply.` |
+| en-already-formal | formal | winner | ok | yes | — | — | `Please send the report to the client today, and copy me on the reply.` |
+| en-run-on | casual | control | ok | no | — | — | `I think we should probably just ship it on Friday if nothing breaks.` |
+| en-run-on | casual | winner | ok | no | — | — | `I think we should probably just ship it on Friday if nothing breaks.` |
+| en-numbers | casual | control | ok | yes | — | — | `the invoice number is 423 and the amount is three thousand zloty` |
+| en-numbers | casual | winner | ok | yes | — | — | `the invoice number is 423 and the amount is three thousand zloty` |
+| en-filler | neutral | control | ok | no | — | — | `um so basically I wanted to say that the deployment is done` |
+| en-filler | neutral | winner | ok | no | — | — | `um so basically I wanted to say that the deployment is done` |
+| en-plan-run-on | formal | control | ok | no | to | ok so we | `The plan is first to test, then to deploy, and then to watch the logs.` |
+| en-plan-run-on | formal | winner | ok | no | to | ok so we | `The plan is first to test, then to deploy, and then to watch the logs.` |
+| en-real-problem-polish | formal | control | ok | yes | — | — | `The problem is only with polish.` |
+| en-real-problem-polish | formal | winner | ok | yes | — | — | `The problem is only with polish.` |
+| en-real-keyboard | formal | control | ok | no | — | s | `Keyboard simulation is working from time to time. It is not always working.` |
+| en-real-keyboard | formal | winner | ok | no | — | s | `Keyboard simulation is working from time to time. It is not always working.` |
+| en-real-dispatch | casual | control | ok | yes | — | — | `dispatch prod after you finish` |
+| en-real-dispatch | casual | winner | ok | yes | — | — | `dispatch prod after you finish` |
+| en-real-pauses | formal | control | ok | no | — | — | `Also add a feature to ignore pauses. Basically, how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.` |
+| en-real-pauses | formal | winner | ok | no | — | — | `Also add a feature to ignore pauses. Basically, how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.` |
+
+## where a candidate differs from the control (run 1), verbatim

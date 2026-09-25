@@ -1,0 +1,17 @@
+PLACEHOLDER replacements for report.md §8 (apply once the suite finishes).
+
+--- suite bullet ---
+* The full suite on this tree from a clean state: `build/` removed first, so every native engine, the Rust
+  autocorrect tree and the app were recompiled from scratch in this worktree in this session, then
+  `Scripts/dev-run.sh test` (never a bare `xcodebuild test`) with the measurement's environment set — so **the
+  measurement ran inside that green suite** and the tables above come from a run whose cases are green. Result:
+  `** TEST SUCCEEDED **`, `dev_run_exit=0`, and from the run's own bundle
+  `build/Logs/Test/Test-OpenSuperWhisper-STAMP.xcresult`: total TOTAL / passed PASSED / failed 0 / skipped SKIPPED,
+  result "Passed", finished FINISHED. The same run re-signed the bundle (`identifier
+  "ru.starmel.OpenSuperWhisper.dev" and certificate leaf = H"32266bcc51546f68f9347324bd3c81d853fde5a4"` —
+  `certificate leaf`, never a `cdhash`), so the Accessibility grant survives.
+
+--- determinism bullet ---
+* Determinism across runs: the whole arm matrix was run twice — the focused run and the suite run — and all
+  IDENTICAL of SHARED arm texts are identical between them (`evidence/compare-runs.py`), so nothing in the tables is
+  run-specific. Inside each run the repeated arm is identical too.

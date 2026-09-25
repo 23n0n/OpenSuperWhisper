@@ -1167,3 +1167,245 @@ path it never used.
 Also recorded: the tone worktree came down after landing (`git worktree remove --force`; a plain remove refuses with
 "working trees containing submodules cannot be moved or removed" — that is what the `--force` is for, and it frees
 2.7 GB). The branch `fm/tone-output` @ `877d19e` survives and is inside `fleet-state/archive/all-local-branches-*.bundle`.
+
+## [2026-09-25T08:03:18Z] PAUSE TASK — ready to land, measured runs in flight, landing pre-verified
+
+`fm/pause-boundary` @ **`c0f53b7`** (5 commits from base `3dcde52`; worktree
+`worktrees/OpenSuperWhisper-fm-pauses`). The crew is alive and its focused run
+(`WhisperPauseBoundaryTests` + `WhisperPauseBoundaryMeasurementTests`, decoding the captain's own recordings through
+the app's engine with `ggml-large-v3-turbo`) is executing right now; the full clean-state suite and the report
+numbers are still owed.
+
+**Landing is pre-verified, so it is mechanical:**
+
+- **Merge dry-run is clean** — `git merge-tree --write-tree feat/local-translate-tone fm/pause-boundary` reports **no
+  conflicts**, so the crew's predicted `Settings.swift`/`Readme.md` clashes are semantic region overlaps that git
+  resolves textually on its own. Its conflict map remains the checklist for *meaning*, not for markers.
+- **Scope obeys every boundary:** six files (`WhisperEngine.swift`, `Settings.swift`, `AppPreferences.swift`, two new
+  test files, `Readme.md`); `TransformService`, `TransformGuard`, `TransformRuntime`, `TransformModelManager`,
+  `KeyboardSimulator` and the injection path are **untouched**; `noTimestamps` unchanged.
+- **Both arms are honest:** `PauseBoundaryPolicy.upstream` carries `sentenceThreshold: .infinity` (never closes a
+  sentence — the old stitching, pinned by a test against a reference implementation of the old body);
+  `.restored` carries the measured **0.6 s**, moved up from the 0.5 s the crew first proposed after the app's own VAD
+  numbers showed the old value firing wrongly at 0.52 s.
+- **The preference default is `true`**, with the reason written where the default lives: an install that never opens
+  Settings must not keep the fragments the switch exists to remove. The Settings caption interpolates
+  `PauseBoundaryPolicy.restored.sentenceThreshold`, so the number in the copy can never drift from the code.
+
+**Threshold rationale to check at landing:** the crew reports two findings that went *against* its hypothesis — the
+English control changes words with the audio half, and the terminator half fired wrongly at 0.52 s under 0.5 s. Both
+must survive into the report and the Readme paragraph; a threshold defended only by the cases that agreed is not
+defended.
+
+**Remaining before merge:** the before/after tables from the focused run, the `initialPrompt` A/B and its
+recommendation, the full suite to `/tmp/fm2412-suite.log` from a clean state, the identity-signed bundle check, the
+final commit with the measured numbers, and the report/status lines.
+
+## [2026-09-25T09:12:04Z] PUBLICATION POLICY — push to `main` only when every local task is finished
+
+Captain, verbatim: *"We will publish to Maine after we finish all the local tasks."* (Maine = `main`.)
+
+**Rule: no partial publication.** `origin/main` stays at `3dcde52` until every local task on the board is closed —
+the pause pairing verdict and its landing, the tone-prompt round, the bilingual pass, the rebuild of the primary
+checkout from the final tip, and the records sync. Then `main` (which tracks the delivery branch `feat/local-translate-tone`)
+is pushed once, with the remote refs verified afterwards. Local `main` is currently `eaecd28`, **14 commits ahead** of
+`origin/main`, and the count will grow with the pending landings.
+
+The fork's records branch (`fleet-state`) is exempt and stays current: it carries this ledger, not the app, and was
+already pushed at `f424b37`. Nothing else is pushed — not the delivery branch, not the task branches.
+
+**Why this is the safe shape:** a half-published `main` would put a branch whose defaults are still under measurement
+in front of anyone who clones the fork, and would make the "which build is real?" question ambiguous while four crews
+are still landing. One push at the end also keeps a single, checkable set of remote refs.
+
+## [2026-09-25T09:14:01Z] PUBLICATION TARGET CONFIRMED — `main` on the captain's fork, not a domain
+
+Captain, verbatim: *"Well, to main on my fork not domain."* So the target is **`main` on `origin` =
+`github.com/23n0n/OpenSuperWhisper`** (his fork). "Domain" was a dictation artefact; no website, no Pages config and no
+CNAME exists anywhere in this project, and nothing is being published early — the rule from the previous entry stands:
+one push, after every local task is closed.
+
+**A published *installer* is blocked by evidence, recorded here before anyone tries.** He also selected a tagged
+release with an installer, so the packages were checked:
+
+- `pkgutil --check-signature dist/OpenSuperWhisper-0.1.0-fork.{1,2}.pkg` → **"Status: no signature"** for both.
+- `spctl -a -vvv -t install dist/OpenSuperWhisper-0.1.0-fork.2.pkg` → **"rejected: source=no usable signature"**.
+- The app inside is signed `Authority=OpenSuperWhisper Local Dev`, **`TeamIdentifier=not set`** — a locally created
+  self-signed certificate (`Scripts/dev-signing-identity.sh`), not an Apple Developer ID.
+- `Readme.md:326` already promises: *"This fork has no releases: it is built from source, and its permission grants are
+  tied to a locally created signing identity."* Line 284 and 441-456 document that identity's purpose.
+
+**Consequence:** Gatekeeper refuses an unsigned package on any other Mac, and the app inside is bound to a signing
+identity that exists only on this machine — the Accessibility grant is matched against that certificate's designated
+requirement. A stranger installing it cannot get the stable grant this fork's tooling exists to provide. A genuinely
+publishable binary needs an Apple Developer ID plus notarisation, which also **changes the designated requirement and
+would break the captain's own Accessibility grant until he re-grants it**.
+
+**Therefore:** pushing `main` is unblocked and planned; a binary release needs an explicit decision with those costs on
+the table; a tag without a binary is harmless and keeps the Readme truthful.
+
+## [2026-09-25T09:14:28Z] PUBLICATION SCOPE DECIDED — `main` + an annotated tag, no binary
+
+Captain's choice, from the three options put in front of him with the Gatekeeper evidence: **push `main` on his fork,
+create an annotated tag, and write a release note that says "build from source" — no installer, no binary.**
+
+**Why the binary was dropped, for anyone reading this later:** `pkgutil --check-signature` reports *"no signature"* on
+both `dist/*.pkg` files, `spctl -a -t install` rejects them (*"source=no usable signature"*), and the app inside is
+signed by `OpenSuperWhisper Local Dev` with `TeamIdentifier=not set` — a certificate that exists only on this machine.
+The Accessibility grant is matched against that certificate's designated requirement, so a stranger installing it could
+not get a stable grant. A real binary release would need an Apple Developer ID plus notarisation, which would also change
+the designated requirement and break the captain's own grant until he re-granted it. He chose against that cost.
+
+**At publish time (after every local task is closed):**
+1. `git push origin main` — one push, `origin` = `github.com/23n0n/OpenSuperWhisper`; verify the remote commit equals
+   local `main` and report the hash verbatim.
+2. `git tag -a fork-0.1.0-3 -m "…"` on that commit (the naming follows the existing `OpenSuperWhisper-0.1.0-fork.2.pkg`
+   series: fork.2 exists, so the next marker is 3) and push the tag. Tag message records the three deliverables:
+   tone on one model for both languages, the deterministic guard with its visible rejection, and long-pause support
+   shipping off by default with the reason.
+3. A release note whose body is **source-build instructions only**, stating explicitly that no binaries are published
+   and why (the local signing identity).
+4. **One Readme sentence** so the existing promise does not quietly become false: it currently reads *"This fork has no
+   releases: it is built from source"*, and a tag with notes is not a download — the sentence must say *no binary
+   releases*, not *no releases*. Doc-only change, made with the release so the two cannot drift apart.
+
+**Nothing is pushed until then**, and the task branches stay local; the records branch (`fleet-state`) continues to be
+pushed because it carries this ledger, not the app.
+
+## [2026-09-25T09:16:41Z] TONE-PROMPT ROUND — a measured winner is on its branch; final suite pending the machine
+
+`fm/tone-prompt` @ **`2de0698`** (2 commits on `877d19e`, worktree clean). **Change surface: Polish prompt text only** —
+`git diff 877d19e..fm/tone-prompt -- OpenSuperWhisper/TransformService.swift` shows no English prompt text changed (the
+one match is a comment), so this round cannot regress English by construction. The winning instruction is a Polish
+rewrite instruction in Polish (`"Podaj WYŁĄCZNIE końcowy tekst po polsku, bez cudzysłowów, etykiet i wyjaśnień."`) plus
+naming the two delimiters.
+
+**Measured against the landed prompt as control, 28 Polish cases × 2 draws, app sampling on the 8B:**
+
+| | untouched | invented | lost | drift between identical runs |
+|---|---|---|---|---|
+| landed prompt (control) | 15 | 2 | 4 | 2 of 28 |
+| **winner** | **25** | **1** | **1** | **0 of 28** |
+
+0 guard rejections, 0 delimiter echoes. The combined tone+clean-up path also improved (13/14 → 21/22 untouched over 112
+answers). The crew's own caveat stands: the word screen cannot tell a legitimate register rewrite from an invention, so
+verbatim diffs are printed beside every count.
+
+**The three losing hypotheses, each with its reason — more valuable than the winner:** a **plain Polish instruction
+block** lost because the model **echoed the `<<<TRANSCRIPT` delimiter** in 6 of 56 answers (naming the two markers
+explicitly removes it, 0 of 56; a generic "no markers" rule does not). A **worked example** lost because its own example
+content leaked into a Polish imperative (`Proszę wysłać` replacing `wyślij`). A **self-check clause** was
+indistinguishable from the control (16/2/3).
+
+**Landing pre-verified:** `git merge-tree feat/local-translate-tone fm/tone-prompt` → **no conflicts**; the danger here
+was `TranscriptionLanguageGateTests`/`TransformServiceTests`, both of which the pause landing and this branch edited.
+
+**Outstanding, and it is the only gate:** the **full suite at `2de0698` has not completed** — the crew's waiter script is
+alive in its worktree (pid 9006, logging to `/private/tmp/fm13-final-suite-job.log`) and is correctly blocked because a
+sibling crew (`fm/pause-pairing`) holds the machine with its own `xcodebuild`. It will run the suite detached into
+`/tmp/fm2413-suite-final.log` and print the counts; the landing waits on that line.
+
+**Residual risk to be decided, not assumed:** nothing in the app strips an echoed delimiter — the winner avoids it by
+prompt wording alone, and the losing candidate proves the model can emit it. A guard rule that refuses (or strips) an
+answer containing `<<<TRANSCRIPT` would close that class deterministically; the crew correctly left it alone and reported
+it instead. Proposal goes to the captain before anything is written.
+
+## [2026-09-25T09:26:28Z] PAIRING VERDICT — REFUSED WITH EVIDENCE: no decoder prompt can fix the English damage
+
+`fm/pause-pairing`: **nothing landed, no default flipped, his preferences only read** (his domain was untouched:
+`initialPrompt` empty, no `longEndSentences` value, `whisperLanguage = pl`).
+
+**Why it refused.** With the pause switch on, the English control is **never** word-identical to the switch-off/none
+control — best case `-how -sentence +now +sentences` (added words >= 2), and it is **identical for two different
+prompts**. That residual is the switch's **own audio half**, not the prompt's, so **no decoder prompt can fix it**. An
+independent second implementation recomputed the square from the transcripts: 36 configurations, **36 FAIL / 0 PASS**.
+The Polish win does survive in every switch-on arm (`pl-2` recovers `Open Super Whisper` + `Dodałem`), so the trade is
+real and is now measured on both sides.
+
+Prompt effect on the English control: switch on + no prompt → **+7** added words; switch on + a prompt (attributed or
+`c1-EN`) → **+2**; switch off + the attributed prompt → **0** (word-identical). A **wrong-language prompt is worse than
+none**: a Polish prompt on English audio gave 12 fragments and leaked Polish words.
+
+**A second, independent reason to be careful:** any language-keyed behaviour needs the language *before* the prompt is
+chosen, and the app cannot supply it. I checked my own earlier idea that his `whisperLanguage = pl` could be keyed on
+cheaply — **it is void**: `WhisperEngine.swift:668` sets `params.language = nil` unconditionally and
+`AppPreferences.swift:255` records that `whisperLanguage` *"is no longer read"*. The crew's detect-only pre-pass costs
+**1343/1314 ms against a 3522/3391 ms decode — 38-39% of a decode, on every dictation**. Its accuracy was asserted on
+three recordings only.
+
+**Verification the crew added for free:** focused run `TEST SUCCEEDED`; **full suite from a clean state at the
+landed tip: 465 total / 411 passed / 0 failed / 54 skipped**, `TEST SUCCEEDED`, bundle identity-signed
+(`certificate leaf = H"32266bcc…"`); 39 of 39 arm texts identical across runs (deterministic).
+
+**A ready patch exists** (`evidence/pairing-implementation.patch`): switch default on + language-keyed decoder-prompt
+default + the detect-only pre-pass + 8 pure cases + the shipped-configuration criterion test. It is *not* applied.
+
+**Decision put to the captain, with costs:**
+- **(b) Polish-keyed pause behaviour** — the *only* configuration measured to leave the English control word-for-word
+  clean, and it matches his own framing (*"the issue lies solely with polish"*). Cost: the pre-pass, ~+1.3 s per
+  dictation; the switch stops being a single behaviour.
+- **(a) Switch on for both languages** with language-keyed prompts: Polish fixed, English takes a two-word change on
+  English audio (measured, one pause in one recording; the `how` may itself be a misdecoding of "Essentially" — measured,
+  not judged). Same pre-pass cost. The patch above implements this.
+- **(c) Leave it as it is** — switch off, no user-visible change, the Polish complaint stays open; if he flips it on
+  himself, the measured English cost is +7 words unless the prompt machinery is added.
+
+## [2026-09-25T09:58:42Z] FRAME-GUARD FIX LANDED — `d0bf5d4`, with its verification batched
+
+`fm/frame-guard` @ `d0bf5d4` fast-forwarded into the delivery branch (delivery == `main` == `d0bf5d4`), 4 files, +267/-15:
+the new `.promptMarker` rejection, its tests, `TransformServiceTests` additions and the Readme's rule list.
+
+**The crew stopped mid-flight again** — third time today. It wrote the rule, hit its own compile error (`String.insert`
+takes a `String.Index`), fixed it, then yielded while its gate was still waiting, so **its tests never ran on the fixed
+commit** (the only executed run was the pre-fix compile error, exit 65). I read the rule instead of trusting it and
+landed it under the batched-verification plan: one clean-state suite on the merged tip once the pause implementation
+lands, rather than a suite per branch.
+
+**What I verified by reading** (not by running): case-sensitive marker words `TRANSCRIPT`/`TRANSKRYPCJA`, so a dictated
+lowercase "transcript" survives; the bracketed matcher scans forwards after `<<<` and backwards before `>>>`, needs >= 2
+all-caps letters, and consumes the whole bracket run; the rule is checked first in `rejection` as the most specific; the
+notice names the marker; and the earlier fix-pass work (frame/label judged against the dictation, Polish announcing
+phrases, the two documented deferred limits) is intact.
+
+**Residual false-positive class I found while reading, recorded rather than hidden:** the bracketed rule accepts **any**
+all-caps word beside a bracket, so a technical dictation like `CPU > GPU` or `GPU > CPU` would be rejected — the raw
+transcript is then delivered with the notice, i.e. tone silently not applied, not corrupted. The precise tightening is to
+restrict the bracketed match to `promptMarkerWords` (or require a `<<<`/`>>>` run of two or more), which would still
+catch every measured case. Not changed now: the measured five cases are all covered either way, and the suite gate is
+already committed to. Candidate for a follow-up if it ever bites.
+
+## [2026-09-25T10:01:20Z] THE FRAME CREW CORRECTED ME, AND FOUND A TOOLING DEFECT WORTH MORE THAN THE FIX
+
+Both edits are landed on the delivery branch (delivery == `main` == `e8ea391`, clean).
+
+**1. My false-positive claim was wrong in detail, and the crew proved it by executing the committed file.** I said
+`CPU > GPU` would be rejected. It is not: the bracket scan requires the word **attached** to the bracket, so a space
+stops it. The class that does fire is the attached form — `CPU>GPU`, `GPU>CPU`, `CPU<GPU`, `5<GPU`, even `5<OK` (the
+>=2-letter guard does not save a two-letter acronym). It rebuilt a probe from a byte-for-byte copy of
+`TransformGuard.swift` (`sha256 d908deed…`, identical to `git show HEAD:`) against the real `LanguageDetector` and
+printed: **all five measured finals rejected** (including `TRANSKRYPCJA`), the mid-answer cases rejected, and
+`I need the transcript by Friday.` / `Send the transcript.` / `Transcript\nof the meeting.` delivered. Its XCTest cases
+are still written-and-unproven, and its report says so. **Lesson for me: read is not execute.** The correction is in the
+report so nobody tightens the rule on evidence that does not hold.
+
+**2. The gap its own probe exposed, now fixed** (`49ea044`): the marker comparison was exact, so `TRANSCRIPT.` and
+`TRANSKRYPCJA:` — the app's own marker with sentence punctuation the model added — were *delivered*. Trailing
+`. , : ; ! ?` is stripped before the comparison, the match stays case-sensitive (the dictated lowercase word is still
+the user's), and a test pins both directions.
+
+**3. The tooling defect, and this one cost two crews time today** (`72ab353`): `dev-run.sh` ran
+`BUILD_OUTPUT=$(xcodebuild … 2>&1)` under `set -e`, so a failed build **aborted at the assignment**, before the captured
+compiler output was ever echoed. The log simply stopped after `Building OpenSuperWhisper…`, and the reason lived only in
+`build/Logs/Build/*.xcactivitylog` (`gunzip -c … | strings | grep error:`). That is exactly how the frame crew concluded
+its run had been "killed" when it had a type error (`String.insert(_:at:)` wants a `String.Index`), and how the pause
+crew's dead run looked mysterious. The capture now runs with errexit off, the status is read first, and the failure path
+can speak. `bash -n` clean.
+
+**Commits today on the delivery branch:** `877d19e` (tone), `eaecd28` (pauses), `d960bb7` (Polish-in-Polish prompt),
+`72ab353` (tooling), `49ea044` + merge `e8ea391` (frame marker). **Nothing published:** `origin/main` is still
+`3dcde52`.
+
+**Still in flight:** the pause implementation (`fm/pause-implementation`, uncommitted edits in `WhisperEngine.swift`,
+`Settings.swift`, `AppPreferences.swift` and the captain-recording tests). Its landing is followed by **one** clean-state
+suite on the merged tip covering this frame work and its own, which is the batching decision that replaces running a
+suite per branch.

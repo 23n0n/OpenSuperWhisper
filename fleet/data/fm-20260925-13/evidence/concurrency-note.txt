@@ -1,0 +1,19 @@
+Concurrency note for the fm-20260925-13 Polish run (measure-pl-round1.json).
+
+The run was launched only after the contention gate was open: /tmp/fm2412-suite.log ended in
+`dev_run_exit=0 at 2026-09-25T08:08:41Z`, the pause task had landed
+(fleet/data/fm-20260924-12/status.log, DONE 08:10:47Z), and `pgrep xcodebuild` / `pgrep llama-server`
+were both empty at launch time (08:59Z).
+
+A sibling crew started its own `xcodebuild test -only-testing:OpenSuperWhisperTests` at ~10:25 local
+(08:25Z-ish) while this run was in flight (observed pid 79928, load average 4.95 at 10:32 local).
+It does not touch this worktree, this harness or llama-server, and it cannot change a completion's
+token probabilities — it can only starve CPU. Two consequences, stated in the report:
+
+  * latencies in this run are inflated (4-10 s per answer against 1.8 s in the landed round) and are
+    therefore reported only as a rough comparison; the contention is the same for every variant
+    because the runner interleaves variants within each case, so the *relative* per-variant picture
+    is unaffected;
+  * the guard/detector verdicts and the word screen read text only, so they are unaffected.
+
+No other process was killed and nothing of the sibling's was touched.

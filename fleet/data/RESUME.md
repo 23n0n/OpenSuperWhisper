@@ -7,6 +7,10 @@ after a green suite (434/380/0/54) on the fixed head and a measured exact-prompt
 0 guard rejections). Details and the review findings behind the fix pass are in `FLEET-STATE.md`. The merged tip is
 being rebuilt in the primary checkout so the running app carries it; the tone worktree comes down afterwards.
 
+**Publication rule (captain, 2026-09-25):** push `main` to the fork **only when every local task is finished** — no
+partial publication. `origin/main` is still `3dcde52`; local `main` tracks the delivery branch and is ahead by every
+landing since. The records branch `fleet-state` is exempt and current.
+
 **Still open from the queue:** `fm/pause-boundary` (ignore long pauses; implementation committed at `1383234` in
 `worktrees/OpenSuperWhisper-fm-pauses`, measurement + full suite owed, expect `Settings.swift`/`Readme.md` conflicts
 against the new delivery tip) and the bilingual dictation measurement, which needs the captain's own audio. **Nothing
