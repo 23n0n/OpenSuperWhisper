@@ -324,12 +324,31 @@ class WhisperEngine: TranscriptionEngine {
         let samples = stitched.samples
         
         let nThreads = max(2, min(ProcessInfo.processInfo.activeProcessorCount, 8))
-        
-        let initialPromptTokenCount = settings.initialPrompt.isEmpty
+
+        // The decoder prompt this transcription sends. The user's own is one
+        // string and always wins; when they have set none and the switch is on,
+        // it is the default its language has (`Self.decoderPrompt`) — which is
+        // why the language is measured here, before the decoder is handed
+        // anything, and only when the prompt is actually going to be the
+        // table's: a switch off stays upstream's audio byte for byte.
+        let spokenLanguage = settings.initialPrompt.isEmpty
+            && pausePolicy.closesSentence
+            && !settings.showTimestamps
+            ? try measureLanguage(of: samples, nThreads: nThreads)
+            : nil
+        var effectiveSettings = settings
+        effectiveSettings.initialPrompt = Self.decoderPrompt(
+            userPrompt: settings.initialPrompt,
+            longPausesEndSentences: pausePolicy.closesSentence,
+            showsTimestamps: settings.showTimestamps,
+            spokenLanguage: spokenLanguage
+        )
+
+        let initialPromptTokenCount = effectiveSettings.initialPrompt.isEmpty
             ? 0
-            : context.tokenCount(text: settings.initialPrompt)
+            : context.tokenCount(text: effectiveSettings.initialPrompt)
         var params = Self.makeFullParams(
-            settings: settings,
+            settings: effectiveSettings,
             nThreads: nThreads,
             modelTextContext: context.nTextCtx,
             initialPromptTokenCount: initialPromptTokenCount
@@ -454,6 +473,46 @@ class WhisperEngine: TranscriptionEngine {
         )
     }
 
+    /// The language of the audio, measured **before** the decoder is given
+    /// anything.
+    ///
+    /// `whisper_full` normally learns the language inside the transcription, and
+    /// that answer arrives after the decoder has already been conditioned on its
+    /// prompt. whisper.cpp will instead read the language off the encoder and
+    /// return without decoding a single token when `detectLanguage` is set
+    /// (`libwhisper/whisper.cpp/src/whisper.cpp:6861`: `if (params.detect_language)
+    /// { return 0; }`), which is the only way to know the language *before* the
+    /// prompt is written. The price is one encoder pass over the audio the
+    /// decoder would have encoded anyway, measured on the captain's own
+    /// recordings in `WhisperPauseBoundaryPairingTests`
+    /// (`testTheCostOfALanguagePrePass`).
+    ///
+    /// An English-only model needs no pass at all: it cannot be multilingual, so
+    /// the language is `en` by construction — the same inference
+    /// `SpeechModelLanguageGate` makes. The decoding state is left free either
+    /// way, and `prepareForRecording()` builds the fresh one the transcription
+    /// itself uses, so nothing of this pass reaches the transcript.
+    private func measureLanguage(of samples: [Float], nThreads: Int) throws -> String? {
+        guard let context else { return nil }
+        guard context.isMultilingual else { return "en" }
+        defer { context.freeState() }
+        guard context.initState() else { throw TranscriptionError.contextInitializationFailed }
+
+        var params = WhisperFullParams()
+        params.strategy = .greedy
+        params.nThreads = Int32(nThreads)
+        // Detection only: whisper computes the mel, encodes, reads the language
+        // and returns. Nothing in this pass is transcribed, and `noTimestamps`
+        // stays at the engine's own setting so the mel and the encoder are the
+        // same shape they will be in the transcription.
+        params.detectLanguage = true
+        var cParams = params.toC()
+        try Task.checkCancellation()
+        guard context.full(samples: samples, params: &cParams) else { return nil }
+        try Task.checkCancellation()
+        return Self.reportedLanguage(context: context)
+    }
+
     /// The language of the utterance that was just decoded, measured inside the
     /// `whisper_full` call above.
     ///
@@ -561,6 +620,78 @@ class WhisperEngine: TranscriptionEngine {
             return terminators.contains(character)
         }
         return false
+    }
+
+    // MARK: - The decoder prompt
+
+    /// The decoder prompt a language gets when the user has set none.
+    ///
+    /// `initialPrompt` is one string and it belongs to the user; this is the
+    /// *default* that stands in for it, and it is chosen **by the language that
+    /// was spoken**, because a prompt that suits one language is wrong for
+    /// another: the switch's English side needs one at all (with no prompt the
+    /// switch on invents a fragment in the English control that the switch off
+    /// does not produce), and a Polish prompt on English audio pulls the decode
+    /// the wrong way.
+    ///
+    /// Only languages measured on the captain's own recordings have an entry. A
+    /// language with no entry gets **no** prompt, which is byte for byte what
+    /// this app sent before the table existed. The two entries and the reason
+    /// they are these two strings and not others are in
+    /// `WhisperPauseBoundaryPairingTests` and `fleet/data/fm-20260925-14/report.md`.
+    static func defaultDecoderPrompt(forLanguage language: String?) -> String {
+        switch language {
+        case "pl": return polishDefaultDecoderPrompt
+        case "en": return englishDefaultDecoderPrompt
+        default: return ""
+        }
+    }
+
+    /// Polish dictation with full stops and a question mark and **no commas**, in
+    /// his own register.
+    ///
+    /// Which Polish string this is was measured, not picked for looks: the
+    /// comma-heavy candidates and the English one all prime the decoder into
+    /// joining `pl-1`'s two clauses with a comma — "…inną drogą**,** bo tu
+    /// chodzi…" — which **trades away the very sentence boundary the switch exists
+    /// to gain** (`pl-1`: `win-words:NO(drogą.) boundary:NO(2->2)`), while this
+    /// one keeps it ("…inną drogą. Bo tu chodzi…", `boundary:yes(2->3)`) and keeps
+    /// `pl-2`'s "Open Super Whisper" and "Dodałem" as well. The tables are in
+    /// `WhisperPauseBoundaryPairingTests` and `fleet/data/fm-20260925-14/report.md`.
+    static let polishDefaultDecoderPrompt =
+        "Zrobiłem to wczoraj. Sprawdzę to jutro. Możesz na to spojrzeć? Nie ma problemu."
+
+    /// The English counterpart, for English audio and for an English-only model:
+    /// the same shape of ordinary dictation, and the arm whose English result is
+    /// the `-how -sentence +now +sentences` the captain accepted on 2026-09-25.
+    static let englishDefaultDecoderPrompt =
+        "Okay, one more time: I sent the report on Monday, but Anna hasn't replied. Can you check?"
+
+    /// The decoder prompt one transcription sends.
+    ///
+    /// The rule, in full, and the reason each clause is there:
+    ///
+    /// * **The user's own prompt always wins, in any language and on any
+    ///   switch.** A value the user set is a decision, and this app must not
+    ///   second-guess it — not with the table above, not with the language.
+    /// * **A switch off sends no default.** Off is upstream's audio byte for
+    ///   byte, and the prompt exists to serve the switch; without this clause an
+    ///   install that never turned the switch on would get a file that changed
+    ///   for no measured reason.
+    /// * **A switch on with no prompt of their own sends the default for the
+    ///   language spoken**, or nothing at all when that language has no entry.
+    /// * **Timestamp mode sends no default either.** With *Show Timestamps* on,
+    ///   the decoder is handed the untrimmed audio and no pause is measured
+    ///   (`performTranscription`), so the switch has nothing to serve there and a
+    ///   prompt would be a decode change with no measured benefit attached.
+    static func decoderPrompt(
+        userPrompt: String,
+        longPausesEndSentences: Bool,
+        showsTimestamps: Bool,
+        spokenLanguage: String?
+    ) -> String {
+        guard userPrompt.isEmpty, longPausesEndSentences, !showsTimestamps else { return userPrompt }
+        return defaultDecoderPrompt(forLanguage: spokenLanguage)
     }
 
     /// The terminator the spoken language writes. Chinese, Japanese and Korean

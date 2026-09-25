@@ -62,9 +62,14 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
     ///
     /// whisper's `initialPrompt` is decoder *context*, not a system prompt: it
     /// primes style and punctuation, so a useful one has to look like the text
-    /// wanted back. **The shipped app sends none** — `AppPreferences`'s default
-    /// is the empty string and his stored domain holds no value — so the empty
-    /// arm is today's app and every other arm here is a hypothetical setting.
+    /// wanted back. **The stored value ships empty** — `AppPreferences`'s default
+    /// is the empty string and his stored domain holds no value — but that is not
+    /// the same as the decoder being sent nothing: with the switch on, an empty
+    /// stored prompt means the `WhisperEngine.decoderPrompt` default for the
+    /// language the engine measures. This harness passes the policy *and* the
+    /// prompt in, so its empty-prompt arms below the switch-off ones measure
+    /// upstream's audio with no prompt at all, and the ones above them measure the
+    /// switch paired with the shipped language default.
     private struct PromptArm {
         let label: String
         let prompt: String
@@ -181,7 +186,9 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
     /// His settings, as they reach the decoder: greedy, temperature 0, no-speech
     /// 0.6, blank suppression on, no timestamps. The pause policy and the decoder
     /// prompt are the arm, not the preference, so one process measures all of
-    /// them; the shipped app sends the empty prompt.
+    /// them; the stored prompt ships empty, which with the switch on means the
+    /// engine's own default for the language it measures (`WhisperEngine.decoderPrompt`)
+    /// and with the switch off means no prompt at all.
     private func captainSettings(initialPrompt: String) -> Settings {
         var settings = Settings()
         settings.showTimestamps = false
@@ -329,7 +336,9 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
             let segments = try XCTUnwrap(vad.speechSegments(in: samples))
             reportPauses(recording: recording, samples: samples, segments: segments)
 
-            // Today's app: no decoder prompt (`initialPrompt` is empty).
+            // `initialPrompt` empty, as it ships: with the switch off that is
+            // upstream's audio and no prompt at all, and with the switch on it is
+            // the engine's own default for the language it measures.
             var switchOffText: String?
             var switchOnText: String?
             for arm in Self.arms {
@@ -361,8 +370,9 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
                 )
             }
 
-            // The decoder prompts: the shipped app sends none, so the empty arm
-            // is the baseline every other arm is diffed against, word by word.
+            // The decoder prompts: the empty-prompt arm is the baseline every
+            // other arm is diffed against, word by word. With the switch on it is
+            // the engine's language default; the explicit arms below override it.
             let promptArms = recording.isEnglish ? Self.englishPromptArms : Self.polishPromptArms
             var baseline: String?
             for arm in promptArms {

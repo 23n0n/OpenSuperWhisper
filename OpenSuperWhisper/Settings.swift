@@ -1516,6 +1516,12 @@ struct SettingsView: View {
                         // pause was never the problem — replacing it with a 0.1
                         // second breath is what made a sentence out of nothing,
                         // and the label says what the switch does instead.
+                        //
+                        // The second paragraph is the cost of the decision, in
+                        // the same words as `AppPreferences.longPausesEndSentences`
+                        // and Readme §8: the switch ships on, and the captain
+                        // accepted this much English change on 2026-09-25 rather
+                        // than a switch that does nothing on English.
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Long Pauses End the Sentence")
@@ -1524,7 +1530,18 @@ struct SettingsView: View {
                                     "Whisper: a pause of "
                                         + "\(WhisperEngine.PauseBoundaryPolicy.restored.sentenceThreshold) s or longer "
                                         + "keeps its silence and closes the sentence, instead of dissolving "
-                                        + "into a breath that lets two thoughts merge"
+                                        + "into a breath that lets two thoughts merge. "
+                                        + "With no prompt of your own the decoder prompt is chosen by the "
+                                        + "language of the dictation, and that costs one extra detect-only "
+                                        + "language pass over the audio before each dictation — measured "
+                                        + "+1.34 s against a 3.5 s decode, \u{2248} 38 % — paid only while this "
+                                        + "switch is on and no prompt is set; and on pause-heavy English "
+                                        + "speech the switch changes two words against the switch off "
+                                        + "(\u{201C}Basically now it creates a sentences\u{201D} where the switch "
+                                        + "off says \u{201C}Basically how it creates a sentence\u{201D}), a "
+                                        + "change the captain accepted on 2026-09-25 with the measurement "
+                                        + "in front of him, because no prompt removes it and the Polish "
+                                        + "fix rides on the same silence."
                                 )
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -1815,9 +1832,12 @@ struct SettingsView: View {
                                     .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                             )
                         
-                        Text("Optional text to guide the model's transcription")
+                        Text("Optional text to guide the model's transcription. Leave it empty and the app "
+                            + "sends a short default written for the language it hears (Polish or English — "
+                            + "nothing for any other language), whenever Long Pauses End the Sentence is on.")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding()

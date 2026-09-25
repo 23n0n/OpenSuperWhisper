@@ -504,8 +504,23 @@ final class SettingsLayoutSnapshotTests: XCTestCase {
     -> (bands: [Band], gaps: [Int], background: (Int, Int, Int), pixels: [UInt8]) {
         let pixels = try bitmap(image)
         let x = min(Self.probeColumn, image.width - 1)
-        // 4 pt below the top is page background: above the first card's padding.
-        let background = color(pixels, image, x, min(8, image.height - 1))
+        // The page background is sampled from the tab's own left page padding,
+        // and at three heights. Row 8 at the probe column — what this used to
+        // read — is page only in a capture of the *top* of a tab: in one scrolled
+        // to the bottom it is inside a card, so the "background" comes back as the
+        // card colour and then every gap in the image reads as a card and every
+        // card as a gap. That is how a correct tab was reported as cards drawn
+        // into each other ("gaps [1, 1]", background (30, 30, 30) — the card
+        // colour) once a longer caption moved the scroll geometry. The padding
+        // column is page for the whole height of a tab capture at any scroll
+        // offset; the three heights are there so a capture whose padding column is
+        // not page still falls back to the probe column's row 8.
+        let paddingColumn = max(0, Int(Self.pagePadding) / 4)
+        let paddingSamples = [min(8, image.height - 1), image.height / 2, max(0, image.height - 8)]
+            .map { color(pixels, image, paddingColumn, $0) }
+        let background = paddingSamples.dropFirst().allSatisfy { distance($0, paddingSamples[0]) <= 2 }
+            ? paddingSamples[0]
+            : color(pixels, image, x, min(8, image.height - 1))
         func isBackground(_ y: Int) -> Bool {
             distance(color(pixels, image, x, y), background) <= 3
         }

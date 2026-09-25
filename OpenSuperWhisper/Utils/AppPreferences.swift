@@ -177,19 +177,37 @@ final class AppPreferences {
     /// segments is kept as real silence (up to `maxPause`) and closes the
     /// sentence in the assembled text when the decoder did not close it.
     ///
-    /// **Off by default, and that is a measurement rather than caution.** On his
-    /// own recordings the switch-on state fixes the Polish the complaint is about
-    /// (`pl-2`: "Ben super whisper" → "Open Super Whisper", "Dałem" → "Dodałem";
-    /// `pl-1`: "pieprzył" → "spieprzył"), but with the decoder prompt this app
-    /// sends — none: `initialPrompt` defaults to the empty string — it also makes
-    /// the English control hallucinate a fragment that the switch off does not
-    /// produce ("Basically, now it creates,. based, no, now it creates a
-    /// sentences…"), at every silence cap tried. Handing the decoder a deliberate
-    /// prompt removes that hallucination and keeps the Polish win (measured:
-    /// `WhisperPauseBoundaryMeasurementTests`), but that is the captain's
-    /// preference to set, not this branch's to set for him — so the switch ships
-    /// off, and flipping it is this one line.
-    @UserDefault(key: "longPausesEndSentences", defaultValue: false)
+    /// **On by default, and the English audio pays a measured two-word change for
+    /// it.** The switch fixes the Polish the complaint is about (`pl-1` gains its
+    /// sentence boundary and its verb; `pl-2` reads "Open Super Whisper" and
+    /// "Dodałem" where the switch off garbles both). With the decoder prompt this
+    /// app used to send — none — it did worse than that: the English control
+    /// invented a fragment ("based, no,") at every silence cap tried. The prompt
+    /// now sent for the language spoken removes that invention, and what is left
+    /// is the switch's own audio half: it is present in the arm that sends no
+    /// prompt at all and is identical across prompts, so **no prompt removes it**.
+    /// The captain was shown that with the numbers and accepted it on
+    /// **2026-09-25** — option (a), "pause fix everywhere, English takes a 2-word
+    /// change", `fleet/data/fm-20260925-14` — and the shipped configuration is
+    /// asserted against exactly that delta in `WhisperPauseBoundaryPairingTests`,
+    /// so widening it fails the suite instead of landing quietly. It is measured
+    /// on three recordings by one speaker, so it is a property of that pause and
+    /// not a claim about English in general.
+    ///
+    /// With no prompt of your own the decoder prompt is chosen by the language of
+    /// the dictation, and that costs one extra detect-only language pass over the
+    /// audio before each dictation — measured +1.34 s against a 3.5 s decode,
+    /// ≈ 38 % — paid only while this switch is on and no prompt is set; and on
+    /// pause-heavy English speech the switch changes two words against the switch
+    /// off ("Basically now it creates a sentences" where the switch off says
+    /// "Basically how it creates a sentence"), a change the captain accepted on
+    /// 2026-09-25 with the measurement in front of him, because no prompt removes
+    /// it and the Polish fix rides on the same silence.
+    ///
+    /// Off remains byte-for-byte the behaviour every earlier build had, and
+    /// flipping it back is this one line. The tables are in
+    /// `WhisperPauseBoundaryPairingTests` and `fleet/data/fm-20260925-14/report.md`.
+    @UserDefault(key: "longPausesEndSentences", defaultValue: true)
     var longPausesEndSentences: Bool
     
     @UserDefault(key: "temperature", defaultValue: 0.0)
@@ -198,6 +216,14 @@ final class AppPreferences {
     @UserDefault(key: "noSpeechThreshold", defaultValue: 0.6)
     var noSpeechThreshold: Double
     
+    /// The decoder context the user has set, or the empty string for none.
+    ///
+    /// Empty does **not** mean the decoder receives no prompt: when the switch
+    /// above is on, an install that has never set one sends the default its
+    /// language has (`WhisperEngine.decoderPrompt` — one measured entry for
+    /// Polish, one for English, nothing for a language nobody measured). A value
+    /// the user sets always wins over it, in any language, and this app never
+    /// writes one for them.
     @UserDefault(key: "initialPrompt", defaultValue: "")
     var initialPrompt: String
     
