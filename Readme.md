@@ -185,7 +185,7 @@ signal that survived — was discarded. The decoder then decided sentence bounda
 enough in English and is not enough in Polish, where the model's punctuation is markedly weaker.
 
 **The switch is named for what it does, not for what was asked.** One line in **Settings → Transcription →
-Language Settings**, on by default: **Long Pauses End the Sentence** — "a pause of 0.5 s or longer keeps its
+Language Settings**, on by default: **Long Pauses End the Sentence** — "a pause of 0.6 s or longer keeps its
 silence and closes the sentence, instead of dissolving into a breath that lets two thoughts merge". Off is
 byte-for-byte the behaviour every earlier build had.
 
@@ -195,7 +195,7 @@ What it does, in the decoder's terms:
   zero-pads only up to upstream's 0.1 s minimum — so the silence the decoder hears is the silence the speaker
   left, never a synthetic block;
 * the same pass returns the pauses it measured, with their span in the decoder's own centisecond clock, and a
-  pause of **0.5 s or more** ends the sentence: the join gets a terminator where the decoder left the sentence
+  pause of **0.6 s or more** ends the sentence: the join gets a terminator where the decoder left the sentence
   open. A segment that already closed its sentence is untouched, so nothing is doubled; a segment that *starts*
   before the pause ends decoded straight through the pause, and no boundary is invented inside its text;
 * the terminator is language-aware (`.` — `。` for Chinese, Japanese and Korean), timestamp mode is unchanged

@@ -64,7 +64,19 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
     }
 
     private static let arms = [
-        Arm(name: "before (switch off)", policy: .upstream),
+        // The switch off: upstream's audio, measured through the same threshold,
+        // and no terminator. This is the arm that says how many of the measured
+        // pauses the decoder ignored on its own.
+        Arm(
+            name: "before (switch off)",
+            policy: WhisperEngine.PauseBoundaryPolicy(
+                maxPause: WhisperEngine.PauseBoundaryPolicy.upstream.maxPause,
+                minPause: WhisperEngine.PauseBoundaryPolicy.upstream.minPause,
+                sentenceThreshold: WhisperEngine.PauseBoundaryPolicy.restored.sentenceThreshold,
+                boundaryTolerance: WhisperEngine.PauseBoundaryPolicy.restored.boundaryTolerance,
+                closesSentence: false
+            )
+        ),
         // The audio half alone: the same threshold, so the same junctions are
         // measured, but no terminator — this is the arm that says whether
         // giving the decoder the real silence was enough on its own.
@@ -80,6 +92,29 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
         ),
         Arm(name: "after (switch on)", policy: .restored),
     ]
+
+    /// The arms that chose the two numbers, decoded once each with his own
+    /// prompt. The cap is swept with the shipped threshold, the threshold with
+    /// the shipped cap, so each table isolates one number on his own audio.
+    private static let sweepArms: [Arm] = {
+        let shipped = WhisperEngine.PauseBoundaryPolicy.restored
+
+        func policy(maxPause: TimeInterval, sentenceThreshold: TimeInterval) -> WhisperEngine.PauseBoundaryPolicy {
+            WhisperEngine.PauseBoundaryPolicy(
+                maxPause: maxPause,
+                minPause: shipped.minPause,
+                sentenceThreshold: sentenceThreshold,
+                boundaryTolerance: shipped.boundaryTolerance,
+                closesSentence: true
+            )
+        }
+
+        return [0.2, 0.4, 0.6].map {
+            Arm(name: "sweep: cap \($0) s", policy: policy(maxPause: $0, sentenceThreshold: shipped.sentenceThreshold))
+        } + [0.4, 0.5, 0.8].map {
+            Arm(name: "sweep: threshold \($0) s", policy: policy(maxPause: shipped.maxPause, sentenceThreshold: $0))
+        }
+    }()
 
     // MARK: - Fixtures
 
@@ -236,6 +271,21 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
                         if arm.policy == .restored { switchOnText = text }
                     }
                 }
+            }
+
+            // The two numbers the switch ships with, isolated on his own audio:
+            // each sweep arm is decoded once, with his own prompt.
+            for arm in Self.sweepArms {
+                try await measure(
+                    engine: engine,
+                    audioURL: audioURL,
+                    policy: arm.policy,
+                    arm: arm.name,
+                    prompt: Self.captainInitialPrompt,
+                    recording: recording,
+                    samples: samples,
+                    segments: segments
+                )
             }
 
             // The comparison is between two decodes, so it is only about the

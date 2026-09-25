@@ -294,7 +294,11 @@ final class WhisperPauseBoundaryTests: XCTestCase {
 
     func testAPauseBelowTheThresholdLeavesTheDecoderAlone() {
         let pauses = [
-            WhisperEngine.StitchedPause(seconds: 0.3, startCentiseconds: 290, endCentiseconds: 300),
+            WhisperEngine.StitchedPause(
+                seconds: WhisperEngine.PauseBoundaryPolicy.restored.sentenceThreshold - 0.2,
+                startCentiseconds: 290,
+                endCentiseconds: 300
+            ),
         ]
 
         let boundaries = WhisperEngine.sentenceBoundaries(
@@ -308,27 +312,33 @@ final class WhisperPauseBoundaryTests: XCTestCase {
         XCTAssertEqual(
             boundaries,
             .none,
-            "0.3 s is under the 0.5 s threshold: no terminator is added"
+            "a pause 0.2 s under the threshold: no terminator is added"
         )
     }
 
     func testTheThresholdItselfCounts() {
+        let threshold = WhisperEngine.PauseBoundaryPolicy.restored.sentenceThreshold
+
         let atThreshold = WhisperEngine.sentenceBoundaries(
             decodedStartsCentiseconds: [10, 300],
             decodedEndCentiseconds: [290, 900],
             pauses: [
-                WhisperEngine.StitchedPause(seconds: 0.5, startCentiseconds: 290, endCentiseconds: 300),
+                WhisperEngine.StitchedPause(seconds: threshold, startCentiseconds: 290, endCentiseconds: 300),
             ],
             policy: .restored,
             terminator: "."
         )
-        XCTAssertEqual(atThreshold.afterSegment, [0], "0.5 s is a long pause, not a short one")
+        XCTAssertEqual(atThreshold.afterSegment, [0], "the threshold counts as a long pause")
 
         let underThreshold = WhisperEngine.sentenceBoundaries(
             decodedStartsCentiseconds: [10, 300],
             decodedEndCentiseconds: [290, 900],
             pauses: [
-                WhisperEngine.StitchedPause(seconds: 0.499, startCentiseconds: 290, endCentiseconds: 300),
+                WhisperEngine.StitchedPause(
+                    seconds: threshold - 0.001,
+                    startCentiseconds: 290,
+                    endCentiseconds: 300
+                ),
             ],
             policy: .restored,
             terminator: "."

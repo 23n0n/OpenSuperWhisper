@@ -100,10 +100,19 @@ class WhisperEngine: TranscriptionEngine {
         )
 
         /// The pause is kept and a long one ends the sentence.
+        ///
+        /// The threshold is measured, not chosen: on his two Polish recordings
+        /// the pauses the VAD measured in the audio the decoder hears separate
+        /// into 0.52 s and below (pauses he talks straight through — the largest
+        /// is the one inside "…o to, że żeś | spieprzył po całości") and 0.74 s
+        /// and above (the boundaries the decoder itself punctuates, and every
+        /// pause in the second recording, which are 1.15 s or longer). 0.6 s sits
+        /// inside that band: above every pause he talks across, below the first
+        /// one he does not.
         static let restored = PauseBoundaryPolicy(
             maxPause: 0.8,
             minPause: 0.1,
-            sentenceThreshold: 0.5,
+            sentenceThreshold: 0.6,
             boundaryTolerance: 0.25,
             closesSentence: true
         )
