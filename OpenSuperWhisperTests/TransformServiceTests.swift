@@ -69,6 +69,13 @@ final class TransformServiceTests: XCTestCase {
         let text: String
         /// `nil` means "paste the transcript untouched".
         let expectedPolicy: TransformPolicy?
+        /// What the injected model answers for this row — a rewrite of `text`,
+        /// in `text`'s own language. The rows assert the decision table ("the
+        /// model's answer is what is pasted"), never the guard, so the answer
+        /// has to be one the guard accepts: its stub rule is armed at eight
+        /// input words, and a one-word fixture answer to an eight-word dictation
+        /// is exactly what it throws away.
+        let answer: String
 
         var expectedCalls: Int { expectedPolicy == nil ? 0 : 1 }
     }
@@ -76,63 +83,70 @@ final class TransformServiceTests: XCTestCase {
     private func policyRows() -> [PolicyRow] {
         let polish = "Cześć, jak się masz?"
         let english = "Please send the report to the client today."
+        // Same-language rewrites of both fixtures, with enough words for the
+        // guard and no frame, label or language flip to reject.
+        let polishAnswer = "Cześć, jak się masz dzisiaj?"
+        let englishAnswer = "Send the report to the client today."
         return [
             // Nothing switched on: nothing happens, and the language is not
             // even looked up.
             PolicyRow(name: "both off, Polish", tone: false, cleanUp: false,
-                      language: "pl", text: polish, expectedPolicy: nil),
+                      language: "pl", text: polish, expectedPolicy: nil, answer: polishAnswer),
             PolicyRow(name: "both off, no engine language", tone: false, cleanUp: false,
-                      language: nil, text: polish, expectedPolicy: nil),
+                      language: nil, text: polish, expectedPolicy: nil, answer: polishAnswer),
 
             // Tone alone: a same-language rewrite, in both languages.
             PolicyRow(name: "tone on, Polish", tone: true, cleanUp: false,
                       language: "pl", text: polish,
-                      expectedPolicy: .tone(language: .polish, tone: .formal)),
+                      expectedPolicy: .tone(language: .polish, tone: .formal), answer: polishAnswer),
             PolicyRow(name: "tone on, English", tone: true, cleanUp: false,
                       language: "en", text: english,
-                      expectedPolicy: .tone(language: .english, tone: .formal)),
+                      expectedPolicy: .tone(language: .english, tone: .formal), answer: englishAnswer),
 
             // Clean-up alone: the same language, repaired.
             PolicyRow(name: "clean-up only, Polish", tone: false, cleanUp: true,
                       language: "pl", text: polish,
-                      expectedPolicy: .cleanUp(language: .polish)),
+                      expectedPolicy: .cleanUp(language: .polish), answer: polishAnswer),
             PolicyRow(name: "clean-up only, English", tone: false, cleanUp: true,
                       language: "en", text: english,
-                      expectedPolicy: .cleanUp(language: .english)),
+                      expectedPolicy: .cleanUp(language: .english), answer: englishAnswer),
 
             // Both: one call, one prompt, both wordings.
             PolicyRow(name: "tone and clean-up, Polish", tone: true, cleanUp: true,
                       language: "pl", text: polish,
-                      expectedPolicy: .cleanUpWithTone(language: .polish, tone: .formal)),
+                      expectedPolicy: .cleanUpWithTone(language: .polish, tone: .formal),
+                      answer: polishAnswer),
             PolicyRow(name: "tone and clean-up, English", tone: true, cleanUp: true,
                       language: "en", text: english,
-                      expectedPolicy: .cleanUpWithTone(language: .english, tone: .formal)),
+                      expectedPolicy: .cleanUpWithTone(language: .english, tone: .formal),
+                      answer: englishAnswer),
 
             // No engine signal: the transcript heuristic decides, exactly as it
             // does for a third language the engine could not place.
             PolicyRow(name: "no engine language, Polish text, tone on", tone: true, cleanUp: false,
                       language: nil, text: polish,
-                      expectedPolicy: .tone(language: .polish, tone: .formal)),
+                      expectedPolicy: .tone(language: .polish, tone: .formal), answer: polishAnswer),
             PolicyRow(name: "no engine language, English text, clean-up on", tone: false, cleanUp: true,
                       language: nil, text: english,
-                      expectedPolicy: .cleanUp(language: .english)),
+                      expectedPolicy: .cleanUp(language: .english), answer: englishAnswer),
 
             // Nothing can place this text — too short for the heuristic, and no
             // engine signal — so no prompt can name the language to keep and
             // nothing is sent to a model.
             PolicyRow(name: "unplaceable text, both switches on", tone: true, cleanUp: true,
-                      language: nil, text: "Do it", expectedPolicy: nil),
+                      language: nil, text: "Do it", expectedPolicy: nil, answer: ""),
 
             // A third language is neither Polish nor English: it is pasted
             // unchanged, whatever the switches say.
             PolicyRow(name: "third language, both switches on", tone: true, cleanUp: true,
-                      language: "de", text: "Guten Morgen.", expectedPolicy: nil),
+                      language: "de", text: "Guten Morgen.", expectedPolicy: nil, answer: ""),
         ]
     }
 
     func testPolicyTable_returnsTheInputAndChargesACallOnlyWhenItActs() async {
         for row in policyRows() {
             let local = LocalRecorder()
+            local.result = .success(row.answer)
             let settings = GateSettings(tone: row.tone, cleanUp: row.cleanUp, toneMode: .formal)
             let service = makeService(local: local, settings: settings)
 
@@ -155,8 +169,12 @@ final class TransformServiceTests: XCTestCase {
                 XCTAssertEqual(outcome.text, row.text, "\(row.name): passthrough must return the input")
                 XCTAssertNil(outcome.policy, "\(row.name): no policy, so no call is reported")
             } else {
-                XCTAssertEqual(outcome.text, "rewritten", "\(row.name): the model's answer is what is pasted")
+                XCTAssertEqual(outcome.text, row.answer, "\(row.name): the model's answer is what is pasted")
                 XCTAssertEqual(outcome.policy, row.expectedPolicy, "\(row.name): reported policy")
+                XCTAssertNil(
+                    outcome.guardRejection,
+                    "\(row.name): the answer is a legitimate rewrite, so the guard must not reject it"
+                )
             }
 
             // Whatever the row, the language of the text never changed hands:
@@ -235,7 +253,17 @@ final class TransformServiceTests: XCTestCase {
                     system.contains("every fact, name, number, date, place, product and technical term"),
                     "the rewrite has to be told what must not move: \(system)"
                 )
-                XCTAssertTrue(system.contains("never translate, not even one word"), system)
+                // The invariant behind the wording, not the wording: the rewrite
+                // is forbidden to translate, and the language that goes out is
+                // pinned to the one that came in.
+                XCTAssertTrue(
+                    system.lowercased().contains("never translate"),
+                    "the rewrite must be told not to translate: \(system)"
+                )
+                XCTAssertTrue(
+                    system.contains("\(name) in, \(name) out"),
+                    "the prompt must pin the outgoing language to the dictated one: \(system)"
+                )
                 XCTAssertTrue(system.contains("first person stays first person"), system)
                 XCTAssertTrue(system.contains("return it unchanged"), system)
                 XCTAssertTrue(system.contains(tone.registerDefinition), system)
@@ -360,6 +388,51 @@ final class TransformServiceTests: XCTestCase {
         XCTAssertEqual(TransformPolicy.cleanUp(language: .polish).language, .polish)
         XCTAssertEqual(TransformPolicy.tone(language: .polish, tone: .formal).language, .polish)
         XCTAssertEqual(TransformPolicy.cleanUpWithTone(language: .english, tone: .casual).language, .english)
+    }
+
+    // MARK: - The guard, at the service
+
+    /// A tone answer the guard rejects never reaches the transcript, and the
+    /// rejection is *recorded* with the notice the user was shown — the only
+    /// explanation for their own words coming back. `didRunModel` stays true
+    /// because the call did happen; it is the answer that was refused.
+    func testGuardedRejection_keepsTheTranscriptAndRecordsTheReason() async {
+        let local = LocalRecorder()
+        local.result = .success("Sure, I've sent the report to the client today.")
+        let service = makeService(
+            local: local,
+            settings: GateSettings(tone: true, cleanUp: false, toneMode: .formal)
+        )
+        let text = "Please send the report to the client today."
+
+        let outcome = await service.transformDetailed(text, sourceLanguage: "en")
+
+        XCTAssertEqual(local.calls, 1, "the model was asked")
+        XCTAssertEqual(outcome.text, text, "the transcript is pasted, not the answer that was refused")
+        XCTAssertEqual(outcome.guardRejection, .assistantFrame("sure"))
+        XCTAssertTrue(outcome.didRunModel)
+        XCTAssertTrue(
+            outcome.guardRejection?.notice.contains("sure") == true,
+            "the notice names what the model did: \(outcome.guardRejection?.notice ?? "none")"
+        )
+    }
+
+    /// The guard is the tone path's: clean-up alone carries no tone text, so the
+    /// same answer comes through untouched.
+    func testCleanUpAlone_isNotGuarded() async {
+        let local = LocalRecorder()
+        let answer = "Sure, I've sent the report to the client today."
+        local.result = .success(answer)
+        let service = makeService(
+            local: local,
+            settings: GateSettings(tone: false, cleanUp: true, toneMode: .formal)
+        )
+
+        let outcome = await service.transformDetailed("Please send the report to the client today.",
+                                                      sourceLanguage: "en")
+
+        XCTAssertEqual(outcome.text, answer)
+        XCTAssertNil(outcome.guardRejection)
     }
 
     // MARK: - Fallbacks

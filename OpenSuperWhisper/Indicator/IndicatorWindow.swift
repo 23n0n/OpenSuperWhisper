@@ -344,6 +344,7 @@ class IndicatorViewModel: ObservableObject {
                         final: outcome.text,
                         policy: outcome.policy,
                         didRunModel: outcome.didRunModel,
+                        guardRejection: outcome.guardRejection,
                         cleanUpEnabled: cleanUpEnabledOperation(),
                         removedFillers: scrub.removedFillers,
                         removedRepetitions: scrub.removedRepetitions,

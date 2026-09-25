@@ -459,17 +459,21 @@ every fact still, and that is what the shipped model was measured getting wrong,
 in both languages; clean-up alone is grammar repair and does not need the larger model. Only one model is ever
 resident: a change of job or language unloads one before loading the other, so the wired memory is the model in
 use, not the sum. Either is released after ten minutes without a transform; because the 8B's cold load is
-seconds rather than milliseconds, the app warms up the shipped model when recording starts, so the load happens
-while you are still speaking.
+seconds rather than milliseconds, the app warms up the model the current switches imply when recording starts —
+the 8B while tone is on and it is installed, and the shipped model otherwise — so the load happens while you are
+still speaking. (Tone runs on one model in both languages, which is why the warm-up follows the switches rather
+than a language.)
 
 **And if the rewrite is not a rewrite.** The prompt forbids answering, greeting, acknowledging or labelling the
 dictation, and the user turn is framed and delimited (`<<<TRANSCRIPT … TRANSCRIPT>>>`) so dictated instructions
 are rewritten rather than obeyed. Because the prompt alone did not survive the small model, a deterministic
 guard then reads the answer: an assistant frame, a `Register:`/`Output:` label, an announcement of the
-"rewritten text", a stub of a dictation that carried a sentence, or an answer with no word of the language that
-went in — any of those and your own transcript is pasted instead, with a notice saying so. The guard makes no
-model call, so it cannot hallucinate; what it cannot see is subtle content drift, which stays the prompt's and
-the 8B's job.
+"rewritten text" (in either language), a stub of a dictation that carried a sentence, or an answer with no word
+of the language that went in — any of those and your own transcript is pasted instead, with a notice saying so
+and the same reason recorded under the last dictation. A frame or a label counts only when the model *added* it:
+if you dictated "Here is the summary…" or "I've already…", the rewrite that keeps your opening is kept too. The
+guard makes no model call, so it cannot hallucinate; what it cannot see is subtle content drift, which stays the
+prompt's and the 8B's job.
 
 | Tone | Clean up | Spoken language | Pasted text |
 |---|---|---|---|

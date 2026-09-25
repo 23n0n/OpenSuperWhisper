@@ -67,8 +67,9 @@ struct TransformModel: Equatable, Identifiable {
 /// `~/Library/Application Support/<bundle id>/transform-models/`, exactly like
 /// the whisper models next door, so uninstalling the app removes them and
 /// reinstalling fetches them again. The catalogue holds the shipped model every
-/// language can run on, plus the larger one Polish prefers when it is installed;
-/// `model(forSpokenLanguage:)` is what the runtime asks it for.
+/// language can run on, plus the larger one every tone rewrite prefers and
+/// Polish clean-up prefers; `model(for:)` is what the runtime asks it for,
+/// because the job is part of the choice.
 final class TransformModelManager {
     static let shared = TransformModelManager()
 
@@ -92,10 +93,11 @@ final class TransformModelManager {
 
     /// The id of the model a dictation in `language` prefers for clean-up alone.
     ///
-    /// Read on the transform path through `model(forSpokenLanguage:)`, which
-    /// falls back to the shipped model when the preferred one is not installed;
-    /// `model(for:)` is what the service asks, because a tone rewrite prefers
-    /// the larger model in both languages.
+    /// Test-facing: it names the preference without consulting the disk, so the
+    /// transform path does not read it — the service asks `model(for:)`, which
+    /// resolves the same preference against what is actually installed (and
+    /// which is also where tone's model comes from). It is kept because the
+    /// preference table is pinned through it.
     static func modelID(forSpokenLanguage language: TransformLanguage) -> String {
         language == .polish ? polishOutputModelID : defaultModelID
     }
@@ -184,13 +186,16 @@ final class TransformModelManager {
         verifiedPath(for: polishModel) != nil
     }
 
-    /// The backend a dictation in `language` runs on.
+    /// The backend **clean-up alone** runs on for a dictation in `language`.
     ///
     /// A **preference**, resolved from the catalogue and from what is on disk:
-    /// Polish prefers the larger model and uses the shipped one when that is not
-    /// installed, and English always uses the shipped one. Nothing is refused
-    /// for a missing optional model, and nothing is substituted silently — the
-    /// caller is handed the model it will really run on, so Settings can say so.
+    /// Polish prefers the larger model for grammar repair and uses the shipped
+    /// one when that is not installed, and English always uses the shipped one.
+    /// Tone is a different job and does not come through here — it prefers the
+    /// larger model in both languages, which is `model(for:)`. Nothing is
+    /// refused for a missing optional model, and nothing is substituted
+    /// silently — the caller is handed the model it will really run on, so
+    /// Settings can say so.
     func model(forSpokenLanguage language: TransformLanguage) -> TransformModel {
         guard language == .polish else { return defaultModel }
         return isPolishModelInstalled ? polishModel : defaultModel

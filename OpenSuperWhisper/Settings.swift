@@ -263,13 +263,14 @@ class SettingsViewModel: ObservableObject {
     /// installed or optional.
     ///
     /// Only the shipped model is a requirement: it is the one every language can
-    /// run on. The 8B is a preference, so a missing 8B is never a warning — the
-    /// card states which model Polish uses instead, and nothing is refused.
+    /// run on, and the job with no fallback is English clean-up. The 8B is a
+    /// preference, so a missing 8B is never a warning — the card states which
+    /// model each job uses instead, and nothing is refused.
     func transformMissingNotice(for model: TransformModel) -> String? {
         guard model.id == shippedTransformModel.id, !isTransformModelInstalled(model) else { return nil }
-        return "Without it no dictation can be rewritten at all: it is the model every language runs on, "
-            + "and the 8B is optional. Tone rewrites, English clean-up and Polish clean-up all wait for "
-            + "this one."
+        return "Without it no dictation can be rewritten at all: it is the model every language runs on — "
+            + "every tone rewrite until the 8B is installed, and English clean-up always. The 8B is "
+            + "optional, and Polish clean-up uses this one only while it is absent."
     }
 
     /// Which model each job will run on, and whether the 8B is present.
@@ -1670,7 +1671,7 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Transform models")
                                     .font(.subheadline)
-                                Text("The app runs these itself, from its own folder, so uninstalling takes them with it. The first is the model every language can run on; the second is what Polish prefers when it is installed, and Polish works without it.")
+                                Text("The app runs these itself, from its own folder, so uninstalling takes them with it. Every tone rewrite runs on the larger model when it is installed — in both languages — and Polish clean-up prefers it too; English clean-up always runs on the shipped model, which is the floor every language can run on. Nothing has to be downloaded for either job to work.")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)

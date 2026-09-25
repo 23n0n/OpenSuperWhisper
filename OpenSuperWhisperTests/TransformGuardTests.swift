@@ -104,6 +104,137 @@ final class TransformGuardTests: XCTestCase {
         )
     }
 
+    // MARK: - The frame and the label have to be the model's, not the user's
+
+    /// `Here is …`, `I've …` and a dictated `Sure, …` are ordinary *openings*
+    /// someone dictates. A rewrite that keeps the user's own opening is
+    /// delivered: the frame rule reads "the model added it", not "it looks like
+    /// an assistant". Rejecting these replaced a good rewrite with the raw
+    /// transcript and a notice that blamed the model.
+    func testFrameTheDictationOpenedWith_isDelivered() {
+        XCTAssertNil(
+            TransformGuard.rejection(
+                of: "Here is the summary I promised, and I'll send it today.",
+                for: "here is the summary I promised and I will send it today",
+                language: .english
+            ),
+            "the user's own \"Here is …\" opening is not an assistant frame"
+        )
+        XCTAssertNil(
+            TransformGuard.rejection(
+                of: "I've already deployed the backend, and it works fine.",
+                for: "i've already deployed the backend and it works fine",
+                language: .english
+            )
+        )
+        XCTAssertNil(
+            TransformGuard.rejection(
+                of: "Sure, let's ship it on Friday.",
+                for: "sure let's ship it on friday if nothing breaks",
+                language: .english
+            )
+        )
+        XCTAssertNil(
+            TransformGuard.rejection(
+                of: "Oto jest raport, który obiecałem, i wyślę go dzisiaj.",
+                for: "oto jest raport który obiecałem i wyślę go dzisiaj",
+                language: .polish
+            )
+        )
+    }
+
+    /// …and the same openings are still rejected when the model is the one that
+    /// added them. The measured catch survives, including when the dictation
+    /// mentioned the word somewhere that is not its opening — an answer that
+    /// *opens* with a frame is the model's, wherever else the word appeared.
+    func testFrameTheModelAdded_isStillRejected() {
+        let runOn = "ok so the plan is first we test then we deploy and then we watch the logs"
+        XCTAssertEqual(
+            TransformGuard.rejection(of: "Understood.", for: runOn, language: .english),
+            .assistantFrame("understood"),
+            "the measured temperature-0 collapse: this dictation never said it"
+        )
+        XCTAssertEqual(
+            TransformGuard.rejection(
+                of: "Sure, let's ship it on Friday.",
+                for: "let's ship it on friday if nothing breaks",
+                language: .english
+            ),
+            .assistantFrame("sure")
+        )
+        XCTAssertEqual(
+            TransformGuard.rejection(
+                of: "Sure, we ship on Friday.",
+                for: "i'm not sure maybe we ship on friday",
+                language: .english
+            ),
+            .assistantFrame("sure"),
+            "a mid-dictation \"sure\" does not excuse an answer that opens with one"
+        )
+    }
+
+    /// The announcement and label phrases are the model's addition too: text
+    /// *about* the rewritten text, or a `Register:` line the dictation itself
+    /// carried, is not an assistant's preamble.
+    func testLabelTheDictationAlreadyCarried_isDelivered() {
+        XCTAssertNil(
+            TransformGuard.rejection(
+                of: "The rewritten text should go to the client today, please send it.",
+                for: "the rewritten text should go to the client today",
+                language: .english
+            ),
+            "a dictation about the rewritten text is not an announcement"
+        )
+        XCTAssertNil(
+            TransformGuard.rejection(
+                of: "Register: formal\nPlease send the report to the client today.",
+                for: "register: formal please send the report to the client today",
+                language: .english
+            ),
+            "a label the dictation dictated itself is not the model's label"
+        )
+    }
+
+    /// …while the same shapes are rejected when the model introduced them.
+    func testLabelTheModelAdded_isStillRejected() {
+        XCTAssertEqual(
+            TransformGuard.rejection(
+                of: "The rewritten text: the report should go to the client today.",
+                for: "the report should go to the client today",
+                language: .english
+            ),
+            .label("rewritten text")
+        )
+    }
+
+    /// The Polish counterparts of the announcement phrases, so a Polish preamble
+    /// is caught by the same rule as the English one. (The `oto` frame is
+    /// already in the frame list; these catch the announcement when it does not
+    /// open the answer.)
+    func testPolishAnnouncementPhrases_areRejected() {
+        let input = "Proszę wysłać raport do klienta dzisiaj."
+        XCTAssertEqual(
+            TransformGuard.rejection(
+                of: "To jest przepisany tekst: proszę wysłać raport do klienta dzisiaj.",
+                for: input,
+                language: .polish
+            ),
+            .label("przepisany tekst")
+        )
+        XCTAssertEqual(
+            TransformGuard.rejection(
+                of: "Przepisana wersja: proszę wysłać raport do klienta dzisiaj.",
+                for: input,
+                language: .polish
+            ),
+            .label("przepisana wersja")
+        )
+        XCTAssertEqual(
+            TransformGuard.rejection(of: "Poniżej oto przepisany raport.", for: input, language: .polish),
+            .label("oto przepisany")
+        )
+    }
+
     // MARK: - The cases it must not touch
 
     /// Already in the requested register: the model is expected to return the

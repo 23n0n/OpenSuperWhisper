@@ -84,8 +84,12 @@ final class SettingsExposureTests: XCTestCase {
     /// The card says which model each language uses — and states, rather than
     /// warns, that Polish runs on the shipped model while the optional 8B is not
     /// installed. Nothing is refused for a missing 8B.
+    ///
+    /// What is asserted is the model the card is built from: `model(for:)` is
+    /// what the description reads, so pinning the resolution pins the claim
+    /// without pinning the sentence that carries it.
     func testTheCardSaysWhichModelEachLanguageUses() throws {
-        let (model, _, directory, shipped, eightBee) = try card()
+        let (model, manager, directory, shipped, eightBee) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         model.installedTransformModelIDs = [shipped.id]
@@ -95,10 +99,10 @@ final class SettingsExposureTests: XCTestCase {
         XCTAssertTrue(description.contains("English runs on \(shipped.displayName)"), description)
         XCTAssertTrue(description.contains("The 8B is not installed"), description)
         XCTAssertTrue(description.contains("nothing is refused"), description)
-        XCTAssertTrue(
-            description.contains("A tone rewrite runs on \(shipped.displayName), in both languages"),
-            "tone runs on the shipped model for both languages while the 8B is absent: \(description)"
-        )
+        // Tone runs on the shipped model for both languages while the 8B is
+        // absent — the resolution behind the card's sentence.
+        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .neutral)).id, shipped.id)
+        XCTAssertEqual(manager.model(for: .tone(language: .polish, tone: .neutral)).id, shipped.id)
 
         // The shipped model is the only requirement; the 8B is never a warning.
         XCTAssertNil(model.transformMissingNotice(for: eightBee),
@@ -107,7 +111,8 @@ final class SettingsExposureTests: XCTestCase {
     }
 
     /// With the 8B installed the card says Polish runs on it — and the shipped
-    /// model still serves English.
+    /// model still serves English. The tone routing is asserted against the
+    /// resolution, not against the sentence.
     func testWithTheEightBeeInstalledPolishRunsOnIt() throws {
         let (model, manager, directory, shipped, eightBee) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -119,10 +124,9 @@ final class SettingsExposureTests: XCTestCase {
         XCTAssertTrue(description.contains("Polish runs on \(eightBee.displayName)"), description)
         XCTAssertTrue(description.contains("The 8B is installed"), description)
         XCTAssertTrue(description.contains("English runs on \(shipped.displayName)"), description)
-        XCTAssertTrue(
-            description.contains("A tone rewrite runs on \(eightBee.displayName), in both languages"),
-            "a tone rewrite runs on the 8B in both languages, not only in Polish: \(description)"
-        )
+        // A tone rewrite runs on the 8B in both languages, not only in Polish.
+        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .neutral)).id, eightBee.id)
+        XCTAssertEqual(manager.model(for: .tone(language: .polish, tone: .neutral)).id, eightBee.id)
     }
 
     /// The shipped model missing is the one real problem: it is the model every
@@ -137,16 +141,19 @@ final class SettingsExposureTests: XCTestCase {
         XCTAssertTrue(notice.contains("8B is optional"), notice)
     }
 
-    /// Every row states what its model costs before it is paid, and which
-    /// languages it serves.
+    /// Every row states what its model costs before it is paid, and the routing
+    /// its role sentence describes is asserted as the resolution itself — the
+    /// sentence cannot fail, the routing can.
     func testEachRowStatesItsLanguagesAndItsCost() throws {
         let (model, _, directory, shipped, eightBee) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         XCTAssertTrue(model.transformModelRoleDescription(shipped).contains("English clean-up always"),
                       model.transformModelRoleDescription(shipped))
-        XCTAssertTrue(model.transformModelRoleDescription(eightBee).contains("Preferred for every tone rewrite"),
-                      model.transformModelRoleDescription(eightBee))
+        XCTAssertEqual(model.transformModelManager.model(for: .tone(language: .english, tone: .casual)).id,
+                       shipped.id, "without the 8B installed, tone runs on the shipped model")
+        XCTAssertEqual(model.transformModelManager.model(for: .cleanUp(language: .english)).id, shipped.id,
+                       "English clean-up is the job that never moves off the shipped model")
 
         for entry in [shipped, eightBee] {
             let state = model.transformModelStateDescription(entry)

@@ -47,9 +47,11 @@ final class TransformBackendTests: XCTestCase {
         XCTAssertEqual(result, "Cześć, jak się masz?")
         // A tone turn is framed and delimited — the transcript is handed over
         // inside the delimiters, not as a bare request the model could obey.
+        // That framing is the invariant here; the sentences themselves are
+        // `TransformServiceTests`' business, not a copy pinned twice.
         let userTurn = local.userTexts.first ?? ""
         XCTAssertEqual(local.calls, 1)
-        XCTAssertTrue(userTurn.hasPrefix("Rewrite this dictated text in a neutral register"), userTurn)
+        XCTAssertNotEqual(userTurn, "Cześć, jak się masz?", "the transcript is not sent as it was dictated")
         XCTAssertTrue(userTurn.contains("<<<TRANSCRIPT\nCześć, jak się masz?\nTRANSCRIPT>>>"), userTurn)
     }
 
@@ -123,6 +125,10 @@ final class TransformBackendTests: XCTestCase {
     /// Polish takes the 8B when it is installed and the shipped model when it is
     /// not, and English always takes the shipped model. Nothing is refused for a
     /// missing 8B, and nothing is substituted silently.
+    ///
+    /// The record-start warm-up asks the same function for the job the switches
+    /// imply, so its model is asserted here too — with tone on it must be the
+    /// 8B, not the shipped model the old warm-up loaded unconditionally.
     func testPolishPrefersTheEightBeeAndUsesTheShippedModelWithoutIt() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("osw-preference-\(UUID().uuidString)")
@@ -180,12 +186,29 @@ final class TransformBackendTests: XCTestCase {
         XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, shipped.id,
                        "English clean-up alone stays on the shipped model")
 
+        // The record-start warm-up resolves the model through the same
+        // function, so it warms the model the switches imply rather than the
+        // shipped one unconditionally: with tone on and the 8B installed that
+        // is the 8B, or the first dictation would pay the 8B's cold load anyway
+        // (it warmed the shipped model, which nothing then used).
+        XCTAssertEqual(
+            manager.model(for: TransformRuntime.warmUpPolicy(toneEnabled: true, toneMode: .neutral)).id,
+            eightBee.id,
+            "with tone on and the 8B installed, the recording warm-up warms the 8B"
+        )
+        XCTAssertEqual(
+            manager.model(for: TransformRuntime.warmUpPolicy(toneEnabled: false, toneMode: .neutral)).id,
+            shipped.id,
+            "clean-up alone warms the shipped model, the floor every language can run on"
+        )
+
         TestFixtures.report("[transform] model preference: 8B absent → tone (both languages) and Polish "
                     + "clean-up on \(shipped.id); 8B installed → tone (both languages) and Polish clean-up on "
-                    + "\(eightBee.id), English clean-up always on \(shipped.id)")
+                    + "\(eightBee.id), English clean-up always on \(shipped.id); the recording warm-up warms "
+                    + "\(eightBee.id) while tone is on and \(shipped.id) for clean-up alone")
     }
 
-    /// The service hands the language's own model to the runtime, so the
+    /// The service hands the **policy's** model to the runtime, so the
     /// preference is what the transform actually runs on.
     func testThePreferredModelIsTheOneTheRuntimeIsHanded() async {
         let eightBee = TransformModelManager.shared.polishModel
@@ -201,7 +224,8 @@ final class TransformBackendTests: XCTestCase {
         XCTAssertEqual(
             local.models.map(\.id),
             [eightBee.id, TransformModelManager.defaultModelID],
-            "English clean-up runs on the shipped model"
+            "the second call is an English tone policy, and the runtime is handed the model that policy "
+                + "resolved to — here the stub's answer for English"
         )
     }
 

@@ -419,6 +419,15 @@ struct ContentView: View {
                             Text(report.transformLabel)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                            // A rejected tone answer is why the user's own
+                            // words came back: the reason belongs where the
+                            // language and the raw-to-final text already are.
+                            if let notice = report.guardNotice {
+                                Text(notice)
+                                    .font(.caption2)
+                                    .foregroundColor(.orange)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                             HStack(alignment: .top, spacing: 12) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Heard")

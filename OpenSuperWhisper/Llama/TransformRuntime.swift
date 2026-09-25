@@ -35,10 +35,11 @@ final class CancellationFlag {
 /// only resident while the feature is actually in use.
 ///
 /// One model at a time, by design: the transcript keeps the language it was
-/// spoken in, so a dictation runs on the model that language prefers — and the
-/// runtime holds exactly that one, swapping it (unload, then load) when the
-/// language changes. Holding both would cost the 8B's 5.3 GB *and* the 1.5B's
-/// 1.1 GB wired for a switch the user makes between dictations.
+/// spoken in, so a dictation runs on the model its job and that language resolve
+/// to (`TransformModelManager.model(for:)`) — and the runtime holds exactly that
+/// one, swapping it (unload, then load) when a dictation needs a different one.
+/// Holding both would cost the 8B's 5.3 GB *and* the 1.5B's 1.1 GB wired for a
+/// switch the user makes between dictations.
 final class TransformRuntime {
     static let shared = TransformRuntime()
 
@@ -128,18 +129,35 @@ final class TransformRuntime {
     /// app must never hold a multi-gigabyte model for a feature that is off.
     ///
     /// Which language the next dictation will be in cannot be known before the
-    /// speech is in — and the language is what picks the model — so this does
-    /// not choose a language. It keeps the backend the last dictation used (the
-    /// best predictor there is, and its weights are already paid for), and
-    /// otherwise loads the model every language can run on: the shipped 1.5B,
-    /// which English always uses and Polish uses whenever the 8B is not
-    /// installed. The 8B's cold load is paid once by the first Polish dictation
-    /// and then hidden by the residency window that follows it.
+    /// speech is in — and the language is what picks the model for clean-up
+    /// alone — so this does not choose a language. It keeps the backend the last
+    /// dictation used (the best predictor there is, and its weights are already
+    /// paid for), and otherwise warms the model the current switches imply,
+    /// resolved through the same `model(for:)` the dictation path uses: **tone
+    /// runs on the larger model in both languages**, so a tone install warms the
+    /// 8B when it is present, and a clean-up-only install warms the shipped
+    /// model every language can run on. Warming the shipped model while tone was
+    /// on is what used to make the first dictation pay the 8B's cold load anyway.
     func warmUpIfEnabled() {
         let prefs = AppPreferences.shared
         guard prefs.toneEnabled || prefs.cleanUpEnabled else { return }
         guard !isLoaded else { return }
-        warmUp(for: models.defaultModel)
+        warmUp(for: models.model(for: Self.warmUpPolicy(
+            toneEnabled: prefs.toneEnabled,
+            toneMode: prefs.transformToneMode
+        )))
+    }
+
+    /// Which job the warm-up prepares for — the switches only, because no
+    /// language is known yet.
+    ///
+    /// The register does not matter: a tone rewrite resolves to one model in
+    /// both languages, so `.english` stands in for the language the speech has
+    /// not revealed. Clean-up alone is the one job whose model still depends on
+    /// the language, and the shipped model is what English always uses and what
+    /// Polish falls back to, so that is the floor this warms.
+    static func warmUpPolicy(toneEnabled: Bool, toneMode: ToneMode) -> TransformPolicy {
+        toneEnabled ? .tone(language: .english, tone: toneMode) : .cleanUp(language: .english)
     }
 
     /// Loads `model`'s weights and runs one throwaway decode, so the first
@@ -213,10 +231,11 @@ final class TransformRuntime {
             return resident
         }
 
-        // A language change: the other model's weights must go before this one
-        // is mapped, or the app would be holding both.
+        // A different model has to be loaded: the other one's weights must go
+        // before this one is mapped, or the app would be holding both. A job
+        // change swaps the model too, not only a language change.
         if releaseResident() {
-            print("[TransformRuntime] unloaded the previous model for a language change")
+            print("[TransformRuntime] unloaded the previous model for a different model")
         }
 
         guard let path = models.verifiedPath(for: requested) else {

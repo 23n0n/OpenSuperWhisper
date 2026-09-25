@@ -368,4 +368,67 @@ final class DictationInjectionTests: XCTestCase {
         temporaryFiles.append(contentsOf: rows.map(\.url))
         XCTAssertEqual(rows.map(\.transcription), [raw])
     }
+
+    /// A tone answer the guard throws away is **visible**. Before this the
+    /// rejection was recorded in the service and dropped on the way to the
+    /// surface: the report named the tone policy as if it had run (`didRunModel:
+    /// true`) and the notice — the user's only explanation for their own words
+    /// coming back — was never shown with the dictation.
+    func testTheDictationReportCarriesAGuardedRejection() async throws {
+        let store = try makeStore()
+        let sources = makeSourceFiles(count: 1)
+        var injected: [String] = []
+
+        let restoreAutoPaste = pinAutoPasteOn()
+        defer { restoreAutoPaste() }
+
+        let reports = DictationReportCenter()
+        let raw = "Please send the report to the client today."
+        let rejection = TransformGuardRejection.assistantFrame("sure")
+        let policy = TransformPolicy.tone(language: .english, tone: .formal)
+
+        let viewModel = IndicatorViewModel(
+            transcriptionService: TranscriptionService(
+                engine: StubLanguageWhisperEngine(text: raw, language: "en")
+            ),
+            recordingStore: store,
+            stopRecording: {
+                guard let url = sources.next() else { return nil }
+                return RecordedAudio(url: url, samples: [])
+            },
+            cancelAudioRecording: {},
+            injectText: { text in
+                injected.append(text)
+                return KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 4)
+            },
+            // The service's own outcome when the guard refuses the answer: the
+            // transcript is what was pasted, with the reason kept.
+            transformText: { _, _ in
+                TransformService.TransformOutcome(
+                    text: raw,
+                    policy: policy,
+                    didRunModel: true,
+                    guardRejection: rejection
+                )
+            },
+            cleanUp: { DictationScrubber.scrub($0) },
+            cleanUpEnabled: { false },
+            reportCenter: reports
+        )
+        defer { viewModel.cleanup() }
+
+        try await dictate(viewModel)
+        try await waitForInjections(1, { injected })
+
+        XCTAssertEqual(injected.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }, [raw])
+        let report = try XCTUnwrap(reports.last, "every dictation must publish a report")
+        XCTAssertEqual(report.guardRejection, rejection, "the reason the answer was thrown away")
+        XCTAssertEqual(report.guardNotice, rejection.notice, "the notice the user saw")
+        XCTAssertFalse(report.changedAnything, "the user's own words came back")
+        XCTAssertNotEqual(
+            report.transformLabel,
+            policy.summary,
+            "a rejected answer must not read as the tone policy having run"
+        )
+    }
 }

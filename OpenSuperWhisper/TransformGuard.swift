@@ -46,19 +46,33 @@ enum TransformGuardRejection: Equatable {
 /// a stub, a language flip. What it cannot catch is subtle content drift (an
 /// article dropped, a noun invented); that is the prompt's and the 8B's job, and
 /// it is stated as a limit rather than papered over.
+///
+/// A frame or a label is judged against the dictation as well as the answer: the
+/// model has to have **added** it. The same words in the dictation's own opening
+/// (`Here is the summary, …`, `I've already …`) are the user's, and throwing
+/// them away would replace a good rewrite with the raw transcript.
 enum TransformGuard {
     /// Openings an assistant uses when it is answering rather than rewriting.
     /// Matched on the first words of the first non-empty line, after markdown
-    /// and quote marks are stripped, case-insensitively.
+    /// and quote marks are stripped, case-insensitively — **and only when the
+    /// dictation did not open with the same words**, which is what separates a
+    /// frame the model added from the user's own opening (`assistantFrame`).
     static let assistantFrames: [String] = [
         "sure", "certainly", "of course", "understood", "here is", "here's",
         "i've", "oczywiście", "oto", "jasne"
     ]
 
-    /// Phrases that announce a rewrite instead of being one.
-    static let announcingPhrases: [String] = ["rewritten text", "rewritten version"]
+    /// Phrases that announce a rewrite instead of being one — in both languages,
+    /// because the frame list already carries Polish entries and a Polish
+    /// preamble is the same failure in the other language. Ignored when the
+    /// dictation already said the phrase.
+    static let announcingPhrases: [String] = [
+        "rewritten text", "rewritten version",
+        "przepisany tekst", "przepisana wersja", "oto przepisany"
+    ]
 
-    /// Label prefixes that may open a line (`Register: formal`).
+    /// Label prefixes that may open a line (`Register: formal`). Ignored when
+    /// the dictation itself carried the label.
     static let labelPrefixes: [String] = ["register:", "output:"]
 
     /// A dictation with fewer words than this is not "a sentence", so the stub
@@ -69,11 +83,21 @@ enum TransformGuard {
     static let stubMinimumInputWords = 8
     /// The answer must keep at least this fraction of the dictation's words.
     /// `Understood.` keeps 1/12; a legitimate register rewrite keeps almost all.
+    ///
+    /// Known limit, deferred rather than papered over: this counts **fillers**
+    /// as words. A legitimate tone+clean-up that strips heavy stutter can fall
+    /// under the floor and be rejected, and the fix needs a language-specific
+    /// filler list — which this guard deliberately does not carry.
     static let stubMinimumKeptFraction = 0.25
 
     /// A flip is only claimed when the text that went in carried content words:
     /// a one-word or number-only dictation gives the detector nothing to hold on
     /// to, and an unchanged short text is never a flip.
+    ///
+    /// Known limit, deferred rather than widened: the rule needs the *engine's*
+    /// language to agree with the detector's. Mixed or technical dictation the
+    /// engine called "pl" and the detector calls "en" cannot be caught at all —
+    /// the first condition fails before the answer is looked at.
     static let flipMinimumInputWords = 3
 
     /// The rejection for this answer, or `nil` when it may be delivered.
@@ -90,10 +114,10 @@ enum TransformGuard {
         // and the language rule in particular must not be read as a flip.
         if answer == input.trimmingCharacters(in: .whitespacesAndNewlines) { return nil }
 
-        if let frame = assistantFrame(in: answer) {
+        if let frame = assistantFrame(in: answer, input: input) {
             return .assistantFrame(frame)
         }
-        if let label = label(in: answer) {
+        if let label = label(in: answer, input: input) {
             return .label(label)
         }
         if let stub = stub(output: answer, input: input) {
@@ -105,40 +129,65 @@ enum TransformGuard {
         return nil
     }
 
-    /// The frame the answer opens with, if any.
+    /// The frame the answer opens with, if any — and only when **the model added
+    /// it**.
     ///
-    /// Only the opening counts: a dictation may legitimately *contain* "sure" or
-    /// a first-person "I've" in the middle, and rejecting that would throw away
-    /// good output.
-    static func assistantFrame(in answer: String) -> String? {
+    /// Two conditions together, because "assistant-shaped" is not the same as
+    /// "the model is answering":
+    ///
+    /// * the answer opens with the frame (only the opening counts: a dictation
+    ///   may legitimately carry "sure" or an "I've" further in, and rejecting
+    ///   that would throw away good output), and
+    /// * the dictation did not **open** with the same words. `Here is the
+    ///   summary, …` and `I've already deployed the backend …` are ordinary
+    ///   *dictated* openings, and a rewrite that keeps them is the user's own
+    ///   words, not an acknowledgement.
+    ///
+    /// A frame in the middle of the dictation does not excuse an answer that
+    /// opens with one: `I'm not sure, maybe we ship Friday` answered with
+    /// `Sure, we ship Friday.` is the measured failure, still caught.
+    static func assistantFrame(in answer: String, input: String) -> String? {
         guard let opening = firstContentLine(of: answer)?.lowercased() else { return nil }
+        let inputOpening = firstContentLine(of: input)?.lowercased()
         for frame in assistantFrames {
-            if opening == frame { return frame }
-            if opening.hasPrefix(frame) {
-                let next = opening[opening.index(opening.startIndex, offsetBy: frame.count)]
-                if next == "," || next == "!" || next == "." || next == ":" || next == " " {
-                    return frame
-                }
-            }
+            guard opens(with: frame, in: opening) else { continue }
+            if let inputOpening, opens(with: frame, in: inputOpening) { continue }
+            return frame
         }
         return nil
     }
 
-    /// The label the answer carries, if any.
+    /// Whether `line` is `frame`, or continues after it as a separate word
+    /// (`Sure, …`, `Here is how …`).
+    private static func opens(with frame: String, in line: String) -> Bool {
+        if line == frame { return true }
+        guard line.hasPrefix(frame) else { return false }
+        let next = line[line.index(line.startIndex, offsetBy: frame.count)]
+        return next == "," || next == "!" || next == "." || next == ":" || next == " "
+    }
+
+    /// The label the answer carries, if any — again only when the model added it.
     ///
     /// Two shapes: a line that opens with a label prefix, and an announcement
     /// phrase anywhere (`Sure, here's the rewritten text in a casual register:` —
     /// the measured 1.5B preamble; its opening is caught by the frame rule as
     /// well, this catches the same sentence when the opener differs).
-    static func label(in answer: String) -> String? {
+    ///
+    /// Each is ignored when the dictation already carried it: text *about* the
+    /// "rewritten text", or one that dictated a `Register:` line itself, is not
+    /// the model labelling its answer.
+    static func label(in answer: String, input: String) -> String? {
         let lowered = answer.lowercased()
+        let dictation = input.lowercased()
         for phrase in announcingPhrases where lowered.contains(phrase) {
+            guard !dictation.contains(phrase) else { continue }
             return phrase
         }
         for line in answer.components(separatedBy: .newlines) {
             let trimmed = stripMarkup(line).trimmingCharacters(in: .whitespaces)
             let lineLowered = trimmed.lowercased()
             for prefix in labelPrefixes where lineLowered.hasPrefix(prefix) {
+                guard !dictation.contains(prefix) else { continue }
                 return prefix
             }
         }

@@ -10,11 +10,24 @@ import XCTest
 final class StubLanguageWhisperEngine: WhisperEngine {
     private let cannedText: String
     private let cannedLanguage: String?
+    private let declaresMultilingual: Bool?
 
-    init(text: String, language: String?) {
+    /// `multilingual` is what a loaded context would report. A test that hands
+    /// this engine a transcript the *engine* could really have heard stands for
+    /// a multilingual model and says so: `TranscriptionService` otherwise falls
+    /// back to the machine's selected model when checking for the English-only
+    /// conflict, and a leftover selection in the preference domain would refuse
+    /// the dictation as an invention. The tests that pin the refusal leave it
+    /// `nil`, so the model path they hand the service stays the whole evidence.
+    init(text: String, language: String?, multilingual: Bool? = nil) {
         self.cannedText = text
         self.cannedLanguage = language
+        self.declaresMultilingual = multilingual
         super.init(modelPath: "/stub-model-not-on-disk")
+    }
+
+    override var isModelMultilingual: Bool? {
+        declaresMultilingual ?? super.isModelMultilingual
     }
 
     override func transcribeAudioDetailed(url: URL, settings: Settings) async throws -> DetailedTranscription {
@@ -69,7 +82,7 @@ final class TranscriptionLanguageGateTests: XCTestCase {
     // MARK: - Engine language reaches the output
 
     func testWhisperLanguageReachesTheTranscriptionOutput_forFilesAndSamples() async throws {
-        let engine = StubLanguageWhisperEngine(text: polishText, language: "pl")
+        let engine = StubLanguageWhisperEngine(text: polishText, language: "pl", multilingual: true)
 
         let fromFile = try await transcribe(engine: engine, pcmSamples: nil)
         XCTAssertEqual(fromFile.text, polishText)
@@ -110,18 +123,37 @@ final class TranscriptionLanguageGateTests: XCTestCase {
         )
 
         let polish = try await transcribe(
-            engine: StubLanguageWhisperEngine(text: polishText, language: "pl"),
+            engine: StubLanguageWhisperEngine(text: polishText, language: "pl", multilingual: true),
             pcmSamples: [0.1, 0.2]
         )
         let english = try await transcribe(
-            engine: StubLanguageWhisperEngine(text: englishText, language: "en"),
+            engine: StubLanguageWhisperEngine(text: englishText, language: "en", multilingual: true),
             pcmSamples: [0.1, 0.2]
         )
 
         _ = await service.transformIfEnabled(polish.text, sourceLanguage: polish.language)
         _ = await service.transformIfEnabled(english.text, sourceLanguage: english.language)
 
-        XCTAssertEqual(recorder.texts, [polishText, englishText], "each transcription is what the model is given")
+        // Part B frames the user turn, so the model is handed the transcript
+        // inside the `<<<TRANSCRIPT …>>>` delimiters rather than as a bare
+        // request it could obey. What has to hold is the frame and the language
+        // guarantee: each turn carries its own transcript, and each turn pins
+        // its own language and not the other one.
+        XCTAssertEqual(recorder.texts.count, 2)
+        XCTAssertTrue(
+            recorder.texts[0].contains("<<<TRANSCRIPT\n\(polishText)\nTRANSCRIPT>>>"),
+            "the Polish dictation is handed over inside the frame: \(recorder.texts[0])"
+        )
+        XCTAssertTrue(
+            recorder.texts[1].contains("<<<TRANSCRIPT\n\(englishText)\nTRANSCRIPT>>>"),
+            "the English dictation is handed over inside the frame: \(recorder.texts[1])"
+        )
+        XCTAssertTrue(recorder.texts[0].contains("(Polish)"), recorder.texts[0])
+        XCTAssertFalse(recorder.texts[0].contains("(English)"),
+                       "a Polish dictation is never framed as English: \(recorder.texts[0])")
+        XCTAssertTrue(recorder.texts[1].contains("(English)"), recorder.texts[1])
+        XCTAssertFalse(recorder.texts[1].contains("(Polish)"),
+                       "an English dictation is never framed as Polish: \(recorder.texts[1])")
         XCTAssertEqual(recorder.prompts.count, 2, "both dictations are rewritten: tone is language-independent now")
         XCTAssertTrue(recorder.prompts[0].contains("Polish text"), recorder.prompts[0])
         XCTAssertTrue(recorder.prompts[1].contains("English text"), recorder.prompts[1])
