@@ -516,7 +516,12 @@ Application Support folder, verifies the pinned checksum, and keeps them there.
 **The language of the transcript is never changed.** Polish comes back Polish, English comes back English.
 The tone switch asks for a different register of the *same* text; the clean-up switch removes filler, repairs
 punctuation, articles and word order, and drops stutters. Neither one is a translation, and no setting in the
-app can make them one.
+app can make them one. **The instruction is written in the language of the dictation too**, so a Polish
+dictation is asked for in Polish and an English one in English — on the captain's own Polish recordings that
+held his words still far more often than asking in English did (25 of 28 tone answers byte-identical against
+15, one invented word against two, one dropped word against four), and the Polish prompt additionally names
+the two `TRANSCRIPT` markers and forbids repeating them, because without that the model echoed the closing
+marker back as a word of its own answer on short dictations.
 
 **Which model each job uses.** The model is a preference, not a requirement:
 

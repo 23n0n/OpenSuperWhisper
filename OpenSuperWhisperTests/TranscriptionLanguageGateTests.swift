@@ -148,14 +148,16 @@ final class TranscriptionLanguageGateTests: XCTestCase {
             recorder.texts[1].contains("<<<TRANSCRIPT\n\(englishText)\nTRANSCRIPT>>>"),
             "the English dictation is handed over inside the frame: \(recorder.texts[1])"
         )
-        XCTAssertTrue(recorder.texts[0].contains("(Polish)"), recorder.texts[0])
+        XCTAssertTrue(recorder.texts[0].contains("(polski)"), recorder.texts[0])
         XCTAssertFalse(recorder.texts[0].contains("(English)"),
                        "a Polish dictation is never framed as English: \(recorder.texts[0])")
         XCTAssertTrue(recorder.texts[1].contains("(English)"), recorder.texts[1])
-        XCTAssertFalse(recorder.texts[1].contains("(Polish)"),
+        XCTAssertFalse(recorder.texts[1].contains("(polski)"),
                        "an English dictation is never framed as Polish: \(recorder.texts[1])")
         XCTAssertEqual(recorder.prompts.count, 2, "both dictations are rewritten: tone is language-independent now")
-        XCTAssertTrue(recorder.prompts[0].contains("Polish text"), recorder.prompts[0])
+        XCTAssertTrue(recorder.prompts[0].contains("po polsku"), recorder.prompts[0])
+        XCTAssertFalse(recorder.prompts[0].contains("English text"),
+                       "the Polish turn is instructed in Polish: \(recorder.prompts[0])")
         XCTAssertTrue(recorder.prompts[1].contains("English text"), recorder.prompts[1])
     }
 
