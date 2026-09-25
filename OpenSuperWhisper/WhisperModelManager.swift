@@ -181,28 +181,58 @@ class WhisperModelManager: ObservableObject {
         }
     }
 
+    /// The model the app keeps for itself: the one inside its own bundle, copied
+    /// into the app's directory on first run. Falls back to the file in the
+    /// bundle when that copy is not there (a first launch that has not copied it
+    /// yet, a full or read-only disk) — either way the app can load it.
+    ///
+    /// `nil` only when the bundle does not carry its model, which is a broken
+    /// build rather than a state a user can reach: the repository tracks
+    /// `OpenSuperWhisper/ggml-tiny.en.bin` and the target puts it in the bundle's
+    /// resources.
+    ///
+    /// Static on purpose: this answers where the app's own model is without
+    /// creating the manager, so nothing has to be instantiated — and no directory
+    /// has to be chosen — just to find out whether a fresh install has something
+    /// to run.
+    static var bundledModelPath: String? {
+        let copy = modelsDirectory.appendingPathComponent(defaultModelName)
+        if FileManager.default.fileExists(atPath: copy.path) { return copy.path }
+        return Bundle.main.url(forResource: "ggml-tiny.en", withExtension: "bin")?.path
+    }
+
     // Call this on every startup to ensure at least one model is present
     public func ensureDefaultModelPresent() {
-        let defaultModelName = Self.defaultModelName
-        let defaultModelURL = modelsDirectory.appendingPathComponent(defaultModelName)
+        let defaultModelURL = modelsDirectory.appendingPathComponent(Self.defaultModelName)
         if !FileManager.default.fileExists(atPath: defaultModelURL.path) {
             copyDefaultModelIfNeeded()
         }
 
         // A selection that points at a file which is not there anymore (the
-        // checkout it came from was moved, the file was deleted) would fail
-        // every dictation with contextInitializationFailed. Point it at the
-        // model the app owns instead — and say so in the Model tab, because a
-        // silent switch is a transcript from a model the user did not choose.
+        // checkout it came from was moved, the file was deleted, the migration
+        // dropped it) would fail every dictation with
+        // contextInitializationFailed. Point it at the model the app owns
+        // instead — and say so in the Model tab, because a silent switch is a
+        // transcript from a model the user did not choose.
+        //
+        // A fresh install has nothing selected at all, which is that same
+        // failure one step earlier: no preference ever hands the engine a path,
+        // and the first dictation reports "Model could not be loaded" while the
+        // app is carrying a model of its own. That case points at the bundled
+        // model too — silently, because nothing was swapped out from under
+        // anybody, and the Model tab lists it as the model in use.
         let prefs = AppPreferences.shared
-        if let stored = prefs.selectedWhisperModelPath,
-           !stored.isEmpty,
-           !FileManager.default.fileExists(atPath: stored),
-           FileManager.default.fileExists(atPath: defaultModelURL.path) {
+        let stored = prefs.selectedWhisperModelPath
+        if let stored, !stored.isEmpty, FileManager.default.fileExists(atPath: stored) {
+            return
+        }
+
+        guard let bundled = Self.bundledModelPath else { return }
+        prefs.selectedWhisperModelPath = bundled
+        if let stored, !stored.isEmpty {
             print("Selected whisper model \(stored) is gone; falling back to the bundled one")
-            prefs.selectedWhisperModelPath = defaultModelURL.path
             notify(.selectionWasMissing(was: URL(fileURLWithPath: stored).lastPathComponent,
-                                        now: defaultModelName))
+                                        now: Self.defaultModelName))
         }
     }
 

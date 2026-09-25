@@ -135,9 +135,39 @@ class TranscriptionService: ObservableObject {
         static var current: Self {
             let prefs = AppPreferences.shared
             return Self(engine: prefs.selectedEngine,
-                        modelPath: prefs.selectedWhisperModelPath ?? prefs.selectedModelPath,
+                        modelPath: resolvedWhisperModelPath(),
                         modelVersion: prefs.fluidAudioModelVersion)
         }
+    }
+
+    /// The speech model the app will load.
+    ///
+    /// The user's selection wins while its file is there. With nothing usable
+    /// selected — a fresh install, a preference that was dropped, a file that
+    /// went missing — the app falls back to the model inside its own bundle,
+    /// which it copied into its own directory on first run. Those are the only
+    /// two places: everything else is a download from the catalogue, and a
+    /// download the user has not made is not a model.
+    ///
+    /// `nil` only when the bundle does not carry its model either, which is a
+    /// broken build rather than a state a user can reach. This is what keeps a
+    /// fresh install from failing every dictation with
+    /// `contextInitializationFailed` and reporting "Model could not be loaded".
+    ///
+    /// Nothing is repaired here: `WhisperModelManager.ensureDefaultModelPresent()`
+    /// does that at launch and reports it in the Model tab. This answers only
+    /// what is usable now, so the engine-load path never writes a preference —
+    /// and it is `nonisolated` for that reason, because answering it reads two
+    /// files and no state of this service (`EngineSelection.current` is the
+    /// nonisolated static that asks it).
+    nonisolated static func resolvedWhisperModelPath() -> String? {
+        let prefs = AppPreferences.shared
+        if let stored = prefs.selectedWhisperModelPath ?? prefs.selectedModelPath,
+           !stored.isEmpty,
+           FileManager.default.fileExists(atPath: stored) {
+            return stored
+        }
+        return WhisperModelManager.bundledModelPath
     }
 
     @Published private(set) var loadingError: String?
