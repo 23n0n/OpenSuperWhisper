@@ -1,0 +1,71 @@
+# fm-20260925-18 — status log (UTC)
+
+Every line is something that happened on this machine, with the evidence it produced. Times are
+UTC; they come from the log files' own timestamps where a run produced one, and from the shell's
+clock otherwise. Local clock on this Mac is UTC+2.
+
+## 2026-09-25
+
+- **~10:28Z** Read `fleet/data/fm-20260925-18/launch-brief.md`, `packaging/uninstall.sh`,
+  `packaging/build-pkg.sh`, `Scripts/verify-packaging.sh`, `docs/release_build.md`,
+  `OpenSuperWhisper/{UninstallService,WhisperModelManager,TransformModelManager}.swift`,
+  `OpenSuperWhisperTests/UninstallServiceTests.swift`, `packaging/{distribution.xml,conclusion.html,scripts/preinstall}`.
+  Root cause confirmed: `uninstall.sh:140-142`, `rm -rf "$SUPPORT_DIR"`.
+- **10:30Z** Machine gate: no `xcodebuild`, no `llama-server`. Off-peak for the model provider.
+- **~10:33Z** `shasum -a 256` over two candidate model files on this machine's disk (see the
+  disclosure in `report.md` §5: one of them was the commercial app's copy, which the standing
+  rule later put out of bounds).
+- **~10:33–10:35Z** `packaging/uninstall.sh` rewritten path-granular; `sh -n` clean;
+  `--help` and the unknown-argument path printed and checked by hand.
+- **10:35Z** Created `fleet/data/fm-20260925-18/scratch/` with model hard links and a local
+  app copy (`resigned/OpenSuperWhisper.app`) for the payload work that was then in scope.
+- **~10:36Z** Standing rule arrived (never touch the commercial app). Removed the hard link
+  (source link count back to 1), deleted the scratch model directory, and confirmed the
+  in-flight run had **not** reached `pkgbuild`: `/tmp/fm2418x-harness-real.log` (10:36:28Z) ends
+  in `build-pkg.sh: no ggml-large-v3-turbo.bin in …/scratch/models.` — no package was built from
+  it. Grepped `packaging/`, `Scripts/`, `docs/`, `Readme.md`, `make_release.sh`,
+  `notarize_app.sh` for the app's bundle id and data path: no matches.
+- **10:36–10:38Z** `OpenSuperWhisper/UninstallService.swift` (removed/kept lists, sheet) and
+  `OpenSuperWhisperTests/UninstallServiceTests.swift` (7 → 10 tests) updated; docs updated.
+- **10:38:08Z** Fixture-model harness run finished: **ALL CHECKS PASSED (checks: 150)** —
+  install → uninstall → install again from a package payload, plus the keep/wipe and
+  idempotence assertions. Log: `/tmp/fm2418x-harness-fixtures.log`.
+- **10:39:02Z** Real-model harness run started against
+  `/Volumes/home/zenon/Projects/OpenSuperWhisper-fork/build-models/` (properly sourced weights,
+  digests matching the app's pins). Log: `/tmp/fm2418x-harness-real-models.log`.
+- **~10:40Z** Direction change relayed: no model payload in the package. **Killed that run**
+  (process group of `Scripts/verify-packaging.sh`, then `pkgbuild`), and removed the model
+  payload work from the branch: the model block in `packaging/build-pkg.sh`, the model constants
+  and payload assertions in `Scripts/verify-packaging.sh`, the payload paragraphs in
+  `docs/release_build.md`, `packaging/conclusion.html`, `packaging/distribution.xml`,
+  `Readme.md` §10 and the `.gitignore` line for `packaging/models/`. Nothing was installed from
+  the killed run; no artifact was kept.
+- **10:40:30Z** Harness run with `--app` (app-only package) passed: 132 checks incl. the payload
+  cycle. Log: `/tmp/fm2418x-harness-app.log`.
+- **10:41:24Z** Final uninstaller-contract run: **ALL CHECKS PASSED (checks: 79)**.
+  Log: `/tmp/fm2418x-final-uninstaller.log`.
+- **10:41:38Z** Final run with `--app`: **ALL CHECKS PASSED (checks: 132)**, exit 0.
+  Log: `/tmp/fm2418x-final-app.log`. (An intermediate run at 10:41:2x exited 1 on purpose:
+  the local app copy still carried the previous revision of the script, and `build-pkg.sh`
+  refused it with the paths and the rebuild command — the refusal works. The copy was refreshed
+  and the run repeated.)
+- **10:41:47Z** Evidence artifact built and inspected:
+  `scratch/OpenSuperWhisper-0.1.0-payload-proof.pkg` — 87,533,621 bytes,
+  sha256 `bb3f62aebb6ff02e03ee47c436dd29ac6026e8d27c302661578fb537834559c9`,
+  `pkgutil --payload-files`: 137 entries, the app and
+  `./Applications/Uninstall OpenSuperWhisper.command`, nothing under `./Library/` or `./Users/`.
+- **10:42Z** `xcrun swiftc -parse OpenSuperWhisper/UninstallService.swift` and the same for
+  `OpenSuperWhisperTests/UninstallServiceTests.swift`: no diagnostics. (Syntax only; the test
+  suite itself needs the validator's `Scripts/dev-run.sh test`.)
+- **10:42Z** `report.md` written (this directory).
+
+## Open items for the first mate
+
+1. Rebuild the app (`notarize_app.sh <identity>`) before packaging: `build-pkg.sh` now refuses
+   an app whose `Contents/Resources/uninstall.sh` is older than `packaging/uninstall.sh`, and
+   the current `repo/build/Build/Products/Release/OpenSuperWhisper.app` (24 Sep 18:30) is.
+2. Run the Swift suite once (`Scripts/dev-run.sh test`) — it compiles the sheet's new
+   `keptItems`, which only `swiftc -parse` has seen here.
+3. A real root install/uninstall: needs the admin password. Everything on that side
+   (`/Applications`, `/Library`, the receipt, cfprefsd, TCC) is behind `IS_REAL_ROOT` and was
+   not exercised.

@@ -133,6 +133,10 @@ worktree) — and make no other change, per §1.
   automation SIGHUP'd two whole sessions. Launch the GUI app only through the build/dev-run path, and run
   any long build or measurement detached (`setsid … > log 2>&1 &`), never in the foreground of a session
   whose terminal matters.
+- **Never touch the captain's commercial SuperWhisper** (`~/Library/Application Support/superwhisper/**`): not to
+  read, copy, link, hash or package. Its model file loads in a different variant and is not the fork's to use; taking
+  it produced a "Model could not be loaded" failure on his fresh install. Fork models come from the URLs the app itself
+  uses, or from his own `~/models/`.
 - **Never launch a long build through a harness-backgrounded job.** A `bash` call the harness backgrounds (the
   "Backgrounded early to handle an incoming message" path) is torn down with its session: `fm-20260924-12`'s first
   focused run died mid-build that way, leaving a log with no exit marker and a redirect error naming a path the

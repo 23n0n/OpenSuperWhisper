@@ -699,6 +699,36 @@
    "brief": "data/fm-20260925-17/launch-brief.md",
    "created": "2026-09-25T09:36:45Z",
    "updated": "2026-09-25T09:36:45Z"
+  },
+  {
+   "id": "fm-20260925-18",
+   "kind": "ship",
+   "mode": "local-only",
+   "project": "OpenSuperWhisper",
+   "repoDir": "/Volumes/home/zenon/Projects/OpenSuperWhisper-fork/repo",
+   "worktree": "worktrees/OpenSuperWhisper-fm-packaging",
+   "branch": "fm/package-idempotent",
+   "subagentId": "",
+   "status": "registered",
+   "retries": 0,
+   "brief": "data/fm-20260925-18/launch-brief.md",
+   "created": "2026-09-25T10:30:17Z",
+   "updated": "2026-09-25T10:30:17Z"
+  },
+  {
+   "id": "fm-20260925-19",
+   "kind": "ship",
+   "mode": "local-only",
+   "project": "OpenSuperWhisper",
+   "repoDir": "/Volumes/home/zenon/Projects/OpenSuperWhisper-fork/repo",
+   "worktree": "worktrees/OpenSuperWhisper-fm-modelfind",
+   "branch": "fm/model-resolution",
+   "subagentId": "",
+   "status": "registered",
+   "retries": 0,
+   "brief": "data/fm-20260925-19/launch-brief.md",
+   "created": "2026-09-25T10:30:18Z",
+   "updated": "2026-09-25T10:30:18Z"
   }
  ]
 }
