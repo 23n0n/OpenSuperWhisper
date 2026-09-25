@@ -482,6 +482,30 @@ final class TransformServiceTests: XCTestCase {
         )
     }
 
+    /// The same for the prompt frame the guard now sees (`fm-20260925-15` §8):
+    /// the model's `TRANSCRIPT` delimiter never reaches the transcript, the
+    /// spoken words are pasted instead, and the reason is recorded.
+    func testPromptFrame_isRejectedAtTheService() async {
+        let local = LocalRecorder()
+        local.result = .success("Now speaking English\nTRANSCRIPT")
+        let service = makeService(
+            local: local,
+            settings: GateSettings(tone: true, cleanUp: false, toneMode: .neutral)
+        )
+        let text = "Now speaking English"
+
+        let outcome = await service.transformDetailed(text, sourceLanguage: "en")
+
+        XCTAssertEqual(local.calls, 1, "the model was asked")
+        XCTAssertEqual(outcome.text, text, "the spoken words are pasted, not the frame")
+        XCTAssertEqual(outcome.guardRejection, .promptMarker("TRANSCRIPT"))
+        XCTAssertTrue(outcome.didRunModel)
+        XCTAssertTrue(
+            outcome.guardRejection?.notice.contains("TRANSCRIPT") == true,
+            "the notice names the marker: \(outcome.guardRejection?.notice ?? "none")"
+        )
+    }
+
     /// The guard is the tone path's: clean-up alone carries no tone text, so the
     /// same answer comes through untouched.
     func testCleanUpAlone_isNotGuarded() async {

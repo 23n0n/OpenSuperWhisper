@@ -104,6 +104,126 @@ final class TransformGuardTests: XCTestCase {
         )
     }
 
+    // MARK: - The prompt's own delimiter, returned instead of the text
+
+    /// The five measured finals, verbatim, from the captain's own library
+    /// (`fm-20260925-15` §8, 87 recordings through the app's own decode and
+    /// transform chain): on short dictations the model returned the transform
+    /// prompt's own `<<<TRANSCRIPT … TRANSCRIPT>>>` frame instead of, or around,
+    /// the text, and the guard's four rules did not see it. The strings below are
+    /// the evidence log's bytes, including the two spaces case 1 ends with.
+    func testMeasuredPromptFrames_areRejected() {
+        let cases: [(input: String, measured: String, language: TransformLanguage, marker: String)] = [
+            // 0D5AA205-7FC2-4F53-AA7B-C2E17A3A33B6.wav, 2.8 s, engine en
+            (
+                "keyboard simulation output is working.",
+                "keyboard simulation output is working.  \nTRANSCRIPT",
+                .english,
+                "TRANSCRIPT"
+            ),
+            // 4B614AE1-E769-4776-859E-1BD969B3F8E2.wav, 2.5 s, engine en
+            ("Now speaking English", "Now speaking English\nTRANSCRIPT", .english, "TRANSCRIPT"),
+            // DC187FEA-7E34-4EA3-A8A7-D38482BCD2B5.wav, 1.8 s, engine pl — the
+            // frame in Polish, which a check for the English word alone misses
+            (
+                "font",
+                "<<<TRANSKRYPCJA\nfont\nTRANSKRYPCJA>>>",
+                .polish,
+                "TRANSKRYPCJA"
+            ),
+            // 880D1B22-6A4C-4BD6-B718-06D01F55AEBD.wav, 1.9 s, engine en
+            ("Use of pickguard", "Use of pickguard\nTRANSCRIPT", .english, "TRANSCRIPT"),
+            // 81B50264-1B06-4D5A-95BA-1A88821B90CC.wav, 2.5 s, engine en
+            (
+                "Continue with fixes.",
+                "<<<TRANSCRIPT\nContinue with fixes.\nTRANSCRIPT>>>",
+                .english,
+                "TRANSCRIPT"
+            ),
+        ]
+
+        for measured in cases {
+            XCTAssertEqual(
+                TransformGuard.rejection(of: measured.measured, for: measured.input, language: measured.language),
+                .promptMarker(measured.marker),
+                "not rejected: \(measured.measured)"
+            )
+            XCTAssertTrue(
+                TransformGuard.rejection(of: measured.measured, for: measured.input, language: measured.language)?
+                    .notice.contains(measured.marker) == true,
+                "the notice names the marker it saw"
+            )
+        }
+    }
+
+    /// The rule reads every line, not just the last one: the same marker with text
+    /// after it is still the frame, not the user's text.
+    func testPromptMarkerMidAnswer_isRejected() {
+        XCTAssertEqual(
+            TransformGuard.rejection(
+                of: "Now speaking English\nTRANSCRIPT\nAnd the microphone works.",
+                for: "Now speaking English",
+                language: .english
+            ),
+            .promptMarker("TRANSCRIPT")
+        )
+        XCTAssertEqual(
+            TransformGuard.rejection(
+                of: "The plan <<<TRANSCRIPT is ready.",
+                for: "the plan is ready",
+                language: .english
+            ),
+            .promptMarker("TRANSCRIPT"),
+            "the brackets cannot arrive in dictated speech, wherever they sit"
+        )
+    }
+
+    /// The negative cases the fix must not cost: the ordinary lowercase word in a
+    /// dictated sentence is the user's own, and a rewrite that keeps it is
+    /// delivered. Both answers differ from their dictation, so the marker rule —
+    /// not the "answer is the dictation" shortcut — is what has to leave them
+    /// alone.
+    func testLowercaseTranscriptWord_isDelivered() {
+        XCTAssertNil(
+            TransformGuard.rejection(
+                of: "I need the transcript by Friday.",
+                for: "i need the transcript by friday if possible",
+                language: .english
+            )
+        )
+        XCTAssertNil(
+            TransformGuard.rejection(
+                of: "Send the transcript.",
+                for: "send the transcript please",
+                language: .english
+            )
+        )
+        // A line that merely starts with a capital: not the frame.
+        XCTAssertNil(
+            TransformGuard.rejection(
+                of: "Transcript\nof the meeting.",
+                for: "transcript of the meeting",
+                language: .english
+            )
+        )
+    }
+
+    /// The limit the rule chooses, recorded rather than hidden: an all-caps word
+    /// inside a sentence is not a line of its own, so it is delivered — the
+    /// measured leaks are all the marker standing alone. A dictation *about* the
+    /// marker (`make sure the TRANSCRIPT marker is gone`) is a real sentence and
+    /// comes back as one.
+    func testAllCapsMarkerInsideASentence_isOutOfReach() {
+        let input = "make sure the transcript marker is gone from the output"
+        XCTAssertNil(
+            TransformGuard.rejection(
+                of: "Make sure the TRANSCRIPT marker is gone from the output.",
+                for: input,
+                language: .english
+            )
+        )
+    }
+
     // MARK: - The frame and the label have to be the model's, not the user's
 
     /// `Here is …`, `I've …` and a dictated `Sure, …` are ordinary *openings*

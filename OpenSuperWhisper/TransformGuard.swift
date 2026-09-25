@@ -6,10 +6,17 @@ import Foundation
 /// and runs no second pass, so it cannot itself hallucinate. It exists because
 /// the small shipped model answered a dictation as if it were a chat request and
 /// prefixed the rewrite with an acknowledgement; the prompt makes that rarer,
-/// the 8B makes it rarer still, and this makes the class impossible.
+/// the 8B makes it rarer still, and this makes the class impossible. The same
+/// reasoning covers the second measured leak: the model returning the prompt's
+/// own `TRANSCRIPT`/`TRANSKRYPCJA` delimiter around a short dictation.
 enum TransformGuardRejection: Equatable {
     /// The answer opens by addressing the user as an assistant would.
     case assistantFrame(String)
+    /// The answer carries the transform prompt's own user-turn delimiter — the
+    /// `<<<TRANSCRIPT … TRANSCRIPT>>>` the prompt wraps the dictation in (the
+    /// Polish `TRANSKRYPCJA` is what the model answers a Polish dictation with)
+    /// — instead of, or around, the text.
+    case promptMarker(String)
     /// The answer carries a label line (`Register:`/`Output:`) or announces the
     /// rewritten text instead of being it.
     case label(String)
@@ -25,6 +32,9 @@ enum TransformGuardRejection: Equatable {
         case .assistantFrame(let frame):
             return "The model answered with an acknowledgement (\"\(frame)\") instead of rewriting "
                 + "the dictation, so your own words were used instead."
+        case .promptMarker(let marker):
+            return "The model returned the transform prompt's own marker (\"\(marker)\") instead of "
+                + "the text, so your own words were used instead."
         case .label(let label):
             return "The model wrapped the rewrite in a label (\"\(label)\") instead of returning the "
                 + "text alone, so your own words were used instead."
@@ -42,10 +52,11 @@ enum TransformGuardRejection: Equatable {
 /// reach the transcript.
 ///
 /// It reads text only — no model call, no second pass. What it catches is the
-/// class a user actually notices and cannot repair: an assistant frame, a label,
-/// a stub, a language flip. What it cannot catch is subtle content drift (an
-/// article dropped, a noun invented); that is the prompt's and the 8B's job, and
-/// it is stated as a limit rather than papered over.
+/// class a user actually notices and cannot repair: an assistant frame, the
+/// prompt's own delimiter, a label, a stub, a language flip. What it cannot
+/// catch is subtle content drift (an article dropped, a noun invented); that is
+/// the prompt's and the 8B's job, and it is stated as a limit rather than papered
+/// over.
 ///
 /// A frame or a label is judged against the dictation as well as the answer: the
 /// model has to have **added** it. The same words in the dictation's own opening
@@ -74,6 +85,23 @@ enum TransformGuard {
     /// Label prefixes that may open a line (`Register: formal`). Ignored when
     /// the dictation itself carried the label.
     static let labelPrefixes: [String] = ["register:", "output:"]
+
+    /// The dictation is handed to the model inside the prompt's own delimiter,
+    /// and the answer sometimes comes back *as* it. Measured on the captain's own
+    /// library (`fm-20260925-15` §8): five short dictations returned the frame
+    /// instead of, or around, the text, and none of the guard's four existing
+    /// rules could see it.
+    ///
+    /// These are the words the app's own prompt composes, in the case the frame
+    /// is written in. The prompt writes `TRANSCRIPT` in both languages, but a
+    /// Polish dictation was measured coming back with the Polish word, so both
+    /// are listed and the match stays case-sensitive: the ordinary lowercase word
+    /// in `I need the transcript by Friday.` is the user's own and is delivered.
+    static let promptMarkerWords: [String] = ["TRANSCRIPT", "TRANSKRYPCJA"]
+
+    /// The least letters a word attached to `<<<`/`>>>` must carry to count as a
+    /// marker, so a stray `<<<A` is not one.
+    static let promptMarkerMinimumLetters = 2
 
     /// A dictation with fewer words than this is not "a sentence", so the stub
     /// rule never applies to it — a two-word dictation or a fragment comes back
@@ -114,6 +142,9 @@ enum TransformGuard {
         // and the language rule in particular must not be read as a flip.
         if answer == input.trimmingCharacters(in: .whitespacesAndNewlines) { return nil }
 
+        if let marker = promptMarker(in: answer) {
+            return .promptMarker(marker)
+        }
         if let frame = assistantFrame(in: answer, input: input) {
             return .assistantFrame(frame)
         }
@@ -164,6 +195,78 @@ enum TransformGuard {
         guard line.hasPrefix(frame) else { return false }
         let next = line[line.index(line.startIndex, offsetBy: frame.count)]
         return next == "," || next == "!" || next == "." || next == ":" || next == " "
+    }
+
+    /// The prompt's own delimiter in the answer, if any — the frame the model was
+    /// told not to repeat and repeated anyway.
+    ///
+    /// Two shapes, both measured on the captain's recordings:
+    ///
+    /// * a line whose entire content is an all-caps marker word —
+    ///   `keyboard simulation output is working.\nTRANSCRIPT` ends with exactly
+    ///   that line, and so do `Now speaking English` and `Use of pickguard`. The
+    ///   case sensitivity is the safety margin: `I need the transcript by
+    ///   Friday.` and `Send the transcript.` carry the ordinary lowercase word
+    ///   and are delivered;
+    /// * a marker attached to the angle brackets (`<<<TRANSCRIPT`,
+    ///   `TRANSKRYPCJA>>>`) — the whole of the Polish answer (`<<<TRANSKRYPCJA`,
+    ///   then `font`, then `TRANSKRYPCJA>>>`) and of the English one (`<<<TRANSCRIPT`,
+    ///   `Continue with fixes.`, `TRANSCRIPT>>>`). The brackets cannot arrive in dictated speech, and a
+    ///   model that invents a different all-caps word inside them has still
+    ///   returned the frame rather than the text, so any all-caps word there
+    ///   counts.
+    ///
+    /// Unlike the frame and the label rules this takes no view of the dictation:
+    /// there is nothing a person dictates that comes back as a lone all-caps
+    /// marker line. It is checked first because it is the most specific — the
+    /// marker is the app's own string, not an inference about tone.
+    static func promptMarker(in answer: String) -> String? {
+        for line in answer.components(separatedBy: .newlines) {
+            let stripped = stripMarkup(line).trimmingCharacters(in: .whitespaces)
+            guard !stripped.isEmpty else { continue }
+            if promptMarkerWords.contains(stripped) { return stripped }
+            if let bracketed = bracketedPromptMarker(in: stripped) { return bracketed }
+        }
+        return nil
+    }
+
+    /// The all-caps word a `<<<` or `>>>` on this line is attached to, if there
+    /// is one: the word after an opening bracket, the word before a closing one.
+    private static func bracketedPromptMarker(in line: String) -> String? {
+        let characters = Array(line)
+        var index = 0
+        while index < characters.count {
+            let bracket = characters[index]
+            guard bracket == "<" || bracket == ">" else {
+                index += 1
+                continue
+            }
+            // The frame is written `<<<`/`>>>`; a single bracket is the same
+            // marker, so the whole run is consumed either way.
+            var runEnd = index
+            while runEnd < characters.count, characters[runEnd] == bracket { runEnd += 1 }
+            var marker: [Character] = []
+            if bracket == "<" {
+                var cursor = runEnd
+                while cursor < characters.count, characters[cursor].isLetter {
+                    marker.append(characters[cursor])
+                    cursor += 1
+                }
+            } else {
+                var cursor = index - 1
+                while cursor >= 0, characters[cursor].isLetter {
+                    marker.append(characters[cursor])
+                    cursor -= 1
+                }
+                marker.reverse()
+            }
+            let word = String(marker)
+            if word.count >= promptMarkerMinimumLetters, word == word.uppercased() {
+                return word
+            }
+            index = runEnd
+        }
+        return nil
     }
 
     /// The label the answer carries, if any — again only when the model added it.

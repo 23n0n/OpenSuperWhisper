@@ -38,8 +38,9 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
   language preference (Polish prefers the 8B, English always runs the shipped 1.5B). The card says which model
   each job uses and what it costs in RAM. Nothing is refused, nothing is substituted silently
 - 🛡️ **A rewrite that answers instead of rewriting never reaches your text** — a deterministic guard rejects an
-  assistant frame ("Sure,", "Oczywiście,"), a label line, a stub or a language flip and pastes your own words
-  with a notice instead. It reads text only: no second model call, so it cannot invent anything itself
+  assistant frame ("Sure,", "Oczywiście,"), a label line, the prompt's own `TRANSCRIPT`/`TRANSKRYPCJA`
+  delimiter, a stub or a language flip, and pastes your own words with a notice instead. It reads text only:
+  no second model call, so it cannot invent anything itself
 - 🧭 **Auto-detected language, always** — the engine measures the language of every utterance (no language
   picker); a transcript nothing can place is pasted raw, untouched
 - 🛡️ **English-only model guard** — an `.en` model cannot detect anything, so when the transcript it produced is
@@ -310,9 +311,10 @@ Whisper Models — are kept as they are, apart from the notes this fork needed.
   are all absent on the 8B with the same prompt) and the earlier 8B/1.5B comparison taken on the translation
   direction this fork removed (`fm-20260923-24`: 8B 11/15 clean and nothing invented, 1.5B 4/15 with 2
   invented). Both are carried as a preference stated in the Settings card.
-- **The guard catches the class, not the drift.** An assistant frame, a label line, a stub and a language flip
-  are rejected deterministically; subtle content drift (an article dropped, a noun invented) is text the guard
-  cannot judge, and it is the prompt's and the 8B's job. Nothing here grades rewrite quality at scale.
+- **The guard catches the class, not the drift.** An assistant frame, a label line, the prompt's own delimiter,
+  a stub and a language flip are rejected deterministically; subtle content drift (an article dropped, a noun
+  invented) is text the guard cannot judge, and it is the prompt's and the 8B's job. Nothing here grades
+  rewrite quality at scale.
 - **The better 30B-A3B is not shipped.** It measured well and is fast per call, but it needs ~18 GB of RAM and
   ~44 s to load, which the 10-minute idle unload cannot hide on a 32 GB machine — and with the external-endpoint
   override gone there is no supported way to run it against the app.
@@ -549,12 +551,15 @@ than a language.)
 dictation, and the user turn is framed and delimited (`<<<TRANSCRIPT … TRANSCRIPT>>>`) so dictated instructions
 are rewritten rather than obeyed. Because the prompt alone did not survive the small model, a deterministic
 guard then reads the answer: an assistant frame, a `Register:`/`Output:` label, an announcement of the
-"rewritten text" (in either language), a stub of a dictation that carried a sentence, or an answer with no word
-of the language that went in — any of those and your own transcript is pasted instead, with a notice saying so
-and the same reason recorded under the last dictation. A frame or a label counts only when the model *added* it:
+"rewritten text" (in either language), the prompt's own `TRANSCRIPT`/`TRANSKRYPCJA` delimiter returned as the
+answer, a stub of a dictation that carried a sentence, or an answer with no word of the language that went in —
+any of those and your own transcript is pasted instead, with a notice saying so and the same reason recorded
+under the last dictation. A frame or a label counts only when the model *added* it:
 if you dictated "Here is the summary…" or "I've already…", the rewrite that keeps your opening is kept too. The
-guard makes no model call, so it cannot hallucinate; what it cannot see is subtle content drift, which stays the
-prompt's and the 8B's job.
+delimiter counts only as an all-caps marker standing on a line of its own, or as a word attached to `<<<`/`>>>`:
+`I need the transcript by Friday.` is your sentence and comes back as one. The guard makes no model call, so it
+cannot hallucinate; what it cannot see is subtle content drift — the prompt's and the 8B's job — and, in the
+answer, a marker a model invents later in a spelling neither prompt uses, unless it arrives inside the brackets.
 
 | Tone | Clean up | Spoken language | Pasted text |
 |---|---|---|---|
