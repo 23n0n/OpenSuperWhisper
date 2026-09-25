@@ -65,12 +65,16 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
 
     private static let arms = [
         Arm(name: "before (switch off)", policy: .upstream),
+        // The audio half alone: the same threshold, so the same junctions are
+        // measured, but no terminator — this is the arm that says whether
+        // giving the decoder the real silence was enough on its own.
         Arm(
             name: "audio only (no terminator)",
             policy: WhisperEngine.PauseBoundaryPolicy(
-                maxPause: 0.8,
-                minPause: 0.1,
-                sentenceThreshold: .infinity,
+                maxPause: WhisperEngine.PauseBoundaryPolicy.restored.maxPause,
+                minPause: WhisperEngine.PauseBoundaryPolicy.restored.minPause,
+                sentenceThreshold: WhisperEngine.PauseBoundaryPolicy.restored.sentenceThreshold,
+                boundaryTolerance: WhisperEngine.PauseBoundaryPolicy.restored.boundaryTolerance,
                 closesSentence: false
             )
         ),
@@ -214,6 +218,7 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
             reportPauses(recording: recording, samples: samples, segments: segments)
 
             var switchOffText: String?
+            var switchOnText: String?
             for arm in Self.arms {
                 for prompt in [Self.captainInitialPrompt, ""] {
                     let text = try await measure(
@@ -226,18 +231,37 @@ final class WhisperPauseBoundaryMeasurementTests: XCTestCase {
                         samples: samples,
                         segments: segments
                     )
-                    if arm.policy == .upstream, !prompt.isEmpty {
-                        switchOffText = text
+                    if !prompt.isEmpty {
+                        if arm.policy == .upstream { switchOffText = text }
+                        if arm.policy == .restored { switchOnText = text }
                     }
                 }
             }
+
+            // The comparison is between two decodes, so it is only about the
+            // switch if the same decode twice gives the same text. Reported, not
+            // asserted: whisper is seeded by its own parameters and this says so.
+            let repeatText = try await measure(
+                engine: engine,
+                audioURL: audioURL,
+                policy: .restored,
+                arm: "after (switch on), repeated",
+                prompt: Self.captainInitialPrompt,
+                recording: recording,
+                samples: samples,
+                segments: segments
+            )
+            TestFixtures.report(
+                "[pauses] \(recording.label) the same arm twice is identical: "
+                    + "\(repeatText == switchOnText)"
+            )
 
             // Switch off must be the transcript the app itself stored: that is
             // what makes the numbers below this app's own path and not a
             // harness's idea of it.
             TestFixtures.report(
-                "[pauses] \(recording.label) switch-off text == the app's stored transcript: "
-                    + "\(switchOffText == recording.storedTranscript)"
+                "[pauses] \(recording.label) switch-off text == the app's stored transcript (with his "
+                    + "initialPrompt): \(switchOffText == recording.storedTranscript)"
             )
         }
     }
