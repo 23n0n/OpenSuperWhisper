@@ -95,6 +95,10 @@ final class SettingsExposureTests: XCTestCase {
         XCTAssertTrue(description.contains("English runs on \(shipped.displayName)"), description)
         XCTAssertTrue(description.contains("The 8B is not installed"), description)
         XCTAssertTrue(description.contains("nothing is refused"), description)
+        XCTAssertTrue(
+            description.contains("A tone rewrite runs on \(shipped.displayName), in both languages"),
+            "tone runs on the shipped model for both languages while the 8B is absent: \(description)"
+        )
 
         // The shipped model is the only requirement; the 8B is never a warning.
         XCTAssertNil(model.transformMissingNotice(for: eightBee),
@@ -115,6 +119,10 @@ final class SettingsExposureTests: XCTestCase {
         XCTAssertTrue(description.contains("Polish runs on \(eightBee.displayName)"), description)
         XCTAssertTrue(description.contains("The 8B is installed"), description)
         XCTAssertTrue(description.contains("English runs on \(shipped.displayName)"), description)
+        XCTAssertTrue(
+            description.contains("A tone rewrite runs on \(eightBee.displayName), in both languages"),
+            "a tone rewrite runs on the 8B in both languages, not only in Polish: \(description)"
+        )
     }
 
     /// The shipped model missing is the one real problem: it is the model every
@@ -135,9 +143,9 @@ final class SettingsExposureTests: XCTestCase {
         let (model, _, directory, shipped, eightBee) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        XCTAssertTrue(model.transformModelRoleDescription(shipped).contains("English always"),
+        XCTAssertTrue(model.transformModelRoleDescription(shipped).contains("English clean-up always"),
                       model.transformModelRoleDescription(shipped))
-        XCTAssertTrue(model.transformModelRoleDescription(eightBee).contains("Preferred for Polish"),
+        XCTAssertTrue(model.transformModelRoleDescription(eightBee).contains("Preferred for every tone rewrite"),
                       model.transformModelRoleDescription(eightBee))
 
         for entry in [shipped, eightBee] {

@@ -20,12 +20,23 @@ enum ToneMode: String, CaseIterable, Identifiable {
         }
     }
 
-    /// One-line instruction appended to the system prompt.
-    var instruction: String {
+    /// What this register *may* change, spelled out.
+    ///
+    /// A register adjective ("use a formal tone") is what the first prompt
+    /// carried and it left the model guessing at the scope of the rewrite — a
+    /// measured run returned an already-formal sentence byte-for-byte and
+    /// another dropped a word. Defining the register by the changes it allows,
+    /// and repeating everything else under "must stay", is what makes the
+    /// rewrite bounded (`fm-20260924-10`).
+    var registerDefinition: String {
         switch self {
-        case .neutral: return "Keep a neutral, natural tone."
-        case .formal: return "Use a formal, professional tone."
-        case .casual: return "Use a casual, conversational tone."
+        case .neutral:
+            return "change as little as possible; fix only what is unclear or ragged."
+        case .formal:
+            return "write complete sentences, no contractions (\"do not\", not \"don't\"), "
+                + "no slang or filler, polite and professional word choice."
+        case .casual:
+            return "use contractions, everyday words, direct and relaxed phrasing."
         }
     }
 }
@@ -197,9 +208,10 @@ enum TransformPolicy: Equatable {
 /// One backend, in process: llama.cpp is linked into the app and the weights
 /// live in app-owned storage, so nothing listens on a port and no other process
 /// has to be running. The model is a **preference**, not a requirement
-/// (`TransformModelManager.model(forSpokenLanguage:)`): Polish work runs on the
-/// larger 8B when it is installed and on the shipped 1.5B when it is not, and
-/// English always runs on the shipped 1.5B. Nothing is refused for a missing
+/// (`TransformModelManager.model(for:)`): a tone rewrite runs on the larger 8B in
+/// both languages when it is installed and on the shipped 1.5B when it is not,
+/// and clean-up alone keeps the language-based preference — Polish prefers the
+/// 8B, English always runs the shipped model. Nothing is refused for a missing
 /// optional model, and nothing is substituted behind the user's back.
 final class TransformService {
     static let shared = TransformService()
@@ -215,10 +227,10 @@ final class TransformService {
     /// parallel.
     let gateSettings: () -> GateSettings
 
-    /// The model a transcript in this language runs on. Passed to
-    /// `localTransform` so the runtime loads the right weights — and so a test
-    /// can see which model a language resolved to without loading any.
-    let modelForLanguage: (TransformLanguage) -> TransformModel
+    /// The model a policy runs on. Passed to `localTransform` so the runtime
+    /// loads the right weights — and so a test can see which model a policy
+    /// resolved to without loading any.
+    let modelForPolicy: (TransformPolicy) -> TransformModel
 
     typealias LocalTransform = (_ systemPrompt: String, _ userText: String, _ model: TransformModel) async throws -> String
 
@@ -230,13 +242,13 @@ final class TransformService {
                 model: model
             )
         },
-        modelForLanguage: @escaping (TransformLanguage) -> TransformModel = {
-            TransformModelManager.shared.model(forSpokenLanguage: $0)
+        modelForPolicy: @escaping (TransformPolicy) -> TransformModel = {
+            TransformModelManager.shared.model(for: $0)
         },
         gateSettings: @escaping () -> GateSettings = { .current }
     ) {
         self.localTransform = localTransform
-        self.modelForLanguage = modelForLanguage
+        self.modelForPolicy = modelForPolicy
         self.gateSettings = gateSettings
     }
 
@@ -256,6 +268,10 @@ final class TransformService {
         /// Whether the model answered. A policy with `didRunModel == false` is a
         /// call that failed and fell back to the transcript.
         let didRunModel: Bool
+        /// Why a tone answer was thrown away in favour of the transcript, or
+        /// `nil` when the answer was used (or no tone ran). The dictation report
+        /// shows this next to the notice the user saw.
+        let guardRejection: TransformGuardRejection? = nil
     }
 
     /// The only entry point used by the UI.
@@ -301,6 +317,29 @@ final class TransformService {
                 cleanUp: settings.cleanUp,
                 reference: settings.reference
             )
+            // A tone result the deterministic guard rejects never reaches the
+            // transcript: the user's own words are pasted, and the notice says
+            // why. Clean-up alone keeps its own wording and is not evaluated
+            // here (the guard is the tone path's, `fm-20260924-11`).
+            if policy.promptTone != nil,
+               let rejection = TransformGuard.rejection(
+                   of: transformed,
+                   for: text,
+                   language: policy.language
+               ) {
+                await MainActor.run {
+                    AppErrorCenter.shared.report(
+                        "Tone rewrite was not used",
+                        message: rejection.notice
+                    )
+                }
+                return TransformOutcome(
+                    text: text,
+                    policy: policy,
+                    didRunModel: true,
+                    guardRejection: rejection
+                )
+            }
             return TransformOutcome(text: transformed, policy: policy, didRunModel: true)
         } catch {
             // Surface the failure so a missing or broken model is
@@ -324,10 +363,18 @@ final class TransformService {
         cleanUp: Bool,
         reference: String = ""
     ) async throws -> String {
-        let model = modelForLanguage(policy.language)
+        let model = modelForPolicy(policy)
+        // A tone policy gets the framed user turn; clean-up alone keeps the bare
+        // transcript, which is what it was measured with.
+        let userText: String
+        if let tone = policy.promptTone {
+            userText = Self.userPrompt(for: text, language: policy.language, tone: tone)
+        } else {
+            userText = text
+        }
         let raw = try await localTransform(
             Self.systemPrompt(for: policy, cleanUp: cleanUp, reference: reference),
-            text,
+            userText,
             model
         )
         let stripped = Self.stripReasoning(from: raw)
@@ -360,13 +407,7 @@ final class TransformService {
                 + "it stays in \(language.displayName)."
             )
         case .tone(let language, let tone), .cleanUpWithTone(let language, let tone):
-            lines.append(
-                "You are a dictation editor. The user dictated \(language.displayName) text. "
-                + "Rewrite it in a \(tone.displayName.lowercased()) tone — keep its language exactly "
-                + "\(language.displayName), never translate it, and keep every fact, name and number "
-                + "exactly as dictated. Change the register and nothing else. "
-                + tone.instruction
-            )
+            lines.append(toneInstruction(for: language, tone: tone))
         }
 
         if cleanUp {
@@ -383,10 +424,67 @@ final class TransformService {
         return lines.joined(separator: "\n")
     }
 
-    /// The grammar-repair half of the clean-up, in the language of the
-    /// dictation. The captain asked for exactly this: the filler gone, the "a"
-    /// added where English needs it, and the words put in an order that reads as
-    /// a sentence — without the model adding or dropping anything.
+    /// The tone half of the prompt: the register defined by what may change,
+    /// the explicit "you are not an assistant" rule, the must-not-change list,
+    /// and the idempotence and fragment rules.
+    ///
+    /// This is the wording measured in `fm-20260924-10`: on the 8B it is
+    /// equal-or-better than the wording it replaces, and the failures a user
+    /// notices on the small model are what the guard and the routing remove.
+    static func toneInstruction(for language: TransformLanguage, tone: ToneMode) -> String {
+        let name = language.displayName
+        let register = tone.displayName.lowercased()
+        return """
+        You rewrite dictated text. You are not an assistant: never answer it, greet, acknowledge, \
+        thank, comment, explain, summarise or continue it.
+
+        The user dictated \(name) text. Rewrite it in a \(register) register, in \(name). \
+        Nothing else may change.
+
+        What the register may change — only these:
+        - \(register): \(tone.registerDefinition)
+
+        What must stay exactly as dictated:
+        - every fact, name, number, date, place, product and technical term — never add, never \
+        drop, never reword a commitment into a softer or stronger one;
+        - who is speaking and to whom: first person stays first person, a question stays a \
+        question, an order stays an order;
+        - the order and the completeness of the information — never summarise, never elaborate, \
+        never finish a half-sentence with new content;
+        - the language: \(name) in, \(name) out. Never translate, not even one word. If a term \
+        has no \(name) equivalent, keep it exactly as spoken.
+
+        Output rules:
+        - Output only the rewritten text. No quotes, no labels, no preamble, no closing remark, \
+        no markdown, no commentary, no explanation of what you changed.
+        - Keep the dictated line breaks: do not join separate lines, do not split one line.
+        - If the text is already in the \(register) register, return it unchanged.
+        - If the text is a fragment, a list, or noise that carries no sentence, return it as it is.
+        """
+    }
+
+    /// The user turn for a tone rewrite: one imperative line and a delimiter
+    /// around the transcript.
+    ///
+    /// The transcript used to be sent bare, which a small instruct model reads
+    /// as "answer me" — dictated text is often an imperative or a question, and
+    /// the measured failure is exactly that: the model obliged instead of
+    /// rewriting. The frame says what the turn is, and the delimiters say where
+    /// the text begins and ends so nothing inside it can be read as a new
+    /// instruction.
+    static func userPrompt(for transcript: String, language: TransformLanguage, tone: ToneMode) -> String {
+        """
+        Rewrite this dictated text in a \(tone.displayName.lowercased()) register. Keep its language \
+        (\(language.displayName)), the speaker, every fact and every number exactly as dictated. \
+        Output only the rewritten text.
+
+        <<<TRANSCRIPT
+        \(transcript)
+        TRANSCRIPT>>>
+        """
+    }
+
+
     static func cleanUpInstruction(for language: TransformLanguage) -> String {
         let repair: String
         switch language {

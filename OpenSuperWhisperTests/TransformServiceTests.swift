@@ -42,7 +42,7 @@ final class TransformServiceTests: XCTestCase {
     private func makeService(
         local: LocalRecorder,
         settings: GateSettings? = nil,
-        model: @escaping (TransformLanguage) -> TransformModel = { _ in TransformModelManager.shared.defaultModel }
+        model: @escaping (TransformPolicy) -> TransformModel = { _ in TransformModelManager.shared.defaultModel }
     ) -> TransformService {
         TransformService(
             localTransform: { systemPrompt, userText, chosen in
@@ -51,7 +51,7 @@ final class TransformServiceTests: XCTestCase {
                 local.models.append(chosen)
                 return try local.result.get()
             },
-            modelForLanguage: model,
+            modelForPolicy: model,
             gateSettings: { [gate] in settings ?? gate.settings }
         )
     }
@@ -168,8 +168,8 @@ final class TransformServiceTests: XCTestCase {
                     "\(row.name): no prompt may ask for a translation: \(prompt)"
                 )
                 XCTAssertTrue(
-                    prompt.contains("keep its language exactly") || prompt.contains("it stays in"),
-                    "\(row.name): every prompt pins the language of the text: \(prompt)"
+                    prompt.contains(row.expectedPolicy?.language.displayName ?? "\u{0}"),
+                    "\(row.name): every prompt names the language it pins: \(prompt)"
                 )
             }
         }
@@ -191,21 +191,23 @@ final class TransformServiceTests: XCTestCase {
 
         _ = await service.transformDetailed(polish, sourceLanguage: "pl")
         XCTAssertTrue(local.systemPrompts[0].contains("Polish text"))
-        XCTAssertTrue(local.systemPrompts[0].contains("keep its language exactly Polish"))
-        XCTAssertEqual(models.languages, [.polish])
+        XCTAssertTrue(local.systemPrompts[0].contains("in Polish"), local.systemPrompts[0])
+        XCTAssertTrue(local.userTexts[0].contains("Keep its language (Polish)"), local.userTexts[0])
+        XCTAssertEqual(models.policies.map(\.language), [.polish])
 
         let englishText = "Please send the report."
         local.result = .success(englishText)
         _ = await service.transformDetailed(englishText, sourceLanguage: "en")
         XCTAssertTrue(local.systemPrompts[1].contains("English text"))
-        XCTAssertTrue(local.systemPrompts[1].contains("keep its language exactly English"))
-        XCTAssertEqual(models.languages, [.polish, .english], "each language resolves its own model")
+        XCTAssertTrue(local.systemPrompts[1].contains("in English"), local.systemPrompts[1])
+        XCTAssertTrue(local.userTexts[1].contains("Keep its language (English)"), local.userTexts[1])
+        XCTAssertEqual(models.policies.map(\.language), [.polish, .english], "each language resolves its own model")
     }
 
     private final class ModelSpy {
-        var languages: [TransformLanguage] = []
-        func record(_ language: TransformLanguage) -> TransformModel {
-            languages.append(language)
+        var policies: [TransformPolicy] = []
+        func record(_ policy: TransformPolicy) -> TransformModel {
+            policies.append(policy)
             return TransformModelManager.shared.defaultModel
         }
     }
@@ -223,15 +225,20 @@ final class TransformServiceTests: XCTestCase {
                 )
 
                 XCTAssertTrue(system.contains("The user dictated \(name) text"), system)
-                XCTAssertTrue(system.contains("Rewrite it in a \(tone.displayName.lowercased()) tone"), system)
-                XCTAssertTrue(system.contains("keep its language exactly \(name)"), system)
-                XCTAssertTrue(system.contains("never translate it"), system)
-                XCTAssertTrue(system.contains("Change the register and nothing else"), system)
                 XCTAssertTrue(
-                    system.contains("keep every fact, name and number exactly as dictated"),
+                    system.contains("Rewrite it in a \(tone.displayName.lowercased()) register, in \(name)"),
+                    system
+                )
+                XCTAssertTrue(system.contains("You are not an assistant"), system)
+                XCTAssertTrue(system.contains("never answer it, greet, acknowledge"), system)
+                XCTAssertTrue(
+                    system.contains("every fact, name, number, date, place, product and technical term"),
                     "the rewrite has to be told what must not move: \(system)"
                 )
-                XCTAssertTrue(system.contains(tone.instruction), system)
+                XCTAssertTrue(system.contains("never translate, not even one word"), system)
+                XCTAssertTrue(system.contains("first person stays first person"), system)
+                XCTAssertTrue(system.contains("return it unchanged"), system)
+                XCTAssertTrue(system.contains(tone.registerDefinition), system)
                 XCTAssertTrue(system.contains("Output ONLY the final \(name) text"), system)
                 XCTAssertTrue(system.contains("/no_think"), system)
                 XCTAssertFalse(system.contains("Clean up the dictation"), "tone alone is not clean-up: \(system)")

@@ -77,20 +77,25 @@ final class TransformModelManager {
     /// is not installed.
     static let defaultModelID = "qwen2.5-1.5b-instruct-q4_k_m"
 
-    /// **Polish's preferred** backend, the language the shipped 1.5B was
-    /// measured unreliable on: 4/15 clean, 2 of them inventing content and 5
-    /// with broken grammar, against this model's 11/15 clean and none invented
+    /// **The preferred** backend: every tone rewrite runs on it in both
+    /// languages when it is installed, and Polish clean-up prefers it. The
+    /// language the shipped 1.5B was measured unreliable on is the tone rewrite:
+    /// it added acknowledgements, preambles and invented nouns to it
+    /// (`fm-20260924-10`), and its 4/15 clean on translation work against this
+    /// model's 11/15 is the earlier measurement that pointed the same way
     /// (`fm-20260923-24/raw/verdicts.json`; a second scorer called the small
     /// model 1/15). It is 5×
-    /// the weights and 5× the wired memory, so it is only loaded when Polish is
-    /// actually being written — and it is a *preference*: when it is not
-    /// installed, Polish work runs on the shipped model instead of being refused.
+    /// the weights and 5× the wired memory, so it is only loaded when a rewrite
+    /// is actually happening — and it is a *preference*: when it is not
+    /// installed, that work runs on the shipped model instead of being refused.
     static let polishOutputModelID = "qwen3-8b-q4_k_m"
 
-    /// The id of the model a dictation in `language` prefers.
+    /// The id of the model a dictation in `language` prefers for clean-up alone.
     ///
     /// Read on the transform path through `model(forSpokenLanguage:)`, which
-    /// falls back to the shipped model when the preferred one is not installed.
+    /// falls back to the shipped model when the preferred one is not installed;
+    /// `model(for:)` is what the service asks, because a tone rewrite prefers
+    /// the larger model in both languages.
     static func modelID(forSpokenLanguage language: TransformLanguage) -> String {
         language == .polish ? polishOutputModelID : defaultModelID
     }
@@ -189,6 +194,26 @@ final class TransformModelManager {
     func model(forSpokenLanguage language: TransformLanguage) -> TransformModel {
         guard language == .polish else { return defaultModel }
         return isPolishModelInstalled ? polishModel : defaultModel
+    }
+
+    /// The backend a *policy* runs on.
+    ///
+    /// A tone rewrite is a different job from grammar repair: it is the one that
+    /// has to hold content still while it moves the register, and the shipped
+    /// 1.5B was measured adding acknowledgements, preambles and invented nouns
+    /// to it (`fm-20260924-10`). So tone — `.tone` and `.cleanUpWithTone`, in
+    /// *both* languages — runs on the larger model whenever it is installed and
+    /// on the shipped model when it is not; clean-up alone keeps the
+    /// language-based preference, because repairing grammar does not need the
+    /// larger model. Nothing is refused, and the caller is handed the model that
+    /// will really run, so Settings can say which.
+    func model(for policy: TransformPolicy) -> TransformModel {
+        switch policy {
+        case .cleanUp(let language):
+            return model(forSpokenLanguage: language)
+        case .tone, .cleanUpWithTone:
+            return isPolishModelInstalled ? polishModel : defaultModel
+        }
     }
 
     func fileURL(for model: TransformModel) -> URL {

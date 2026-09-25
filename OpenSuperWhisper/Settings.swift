@@ -246,8 +246,8 @@ class SettingsViewModel: ObservableObject {
     /// language any more: one is the floor, the other is a preference.
     func transformModelRoleDescription(_ model: TransformModel) -> String {
         model.id == preferredPolishTransformModel.id
-            ? "Preferred for Polish — used whenever it is installed"
-            : "English always, and Polish until the 8B is installed"
+            ? "Preferred for every tone rewrite and for Polish clean-up — used whenever it is installed"
+            : "English clean-up always, and every transform until the 8B is installed"
     }
 
     /// What a row says about its model: download state, disk and RAM.
@@ -268,23 +268,29 @@ class SettingsViewModel: ObservableObject {
     func transformMissingNotice(for model: TransformModel) -> String? {
         guard model.id == shippedTransformModel.id, !isTransformModelInstalled(model) else { return nil }
         return "Without it no dictation can be rewritten at all: it is the model every language runs on, "
-            + "and the 8B is optional. English and Polish both wait for this one."
+            + "and the 8B is optional. Tone rewrites, English clean-up and Polish clean-up all wait for "
+            + "this one."
     }
 
-    /// Which model each language will run on, and whether the 8B is present.
+    /// Which model each job will run on, and whether the 8B is present.
     ///
     /// The model choice is a preference, so the card states it rather than
-    /// warning about it: Polish runs on the larger model when it is installed
-    /// and on the shipped one when it is not, and nothing has to be downloaded
-    /// for Polish work to happen.
+    /// warning about it. A tone rewrite — the job that has to move the register
+    /// while holding the content still — runs on the larger model whenever it is
+    /// installed, in **both** languages; clean-up alone keeps the language-based
+    /// preference (Polish prefers the 8B, English always runs the shipped one),
+    /// because repairing grammar does not need the larger model. Nothing is
+    /// refused, and nothing has to be downloaded for either job to happen.
     var transformLanguageModelDescription: String {
         let shipped = shippedTransformModel
         let polish = transformModelManager.model(forSpokenLanguage: .polish)
+        let tone = transformModelManager.model(for: .tone(language: .english, tone: .neutral))
         let presence = transformModelManager.isPolishModelInstalled
             ? "The 8B is installed."
             : "The 8B is not installed, so the shipped model does the work — nothing is refused, and "
-                + "nothing has to be downloaded for Polish."
-        return "Polish runs on \(polish.displayName). English runs on \(shipped.displayName). \(presence)"
+                + "nothing has to be downloaded."
+        return "A tone rewrite runs on \(tone.displayName), in both languages. Clean-up alone: "
+            + "Polish runs on \(polish.displayName). English runs on \(shipped.displayName). \(presence)"
     }
 
     /// Recomputes the installed state of every backend off the main thread: the
@@ -1745,7 +1751,7 @@ struct SettingsView: View {
                             }
                         }
 
-                        Text("Nothing here changes the language of what you dictated: Polish comes out Polish and English comes out English, always. The tone switch rewrites the dictation in the register you pick, the clean-up switch removes filler and repairs punctuation, articles and word order, and both ride one model call — with both switches off nothing is sent to a model at all. Every dictation reports the detected language and shows the raw transcript beside the cleaned and rewritten text; history always keeps the raw transcript, and recordings transcribed from the list are never rewritten. The language of each utterance is detected automatically, which needs a multilingual whisper model. Polish prefers the larger 8B when it is installed and runs on the shipped 1.5B when it is not; English always runs on the shipped 1.5B.")
+                        Text("Nothing here changes the language of what you dictated: Polish comes out Polish and English comes out English, always. The tone switch rewrites the dictation in the register you pick, the clean-up switch removes filler and repairs punctuation, articles and word order, and both ride one model call — with both switches off nothing is sent to a model at all. Every dictation reports the detected language and shows the raw transcript beside the cleaned and rewritten text; history always keeps the raw transcript, and recordings transcribed from the list are never rewritten. The language of each utterance is detected automatically, which needs a multilingual whisper model. Polish prefers the larger 8B when it is installed and runs on the shipped 1.5B when it is not; English clean-up always runs on the shipped 1.5B. A tone rewrite runs on the 8B in both languages whenever it is installed, because holding the content still while the register moves is the job the shipped model was measured getting wrong.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

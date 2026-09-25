@@ -34,8 +34,12 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 - 🌐 **Local tone and clean-up, in the language you spoke** — an instruction-tuned model runs inside the app
   (llama.cpp linked in, no server, no port); two independent switches, off by default. The transcript is rewritten
   in place: **the app never changes the language of your dictation**
-- 🇵🇱 **Polish prefers Qwen3-8B when it is installed** — the shipped 1.5B does the work when it is not, and the
-  app says which model each language uses. Nothing is refused, nothing is substituted silently
+- 🇵🇱 **Tone rewrites run on Qwen3-8B when it is installed, in both languages** — clean-up alone keeps the
+  language preference (Polish prefers the 8B, English always runs the shipped 1.5B). The card says which model
+  each job uses and what it costs in RAM. Nothing is refused, nothing is substituted silently
+- 🛡️ **A rewrite that answers instead of rewriting never reaches your text** — a deterministic guard rejects an
+  assistant frame ("Sure,", "Oczywiście,"), a label line, a stub or a language flip and pastes your own words
+  with a notice instead. It reads text only: no second model call, so it cannot invent anything itself
 - 🧭 **Auto-detected language, always** — the engine measures the language of every utterance (no language
   picker); a transcript nothing can place is pasted raw, untouched
 - 🛡️ **English-only model guard** — an `.en` model cannot detect anything, so when the transcript it produced is
@@ -83,10 +87,13 @@ switches in **Settings → Transcription** ("Apply tone" and "Clean up dictation
 that runs **inside the app**. The transcript is rewritten **in the language it was spoken in**: Polish stays
 Polish, English stays English, and there is no direction change anywhere in the product.
 
-The rewrite is performed **in-process** by one of two models, picked by the **language of the dictation**:
-`Qwen2.5-1.5B-Instruct-Q4_K_M` (~986 MB on disk, ~1.1 GB of RAM while loaded) is the model every language can
-run on, and `Qwen3-8B-Q4_K_M` (~5 GB on disk, ~5.3 GB while loaded) is what Polish **prefers when it is
-installed** — the shipped model does Polish work when it is not, and the card says which one is in use. Each is
+The rewrite is performed **in-process** by one of two models. `Qwen2.5-1.5B-Instruct-Q4_K_M` (~986 MB on disk,
+~1.1 GB of RAM while loaded) is the model every language can run on; `Qwen3-8B-Q4_K_M` (~5 GB on disk,
+~5.3 GB while loaded) is what a **tone rewrite prefers when it is installed — in both languages**, because
+holding the content still while the register moves is the job the shipped model was measured getting wrong
+(`fm-20260924-10`: added acknowledgements, preambles and invented nouns). Clean-up alone keeps the
+language-based preference: Polish prefers the 8B, English always runs the shipped 1.5B. The shipped model does
+the work for either job when the 8B is not installed, and the card says which one is in use. Each is
 downloaded on demand into the app's own Application Support folder and verified against its pinned checksum
 before it is used. llama.cpp is vendored as `libllama/` and linked into the app exactly like whisper.cpp, so
 there is no background server, no listening port and no endpoint override: the transform
@@ -221,12 +228,15 @@ Whisper Models — are kept as they are, apart from the notes this fork needed.
 
 ### Known limits and what is not built yet
 
-- **Polish rewrite quality is a preference, not a guarantee.** `Qwen3-8B-Q4_K_M` is what Polish *prefers*, and
-  it is not required: with only the shipped 1.5B installed, Polish work runs on it. The 8B/1.5B measurement that
-  justified the preference was taken on the translation direction this task removed (`fm-20260923-24`: 8B 11/15
-  clean and nothing invented, 1.5B 4/15 with 2 invented), so it is carried as a preference that is stated in the
-  Settings card rather than as a claim about same-language rewriting — which this tree measures in
-  `SameLanguageTransformIntegrationTests` but does not grade at scale.
+- **The larger model is a preference, not a guarantee.** `Qwen3-8B-Q4_K_M` is what a tone rewrite and Polish
+  clean-up *prefer*, and it is not required: with only the shipped 1.5B installed, that work runs on it, and the
+  card says so. Two measurements justify the preference: the tone run in `fm-20260924-10` (the failures above
+  are all absent on the 8B with the same prompt) and the earlier 8B/1.5B comparison taken on the translation
+  direction this fork removed (`fm-20260923-24`: 8B 11/15 clean and nothing invented, 1.5B 4/15 with 2
+  invented). Both are carried as a preference stated in the Settings card.
+- **The guard catches the class, not the drift.** An assistant frame, a label line, a stub and a language flip
+  are rejected deterministically; subtle content drift (an article dropped, a noun invented) is text the guard
+  cannot judge, and it is the prompt's and the 8B's job. Nothing here grades rewrite quality at scale.
 - **The better 30B-A3B is not shipped.** It measured well and is fast per call, but it needs ~18 GB of RAM and
   ~44 s to load, which the 10-minute idle unload cannot hide on a 32 GB machine — and with the external-endpoint
   override gone there is no supported way to run it against the app.
@@ -431,22 +441,34 @@ The tone switch asks for a different register of the *same* text; the clean-up s
 punctuation, articles and word order, and drops stutters. Neither one is a translation, and no setting in the
 app can make them one.
 
-**Which model each language uses.** The model follows the language of the dictation, and it is a preference,
-not a requirement:
+**Which model each job uses.** The model is a preference, not a requirement:
 
-| Language | Model (Apache-2.0) | Download | RAM while loaded |
-|---|---|---|---|
-| English — always | `Qwen2.5-1.5B-Instruct-Q4_K_M` | ~986 MB | ~1.1 GB |
-| Polish — preferred when installed | `Qwen3-8B-Q4_K_M` | ~5.0 GB | ~5.3 GB |
-| Polish — when the 8B is not installed | `Qwen2.5-1.5B-Instruct-Q4_K_M` | ~986 MB | ~1.1 GB |
+| Job | Language | Model (Apache-2.0) | Download | RAM while loaded |
+|---|---|---|---|---|
+| Tone (with or without clean-up) | English | `Qwen3-8B-Q4_K_M` when installed | ~5.0 GB | ~5.3 GB |
+| Tone (with or without clean-up) | Polish | `Qwen3-8B-Q4_K_M` when installed | ~5.0 GB | ~5.3 GB |
+| Tone — when the 8B is not installed | either | `Qwen2.5-1.5B-Instruct-Q4_K_M` | ~986 MB | ~1.1 GB |
+| Clean-up alone | English | `Qwen2.5-1.5B-Instruct-Q4_K_M` | ~986 MB | ~1.1 GB |
+| Clean-up alone | Polish | `Qwen3-8B-Q4_K_M` when installed | ~5.0 GB | ~5.3 GB |
 
-Nothing has to be downloaded for Polish to work: with only the shipped 1.5B installed, Polish dictation is
-rewritten by it, and the Settings card says exactly that ("Polish runs on … The 8B is not installed, so the
-shipped model does the work — nothing is refused…"). The 8B is what Polish *prefers* when it is there, and
-its larger size is why it is not required. Only one model is ever resident: a language change unloads one
-before loading the other, so the wired memory is the model in use, not the sum. Either is released after ten
-minutes without a transform; because the 8B's cold load is seconds rather than milliseconds, the app warms
-up the shipped model when recording starts, so the load happens while you are still speaking.
+Nothing has to be downloaded for either job to work: with only the shipped 1.5B installed, tone and Polish
+clean-up run on it, and the Settings card says exactly that ("The 8B is not installed, so the shipped model
+does the work — nothing is refused…"). A tone rewrite is the job that has to move the register while holding
+every fact still, and that is what the shipped model was measured getting wrong, so the 8B is preferred for it
+in both languages; clean-up alone is grammar repair and does not need the larger model. Only one model is ever
+resident: a change of job or language unloads one before loading the other, so the wired memory is the model in
+use, not the sum. Either is released after ten minutes without a transform; because the 8B's cold load is
+seconds rather than milliseconds, the app warms up the shipped model when recording starts, so the load happens
+while you are still speaking.
+
+**And if the rewrite is not a rewrite.** The prompt forbids answering, greeting, acknowledging or labelling the
+dictation, and the user turn is framed and delimited (`<<<TRANSCRIPT … TRANSCRIPT>>>`) so dictated instructions
+are rewritten rather than obeyed. Because the prompt alone did not survive the small model, a deterministic
+guard then reads the answer: an assistant frame, a `Register:`/`Output:` label, an announcement of the
+"rewritten text", a stub of a dictation that carried a sentence, or an answer with no word of the language that
+went in — any of those and your own transcript is pasted instead, with a notice saying so. The guard makes no
+model call, so it cannot hallucinate; what it cannot see is subtle content drift, which stays the prompt's and
+the 8B's job.
 
 | Tone | Clean up | Spoken language | Pasted text |
 |---|---|---|---|

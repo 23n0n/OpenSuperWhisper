@@ -87,7 +87,7 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
                     model: model
                 )
             },
-            modelForLanguage: { self.manager.model(forSpokenLanguage: $0) },
+            modelForPolicy: { self.manager.model(for: $0) },
             gateSettings: { settings }
         )
     }

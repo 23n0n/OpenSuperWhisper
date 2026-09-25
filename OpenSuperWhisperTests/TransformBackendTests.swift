@@ -20,7 +20,7 @@ final class TransformBackendTests: XCTestCase {
     private func service(
         local: LocalRecorder,
         settings: GateSettings = GateSettings(tone: true, cleanUp: false, toneMode: .neutral),
-        model: @escaping (TransformLanguage) -> TransformModel = { _ in TransformModelManager.shared.defaultModel }
+        model: @escaping (TransformPolicy) -> TransformModel = { _ in TransformModelManager.shared.defaultModel }
     ) -> TransformService {
         TransformService(
             localTransform: { systemPrompt, userText, chosen in
@@ -29,7 +29,7 @@ final class TransformBackendTests: XCTestCase {
                 local.models.append(chosen)
                 return try local.result.get()
             },
-            modelForLanguage: model,
+            modelForPolicy: model,
             gateSettings: { settings }
         )
     }
@@ -45,8 +45,12 @@ final class TransformBackendTests: XCTestCase {
         let result = await subject.transformIfEnabled("Cześć, jak się masz?", sourceLanguage: "pl")
 
         XCTAssertEqual(result, "Cześć, jak się masz?")
-        XCTAssertEqual(local.userTexts, ["Cześć, jak się masz?"])
+        // A tone turn is framed and delimited — the transcript is handed over
+        // inside the delimiters, not as a bare request the model could obey.
+        let userTurn = local.userTexts.first ?? ""
         XCTAssertEqual(local.calls, 1)
+        XCTAssertTrue(userTurn.hasPrefix("Rewrite this dictated text in a neutral register"), userTurn)
+        XCTAssertTrue(userTurn.contains("<<<TRANSCRIPT\nCześć, jak się masz?\nTRANSCRIPT>>>"), userTurn)
     }
 
     // MARK: - Response handling
@@ -155,6 +159,11 @@ final class TransformBackendTests: XCTestCase {
         XCTAssertFalse(manager.isPolishModelInstalled)
         XCTAssertEqual(manager.model(forSpokenLanguage: .polish).id, shipped.id)
         XCTAssertEqual(manager.model(forSpokenLanguage: .english).id, shipped.id)
+        // A tone rewrite prefers the larger model in BOTH languages while it is
+        // absent, and falls back to the shipped one — nothing is refused.
+        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, shipped.id)
+        XCTAssertEqual(manager.model(for: .tone(language: .polish, tone: .casual)).id, shipped.id)
+        XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .neutral)).id, shipped.id)
 
         // Install the 8B: Polish now prefers it, English does not move.
         let source = directory.appendingPathComponent("downloaded.gguf")
@@ -163,9 +172,17 @@ final class TransformBackendTests: XCTestCase {
         XCTAssertTrue(manager.isPolishModelInstalled)
         XCTAssertEqual(manager.model(forSpokenLanguage: .polish).id, eightBee.id)
         XCTAssertEqual(manager.model(forSpokenLanguage: .english).id, shipped.id)
+        // Tone now runs on the 8B in both languages, clean-up alone does not move.
+        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, eightBee.id,
+                       "an English tone rewrite runs on the 8B when it is installed")
+        XCTAssertEqual(manager.model(for: .tone(language: .polish, tone: .formal)).id, eightBee.id)
+        XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .formal)).id, eightBee.id)
+        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, shipped.id,
+                       "English clean-up alone stays on the shipped model")
 
-        TestFixtures.report("[transform] model preference: 8B absent → Polish on \(shipped.id); "
-                    + "8B installed → Polish on \(eightBee.id), English always on \(shipped.id)")
+        TestFixtures.report("[transform] model preference: 8B absent → tone (both languages) and Polish "
+                    + "clean-up on \(shipped.id); 8B installed → tone (both languages) and Polish clean-up on "
+                    + "\(eightBee.id), English clean-up always on \(shipped.id)")
     }
 
     /// The service hands the language's own model to the runtime, so the
@@ -173,8 +190,8 @@ final class TransformBackendTests: XCTestCase {
     func testThePreferredModelIsTheOneTheRuntimeIsHanded() async {
         let eightBee = TransformModelManager.shared.polishModel
         let local = LocalRecorder()
-        let subject = service(local: local, model: { language in
-            language == .polish ? eightBee : TransformModelManager.shared.defaultModel
+        let subject = service(local: local, model: { policy in
+            policy.language == .polish ? eightBee : TransformModelManager.shared.defaultModel
         })
 
         _ = await subject.transformIfEnabled("Cześć", sourceLanguage: "pl")
@@ -184,7 +201,7 @@ final class TransformBackendTests: XCTestCase {
         XCTAssertEqual(
             local.models.map(\.id),
             [eightBee.id, TransformModelManager.defaultModelID],
-            "English runs on the shipped model"
+            "English clean-up runs on the shipped model"
         )
     }
 
