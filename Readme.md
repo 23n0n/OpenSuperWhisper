@@ -195,9 +195,22 @@ enough in English and is not enough in Polish, where the model's punctuation is 
 
 **The switch is named for what it does, not for what was asked.** One line in **Settings → Transcription →
 Language Settings**: **Long Pauses End the Sentence** — "a pause of 0.6 s or longer keeps its silence and closes the
-sentence, instead of dissolving into a breath that lets two thoughts merge". Off is byte-for-byte the behaviour
-every earlier build had, and it ships **off by default** — not out of caution, but because the measurement below
-says the switch-on state regresses the English control while this app sends no decoder prompt.
+sentence, instead of dissolving into a breath that lets two thoughts merge". It ships **on by default**, paired with
+a decoder prompt chosen by the language of the dictation, and the price of that pairing is stated in the switch's own
+Settings copy and here in the same words rather than hidden:
+
+> With no prompt of your own the decoder prompt is chosen by the language of the dictation, and that costs one extra
+> detect-only language pass over the audio before each dictation — measured +1.34 s against a 3.5 s decode, ≈ 38 % —
+> paid only while this switch is on and no prompt is set; and on pause-heavy English speech the switch changes two
+> words against the switch off ("Basically now it creates a sentences" where the switch off says "Basically how it
+> creates a sentence"), a change the captain accepted on 2026-09-25 with the measurement in front of him, because no
+> prompt removes it and the Polish fix rides on the same silence.
+
+That is the captain's decision of **2026-09-25** taken on the measurement below — option (a), "pause fix everywhere,
+English takes a 2-word change" — and the shipped configuration is asserted against exactly it, Polish win present and
+no wider English delta, in `WhisperPauseBoundaryPairingTests`. Off is byte-for-byte the behaviour every earlier build
+had; a prompt set by hand always wins over the default, whatever the language; and a language nobody measured gets
+**no** prompt, which is what this app sent before the table existed.
 
 What it does, in the decoder's terms:
 
@@ -213,13 +226,14 @@ What it does, in the decoder's terms:
 
 **What the measurement said, including the parts that argue against it.** Measured on his own two Polish
 recordings and an English control, through this app's own decode path, with his settings and the decoder prompt
-this app actually sends — **none**.
+this app sent at the time — **none** (the pairing measurement reported further down is what changed that).
 
 * The same arm decoded twice is identical on all three recordings, so a before/after difference is the switch and
   not sampling. The transcripts the app stored for those recordings are reproduced **byte for byte by the
   switch-off arm with the instruction-shaped prompt an earlier brief attributed to his preferences** as the
   decoder prompt — which is evidence that *that* string was reaching the decoder when he dictated them, not of
-  anything the app ships: `initialPrompt` defaults to the empty string and his stored domain holds no value. (On
+  anything the app ships: `initialPrompt` defaults to the empty string and his stored domain holds no value. (The
+  decoder prompt a dictation *sends* is the language default described above, never a stored value; on
   `pl-2` the switch off with that string reads "Ben super whisper… Dałem drugi model"; with no prompt, "Będę super
   whisper… Dałem drugi model".)
 * The pause being kept is what fixes the Polish: `pl-2` comes back "**Open Super Whisper**" and "**Dodałem** drugi
@@ -230,17 +244,41 @@ this app actually sends — **none**.
 * **With no decoder prompt the English control regresses** — and not by two words, by inventing a fragment:
   "Basically, now it creates,. **based, no,** now it creates a sentences…" where the switch off is clean, **at
   every silence cap tried** (0.2 s, 0.4 s, 0.6 s, 0.8 s; 0.4 s and 0.6 s are worse still — "profound sense",
-  lowercase drift). That is why the switch ships off.
-* **A deliberate decoder prompt removes that regression and keeps the Polish win.** Four prompts were measured on
-  the same recordings with the same sampling — none, the instruction-shaped string the brief attributed to him,
-  and two candidates written as ordinary Polish dictation with full punctuation and no instruction — and each is
-  reported as a **counted word-level delta** against the no-prompt arm, because a prompt that fixes punctuation by
-  moving words is not a win. With the English counterpart of candidate 1 the control comes back clean ("Basically,
-  now it creates a sentences…", nothing invented); on `pl-2` the instruction-shaped string is the only arm that
-  recovers the words he said ("spój" → "swój", "forkę" → "fork", and it drops a spurious "I"); on `pl-1` every arm
-  keeps the words identical and only punctuation moves, where the two candidates add the commas but trade away a
-  sentence boundary. The app ships none of them: that is the captain's setting to choose, and this branch does not
-  set it for him.
+  lowercase drift). A deliberate decoder prompt is what removes that fragment; the switch does not ship without one.
+* **A deliberate decoder prompt removes that regression, and the switch now ships with one.** Four prompts were
+  measured on the same recordings with the same sampling — none, the instruction-shaped string the brief attributed
+  to him, and two candidates written as ordinary Polish dictation with full punctuation and no instruction — and each
+  is reported as a **counted word-level delta** against the no-prompt arm, because a prompt that fixes punctuation by
+  moving words is not a win. With a prompt in the language of the audio the invented fragment is gone; the
+  instruction-shaped string is not better on English than the shipped candidate (both `-2 +2`) and moves four words
+  instead of two on `pl-2`, so it is deliberately not a default — if he wants its individual recoveries ("spój" →
+  "swój", "forkę" → "fork", and it drops a spurious "I"), they belong in his own `initialPrompt`, which this fork
+  never writes for him.
+* **The prompt and the switch were then measured together, in both languages, and the answer is why there are two
+  strings and not one.** Crossing every prompt with every language on his own three recordings
+  (`WhisperPauseBoundaryPairingTests`; tables in `fleet/data/fm-20260925-14/report.md`) shows a prompt that suits one
+  language is damage in the other: a Polish prompt on English audio brings the fragments back and splits the control
+  into twelve pieces (`-how -sentence +creates +it +no +now +now +sentences`, seven of them two words or shorter, and
+  with the second Polish candidate Polish words leak into the English text — "Aż to add feature… Nooo…"), an English
+  prompt on Polish audio costs `pl-1` its boundary and hyphenates `pl-2`'s word ("fork-a"). So the default is keyed to
+  the language the engine measures, and the Polish entry is the **comma-free** candidate: the comma-heavy ones prime
+  the decoder into joining `pl-1`'s clauses with a comma and **trade away the sentence boundary the switch exists to
+  gain** ("…inną drogą**,** bo tu chodzi…", two sentences — the switch-off count), while the comma-free one keeps it
+  ("…inną drogą. Bo tu chodzi…", three) and keeps `pl-2`'s "Open Super Whisper" and "Dodałem". The English entry is
+  the arm whose residue is the two words below.
+* **No prompt fixes the English audio half, and that was the captain's call to make.** With the switch on, the English
+  control is never word-identical to the switch off — not with any of the six prompts, not with none: the shortest
+  difference is `-how -sentence +now +sentences`, and it is there in the arm that sends no prompt at all, identical
+  across two different prompts and unmoved by the cap (`0.2…0.8 s`). It is what keeping the real pause does to the
+  decode, so the choice was the switch with those two words or no switch. He took the switch on **2026-09-25**, and
+  the criterion test asserts exactly that delta, so a future change that quietly widens it fails the suite.
+* **What the pairing costs.** The language has to be known *before* the prompt is chosen, which this app's engine can
+  only do with whisper.cpp's detect-only pass (`detect_language`: mel + encoder, no token). Measured on his own audio
+  with the app's own context parameters, that pass is **1343/1314 ms** against a **3522/3391 ms** decode on `pl-1`,
+  **1336/1351 ms** against **3560/3813 ms** on `pl-2` and **1346/1348 ms** against **3548/3509 ms** on the English
+  control — about **38 %** of every dictation whose switch is on and whose prompt is empty, because the encoder always
+  processes the fixed 30 s window. It was accurate on all three (the pre-pass's language equals the decode's own), and
+  an English-only model pays nothing: it cannot be multilingual, so it is `en` by construction.
 * **The threshold was 0.5 s and the measurement removed it.** On `pl-1` a pause the VAD measured at 0.52 s falls
   inside "…o to, że żeś | spieprzył po całości", and 0.5 s closed the sentence there — "że żeś. spieprzył" (the
   same wrong break appears at 0.4 s). On the app's own numbers every pause he talks across is 0.52 s or below and
@@ -289,10 +327,15 @@ that builds with the debug dylib disabled, signs, and can run the unit suite *an
 `Scripts/build-native.sh` builds the two vendored engines in the one order that works (llama.cpp installs the
 single ggml package that whisper.cpp then links against). Crew worktrees build under a different bundle id, and
 each test process gets its own preference store, so parallel development cannot poison the app someone is using.
-The suite on the merged tip is **420 tests: 367 passing, 0 failing, 53 skipped**, where the skips are all
-environmental: 50 gated on this machine's input sources or on Accessibility automation, 2 behind
-`OSW_TEST_TURBO_MODEL` and 1 behind a microphone opt-in. That 50 is why the daily delivery path is the least
-covered part of the suite.
+The suite on this tree is **473 tests** — the captain's-recording measurement cases among them, which is why it is
+larger than CI's: they skip wherever his recordings or a multilingual model are absent. Its last full run here stood
+at **418 passing, 1 failing, 54 skipped**, the failure being the Settings snapshot capture harness described in
+`fleet/data/fm-20260925-14/report.md` (its detector read the page background from a row that is inside a card in a
+capture scrolled to the bottom); that harness is repaired and was verified green on its own afterwards
+(`SettingsLayoutSnapshotTests`, 7/7). The clean full suite on the merged tip is the fleet's record, not this
+paragraph's. The rest of the skips are environmental: 50 gated on this machine's input sources or on Accessibility
+automation, 2 behind `OSW_TEST_TURBO_MODEL` and 1 behind a microphone opt-in. That 50 is why the daily delivery path
+is the least covered part of the suite.
 
 ### What is unchanged
 
