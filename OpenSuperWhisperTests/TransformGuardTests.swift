@@ -178,6 +178,39 @@ final class TransformGuardTests: XCTestCase {
         )
     }
 
+    /// The trailing-punctuation gap the first version of this rule had: the
+    /// comparison was exact, so the same marker with a full stop or a colon the
+    /// model added was delivered. Measured against the rule as committed and
+    /// closed here — and the lowercase word, punctuation or not, stays the
+    /// user's own.
+    func testPromptMarkerWithTrailingPunctuation_isRejected() {
+        let cases: [(answer: String, language: TransformLanguage, marker: String)] = [
+            ("keyboard simulation output is working.\nTRANSCRIPT.", .english, "TRANSCRIPT"),
+            ("keyboard simulation output is working.\nTRANSCRIPT:", .english, "TRANSCRIPT"),
+            ("Now speaking English\nTRANSCRIPT!", .english, "TRANSCRIPT"),
+            ("font\nTRANSKRYPCJA.", .polish, "TRANSKRYPCJA"),
+        ]
+        for c in cases {
+            XCTAssertEqual(
+                TransformGuard.rejection(
+                    of: c.answer,
+                    for: "keyboard simulation output is working.",
+                    language: c.language
+                ),
+                .promptMarker(c.marker),
+                c.answer
+            )
+        }
+        XCTAssertNil(
+            TransformGuard.rejection(
+                of: "Send the transcript.",
+                for: "send the transcript please",
+                language: .english
+            ),
+            "the lowercase word is the dictated text, punctuation and all"
+        )
+    }
+
     /// The negative cases the fix must not cost: the ordinary lowercase word in a
     /// dictated sentence is the user's own, and a rewrite that keeps it is
     /// delivered. Both answers differ from their dictation, so the marker rule —

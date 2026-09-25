@@ -224,10 +224,23 @@ enum TransformGuard {
         for line in answer.components(separatedBy: .newlines) {
             let stripped = stripMarkup(line).trimmingCharacters(in: .whitespaces)
             guard !stripped.isEmpty else { continue }
-            if promptMarkerWords.contains(stripped) { return stripped }
+            if let word = promptMarkerWord(in: stripped) { return word }
             if let bracketed = bracketedPromptMarker(in: stripped) { return bracketed }
         }
         return nil
+    }
+
+    /// The marker word the line *is*, allowing sentence punctuation after it.
+    ///
+    /// Measured gap in the first version of this rule: the comparison was exact,
+    /// so `TRANSCRIPT.` and `TRANSCRIPT:` — the same marker with a full stop or a
+    /// colon the model added — were delivered instead of rejected. Trailing
+    /// `. , : ; ! ?` is stripped before the comparison, and the match stays
+    /// case-sensitive, so the dictated lowercase word in `I need the transcript
+    /// by Friday.` is still the user's own and still delivered.
+    static func promptMarkerWord(in line: String) -> String? {
+        let word = line.trimmingCharacters(in: CharacterSet(charactersIn: ".,:;!?"))
+        return promptMarkerWords.contains(word) ? word : nil
     }
 
     /// The all-caps word a `<<<` or `>>>` on this line is attached to, if there
