@@ -1409,3 +1409,65 @@ can speak. `bash -n` clean.
 `Settings.swift`, `AppPreferences.swift` and the captain-recording tests). Its landing is followed by **one** clean-state
 suite on the merged tip covering this frame work and its own, which is the batching decision that replaces running a
 suite per branch.
+
+## [2026-09-25T10:04:52Z] PAUSE IMPLEMENTATION — option (a) implemented, one harness flake diagnosed, sequencing corrected by the crew
+
+`fm/pause-implementation` (base `d960bb7`, **uncommitted at this moment**): the switch default is `true`, the decoder
+prompt is chosen by the language the pre-pass measures, the user's own prompt always wins, and a switch-off stays
+byte-for-byte upstream. Criterion test present and passing; focused run green **38/38**.
+
+**First clean full suite: 473 total / 418 passed / 1 failed / 54 skipped.** The single failure is
+`SettingsLayoutSnapshotTests.testTranscriptionTabScrollsToItsLastCard`, and the crew's diagnosis is that it is the
+**capture harness, not the feature**: its longer Settings caption moved the scroll geometry, the scrolled capture came
+back as a mid-draw raster (its detected "background" is the card colour, gaps `[1, 1]`), whereas the earlier green run
+left the same capture with nine bands where the tab has three cards. It repaired the harness — scroll until the reported
+bottom offset stops moving, accept the capture only when the raster stops changing, the discipline the full-tab path in
+that same file already uses — and states the `>= 4` pt invariant is untouched. **I will read that diff before merging:**
+a crew repairing a harness its own change destabilised is exactly the case that needs a second pair of eyes, and the
+report must carry what the old capture did, what it now does, and why the invariant stands.
+
+**Sequencing, corrected by the crew and accepted:** its work is not in any merged tip, so **no run of mine so far can be
+its evidence** — and none was made. Its harness repair is verified *scoped* only; then I merge it into the tip and run
+**one** clean full suite on the merged tip as the acceptance record for the whole tip, **attributed to me**. That saves a
+full build cycle and gives the delivery branch a stronger record than a pre-merge run.
+
+**Tip at this moment:** delivery == `main` == `e8ea391`, clean. `origin/main` still `3dcde52`.
+
+## [2026-09-25T10:12:18Z] PAUSE IMPLEMENTATION LANDED — `82b6ff9`, and two corrections of my own claims
+
+`fm/pause-implementation` @ `71a6f1a` merged into the delivery tip (delivery == `main` == **`82b6ff9`**, 9 files,
++1461/-78, merge conflict-free). Option (a) as the captain chose it: the switch defaults **on**, the decoder prompt is
+chosen by the language a **detect-only pre-pass** measures — run only in the one configuration that needs it (empty
+stored prompt + switch on + no timestamps), so English-only models pay nothing — a user's prompt always wins, a switch
+off stays byte-for-byte upstream, and **nothing writes to his stored preferences** (a test asserts that reading the
+prompt does not create the key). The shipped configuration is pinned: Polish win present, English delta bounded to
+exactly `{removed:[how,sentence], added:[now,sentences]}`. The caveat sentence is identical word for word in the
+AppPreferences doc, Readme §8 and the Settings caption, checked mechanically.
+
+**Correction 1 — I was wrong that the promised patch did not exist.** It was in the fleet records all along
+(`fleet/data/fm-20260925-14/evidence/pairing-implementation.patch`); my `find` used `-maxdepth 4` and the file sits at
+depth 5. I told the captain it existed nowhere, which was false. The crew found it, tried it, and reports it **cannot
+compile** (its AppPreferences hunk declares `var longPausesEndSentences: Bool` twice; its `DecoderPromptDefaultTests`
+calls a three-argument `decoderPrompt` while its engine declares four) — so building from the sources was right, but my
+stated reason was wrong. **Lesson: a negative search result is only as good as its depth.**
+
+**Correction 2 — the preserved ingredients were substantively wrong, not just stale.** `fm2414-WhisperEngine-wired.swift`
+shipped candidate 1 (comma-heavy) as the Polish default, which the refusing crew's own table shows trading away `pl-1`'s
+sentence boundary and therefore failing the criterion I pinned. The landed Polish default is the comma-free candidate
+(boundary `2->3`; `pl-2` keeps "Open Super Whisper"/"Dodałem"); the English default is candidate 1 EN with exactly the
+accepted residue. Found by building, not by reading.
+
+**Harness repair — reviewed and accepted by me before merging.** `cardBands` read the page background from row 8 at the
+probe column; in a bottom-scrolled capture that row is inside a card, so "background" came back as the card colour and
+every gap read as a card and every card as a gap — a correct tab reported as cards drawn into each other
+(`gaps [1, 1]`, background `(30, 30, 30)`). The fix samples the page-padding column (2 pt in) at three heights, falling
+back to the old probe-column sample when those disagree. **The probe column (40 px), the `>= 4` pt gap invariant and the
+assertion are untouched** — the check got honest, not looser. Two earlier attempts that left the failing capture
+byte-identical were reverted rather than kept, and the report carries the decoded-pixel evidence rather than the
+"mid-draw" reading first reported. Geometry: seven cards, 20 pt gaps, page `(0,0,0)` vs cards `(30,30,30)`.
+
+**The acceptance run is in flight and it is mine:** `Scripts/dev-run.sh test` in the primary checkout
+(`/tmp/final-tip-suite.log`, pid 42067), which both runs the suite on the merged tip and rebuilds the app the captain
+launches. **Stated rather than glossed: this is an incremental build, not a from-scratch one** — no source file was
+removed today, so the difference is immaterial here, but the clean-state runs of the crews remain the stronger evidence
+and this run is the merged-tip acceptance record, attributed to me.

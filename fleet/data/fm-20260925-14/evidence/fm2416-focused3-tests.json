@@ -1,0 +1,402 @@
+{
+  "devices" : [
+    {
+      "architecture" : "arm64",
+      "deviceId" : "00008132-001E61282283001C",
+      "deviceName" : "My Mac",
+      "modelName" : "Mac mini",
+      "osBuildNumber" : "26A428",
+      "osVersion" : "27.0",
+      "platform" : "macOS"
+    }
+  ],
+  "testNodes" : [
+    {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "duration" : "0,00069s",
+                  "durationInSeconds" : 0.0006860494613647461,
+                  "name" : "testANewInstallGetsNoStoredPrompt()",
+                  "nodeIdentifier" : "DecoderPromptDefaultTests/testANewInstallGetsNoStoredPrompt()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/DecoderPromptDefaultTests/testANewInstallGetsNoStoredPrompt",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00037s",
+                  "durationInSeconds" : 0.00036907196044921875,
+                  "name" : "testANewInstallGetsTheSwitchOn()",
+                  "nodeIdentifier" : "DecoderPromptDefaultTests/testANewInstallGetsTheSwitchOn()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/DecoderPromptDefaultTests/testANewInstallGetsTheSwitchOn",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00033s",
+                  "durationInSeconds" : 0.00033402442932128906,
+                  "name" : "testReadingThePromptDoesNotWriteItIntoTheDomain()",
+                  "nodeIdentifier" : "DecoderPromptDefaultTests/testReadingThePromptDoesNotWriteItIntoTheDomain()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/DecoderPromptDefaultTests/testReadingThePromptDoesNotWriteItIntoTheDomain",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00034s",
+                  "durationInSeconds" : 0.0003409385681152344,
+                  "name" : "testTheDefaultIsTheOneItsLanguageHas()",
+                  "nodeIdentifier" : "DecoderPromptDefaultTests/testTheDefaultIsTheOneItsLanguageHas()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/DecoderPromptDefaultTests/testTheDefaultIsTheOneItsLanguageHas",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00038s",
+                  "durationInSeconds" : 0.0003840923309326172,
+                  "name" : "testTheDefaultsAreDictationAndNotInstruction()",
+                  "nodeIdentifier" : "DecoderPromptDefaultTests/testTheDefaultsAreDictationAndNotInstruction()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/DecoderPromptDefaultTests/testTheDefaultsAreDictationAndNotInstruction",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00036s",
+                  "durationInSeconds" : 0.00035893917083740234,
+                  "name" : "testTheSwitchOffSendsNoDefaultEvenWithNoPromptOfTheUsersOwn()",
+                  "nodeIdentifier" : "DecoderPromptDefaultTests/testTheSwitchOffSendsNoDefaultEvenWithNoPromptOfTheUsersOwn()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/DecoderPromptDefaultTests/testTheSwitchOffSendsNoDefaultEvenWithNoPromptOfTheUsersOwn",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00035s",
+                  "durationInSeconds" : 0.0003529787063598633,
+                  "name" : "testTheUsersOwnPromptWinsInEveryLanguageAndOnEitherSwitch()",
+                  "nodeIdentifier" : "DecoderPromptDefaultTests/testTheUsersOwnPromptWinsInEveryLanguageAndOnEitherSwitch()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/DecoderPromptDefaultTests/testTheUsersOwnPromptWinsInEveryLanguageAndOnEitherSwitch",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00037s",
+                  "durationInSeconds" : 0.0003679990768432617,
+                  "name" : "testTimestampModeSendsNoDefault()",
+                  "nodeIdentifier" : "DecoderPromptDefaultTests/testTimestampModeSendsNoDefault()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/DecoderPromptDefaultTests/testTimestampModeSendsNoDefault",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "DecoderPromptDefaultTests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/DecoderPromptDefaultTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            },
+            {
+              "children" : [
+                {
+                  "duration" : "29s",
+                  "durationInSeconds" : 29.62357997894287,
+                  "name" : "testTheCostOfALanguagePrePass()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryPairingTests/testTheCostOfALanguagePrePass()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryPairingTests/testTheCostOfALanguagePrePass",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "37s",
+                  "durationInSeconds" : 37.607017040252686,
+                  "name" : "testTheShippedConfigurationKeepsThePolishWinAndOnlyTheAcceptedEnglishChange()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryPairingTests/testTheShippedConfigurationKeepsThePolishWinAndOnlyTheAcceptedEnglishChange()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryPairingTests/testTheShippedConfigurationKeepsThePolishWinAndOnlyTheAcceptedEnglishChange",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "2m 12s",
+                  "durationInSeconds" : 132.56943905353546,
+                  "name" : "testTheSwitchPairedWithADecoderPrompt()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryPairingTests/testTheSwitchPairedWithADecoderPrompt()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryPairingTests/testTheSwitchPairedWithADecoderPrompt",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "WhisperPauseBoundaryPairingTests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryPairingTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            },
+            {
+              "children" : [
+                {
+                  "duration" : "0,00077s",
+                  "durationInSeconds" : 0.0007679462432861328,
+                  "name" : "testAGapOverTheThresholdEndsTheSentenceAndNoWordChanges()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testAGapOverTheThresholdEndsTheSentenceAndNoWordChanges()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testAGapOverTheThresholdEndsTheSentenceAndNoWordChanges",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00085s",
+                  "durationInSeconds" : 0.0008529424667358398,
+                  "name" : "testAnOpenSentenceIsClosedWhereThePauseWas()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testAnOpenSentenceIsClosedWhereThePauseWas()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testAnOpenSentenceIsClosedWhereThePauseWas",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00043s",
+                  "durationInSeconds" : 0.0004290342330932617,
+                  "name" : "testAPauseBelongsAfterTheSegmentThatEndedBeforeIt()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testAPauseBelongsAfterTheSegmentThatEndedBeforeIt()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testAPauseBelongsAfterTheSegmentThatEndedBeforeIt",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00037s",
+                  "durationInSeconds" : 0.00037097930908203125,
+                  "name" : "testAPauseBelowTheThresholdLeavesTheDecoderAlone()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testAPauseBelowTheThresholdLeavesTheDecoderAlone()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testAPauseBelowTheThresholdLeavesTheDecoderAlone",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,0035s",
+                  "durationInSeconds" : 0.0035070180892944336,
+                  "name" : "testAPauseIsNeverLongerThanTheCapHoweverLongTheSilenceWas()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testAPauseIsNeverLongerThanTheCapHoweverLongTheSilenceWas()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testAPauseIsNeverLongerThanTheCapHoweverLongTheSilenceWas",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00039s",
+                  "durationInSeconds" : 0.0003859996795654297,
+                  "name" : "testAPauseTheDecoderDecodedStraightThroughGetsNoTerminator()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testAPauseTheDecoderDecodedStraightThroughGetsNoTerminator()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testAPauseTheDecoderDecodedStraightThroughGetsNoTerminator",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00034s",
+                  "durationInSeconds" : 0.0003399848937988281,
+                  "name" : "testAPauseWithNoSegmentLeftAfterItClosesNothing()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testAPauseWithNoSegmentLeftAfterItClosesNothing()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testAPauseWithNoSegmentLeftAfterItClosesNothing",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00036s",
+                  "durationInSeconds" : 0.0003629922866821289,
+                  "name" : "testASegmentStartingAtThePauseCountsAsTheBoundary()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testASegmentStartingAtThePauseCountsAsTheBoundary()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testASegmentStartingAtThePauseCountsAsTheBoundary",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00045s",
+                  "durationInSeconds" : 0.00044906139373779297,
+                  "name" : "testAShortGapAddsNoTerminator()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testAShortGapAddsNoTerminator()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testAShortGapAddsNoTerminator",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,0047s",
+                  "durationInSeconds" : 0.004714012145996094,
+                  "name" : "testAShortPauseIsPaddedUpToTheMinimumAndNoFurther()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testAShortPauseIsPaddedUpToTheMinimumAndNoFurther()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testAShortPauseIsPaddedUpToTheMinimumAndNoFurther",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,0015s",
+                  "durationInSeconds" : 0.001522064208984375,
+                  "name" : "testASpaceIsAddedWhenNeitherSegmentCarriesOne()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testASpaceIsAddedWhenNeitherSegmentCarriesOne()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testASpaceIsAddedWhenNeitherSegmentCarriesOne",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00037s",
+                  "durationInSeconds" : 0.0003720521926879883,
+                  "name" : "testAWhitespaceOnlySegmentNeverCarriesTheTerminatorItself()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testAWhitespaceOnlySegmentNeverCarriesTheTerminatorItself()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testAWhitespaceOnlySegmentNeverCarriesTheTerminatorItself",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00035s",
+                  "durationInSeconds" : 0.0003489255905151367,
+                  "name" : "testCJKKeepsItsOwnFullWidthTerminator()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testCJKKeepsItsOwnFullWidthTerminator()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testCJKKeepsItsOwnFullWidthTerminator",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00055s",
+                  "durationInSeconds" : 0.0005519390106201172,
+                  "name" : "testNoTerminatorIsAddedWhenThereIsNothingToClose()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testNoTerminatorIsAddedWhenThereIsNothingToClose()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testNoTerminatorIsAddedWhenThereIsNothingToClose",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00043s",
+                  "durationInSeconds" : 0.0004309415817260742,
+                  "name" : "testOnlyOneTerminatorIsEverInsertedPerBoundary()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testOnlyOneTerminatorIsEverInsertedPerBoundary()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testOnlyOneTerminatorIsEverInsertedPerBoundary",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00073s",
+                  "durationInSeconds" : 0.0007330179214477539,
+                  "name" : "testTheDecoderPunctuationIsNotDoubled()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testTheDecoderPunctuationIsNotDoubled()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testTheDecoderPunctuationIsNotDoubled",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,001s",
+                  "durationInSeconds" : 0.0009969472885131836,
+                  "name" : "testThePolicyFollowsTheLongPausesSwitch()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testThePolicyFollowsTheLongPausesSwitch()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testThePolicyFollowsTheLongPausesSwitch",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00074s",
+                  "durationInSeconds" : 0.0007430315017700195,
+                  "name" : "testThePolicyOffMeasuresPausesButNeverClosesASentence()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testThePolicyOffMeasuresPausesButNeverClosesASentence()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testThePolicyOffMeasuresPausesButNeverClosesASentence",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,0011s",
+                  "durationInSeconds" : 0.0011260509490966797,
+                  "name" : "testTheSettingsSnapshotCarriesTheStoredSwitch()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testTheSettingsSnapshotCarriesTheStoredSwitch()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testTheSettingsSnapshotCarriesTheStoredSwitch",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,022s",
+                  "durationInSeconds" : 0.022188901901245117,
+                  "name" : "testTheSwitchOffIsTheOldStitchingByteForByte()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testTheSwitchOffIsTheOldStitchingByteForByte()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testTheSwitchOffIsTheOldStitchingByteForByte",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,0039s",
+                  "durationInSeconds" : 0.003901958465576172,
+                  "name" : "testTheSwitchOnKeepsThePauseTheSpeakerActuallyLeft()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testTheSwitchOnKeepsThePauseTheSpeakerActuallyLeft()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testTheSwitchOnKeepsThePauseTheSpeakerActuallyLeft",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00043s",
+                  "durationInSeconds" : 0.00043201446533203125,
+                  "name" : "testTheTerminatorNeverLandsBesideAStraySpace()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testTheTerminatorNeverLandsBesideAStraySpace()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testTheTerminatorNeverLandsBesideAStraySpace",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00042s",
+                  "durationInSeconds" : 0.0004240274429321289,
+                  "name" : "testTheThresholdItselfCounts()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testTheThresholdItselfCounts()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testTheThresholdItselfCounts",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,0038s",
+                  "durationInSeconds" : 0.0037909746170043945,
+                  "name" : "testTheUpstreamWrapperIsThePolicyOffStitching()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testTheUpstreamWrapperIsThePolicyOffStitching()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testTheUpstreamWrapperIsThePolicyOffStitching",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00051s",
+                  "durationInSeconds" : 0.000514984130859375,
+                  "name" : "testTheWholePathFromPausesToTextClosesOneSentencePerLongPause()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testTheWholePathFromPausesToTextClosesOneSentencePerLongPause()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testTheWholePathFromPausesToTextClosesOneSentencePerLongPause",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,00041s",
+                  "durationInSeconds" : 0.00040793418884277344,
+                  "name" : "testTimestampModeIsUnchangedByTheBoundaries()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testTimestampModeIsUnchangedByTheBoundaries()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testTimestampModeIsUnchangedByTheBoundaries",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "0,0033s",
+                  "durationInSeconds" : 0.003347039222717285,
+                  "name" : "testUpstreamStitchingKeepsADecisecondOfZerosAtEveryPause()",
+                  "nodeIdentifier" : "WhisperPauseBoundaryTests/testUpstreamStitchingKeepsADecisecondOfZerosAtEveryPause()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests/testUpstreamStitchingKeepsADecisecondOfZerosAtEveryPause",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "WhisperPauseBoundaryTests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests/WhisperPauseBoundaryTests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            }
+          ],
+          "name" : "OpenSuperWhisperTests",
+          "nodeIdentifierURL" : "test://com.apple.xcode/OpenSuperWhisper/OpenSuperWhisperTests",
+          "nodeType" : "Unit test bundle",
+          "result" : "Passed"
+        }
+      ],
+      "name" : "OpenSuperWhisper",
+      "nodeType" : "Test Plan",
+      "result" : "Passed"
+    }
+  ],
+  "testPlanConfigurations" : [
+    {
+      "configurationId" : "1",
+      "configurationName" : "Test Scheme Action"
+    }
+  ]
+}

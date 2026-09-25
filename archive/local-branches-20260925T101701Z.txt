@@ -1,0 +1,11 @@
+develop c8e6fe7
+feat/local-translate-tone ddcd91f
+fleet-state 8432b4f
+fm/bilingual-check eaecd28
+fm/frame-guard 49ea044
+fm/pause-boundary 635233a
+fm/pause-implementation 71a6f1a
+fm/pause-pairing eaecd28
+fm/tone-output 877d19e
+fm/tone-prompt 2de0698
+main ddcd91f

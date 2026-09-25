@@ -1,0 +1,1055 @@
+[transform] model preference: 8B absent → tone (both languages) and Polish clean-up on qwen2.5-1.5b-instruct-q4_k_m; 8B installed → tone (both languages) and Polish clean-up on qwen3-8b-q4_k_m, English clean-up always on qwen2.5-1.5b-instruct-q4_k_m; the recording warm-up warms qwen3-8b-q4_k_m while tone is on and qwen2.5-1.5b-instruct-q4_k_m for clean-up alone
+[same-language] mutated copy refused: The downloaded transform model does not match the pinned checksum (expected d98cdcbd03e1…, got 52612ae7358f…).
+keyboard delivery: active input source com.apple.keylayout.PolishPro, 10 events, payload characters that layout cannot type: žółćęśąźń—中文測試Жїß
+[determinism] english/casual on qwen2.5-1.5b-instruct-q4_k_m.gguf: 5 runs in 7.11s, 1 distinct output(s), sha256 a808359c0a483a4b7f878351429cf0c497f5c53976a6a52b71e47fadf39b6896 (82 bytes)
+[same-language] on-disk Qwen3-8B-Q4_K_M.gguf re-verifies against d98cdcbd03e17ce47681435b5150e34c1417f50b5c0019dd560e4882c5745785
+[same-language] both switches off: model calls 0, policy none, runtime resident none, text unchanged true
+[pair] ============ the cost of a language pre-pass ============
+[pair] model /Volumes/home/zenon/Library/Application Support/ru.starmel.OpenSuperWhisper/whisper-models/ggml-large-v3-turbo.bin | threads 8 | detect = mel + encoder, no token
+[trigger] modifier mode: shortcut=Optional(⌥`) armed=false
+[same-language] pl clean-up: model qwen2.5-1.5b-instruct-q4_k_m | didRunModel true
+[same-language] pl clean-up output: no więc ja myślę, że trzeba wysłać ten raport do klienta jutro rano.
+[same-language] no weights staged: delivered the raw transcript, didRunModel false
+[recorder] after clicking the field: recording=[false, true] firstResponder=NSTextView
+[recorder] after ⌥⇧K: stored=Optional(⌥⇧K) shown=⌥⇧K
+[trigger] key-combination mode, nothing stored: shortcut=Optional(⌥`) armed=true
+[trigger] a combination recorded in that mode: shortcut=Optional(⌥⇧K) armed=true
+[recorder] the library's recorder as it comes, clicked: recording=[false, true, false]
+[recorder] the library's recorder as it comes, after ⌥⇧K: stored=nil typed=K
+[snapshot] tab-transcription-content-transforms-off 503x2175: bg=(0, 0, 0) bands=[16-333, 354-514, 535-692, 713-1636, 1657-1839, 1860-1987, 2008-2158] gaps=[20, 20, 20, 20, 20, 20]
+[snapshot] tab-transcription-content-tone-only 503x2175: bg=(0, 0, 0) bands=[16-333, 354-514, 535-692, 713-1636, 1657-1839, 1860-1987, 2008-2158] gaps=[20, 20, 20, 20, 20, 20]
+[snapshot] tab-transcription-content-transforms-on 503x2175: bg=(0, 0, 0) bands=[16-333, 354-514, 535-692, 713-1636, 1657-1839, 1860-1987, 2008-2158] gaps=[20, 20, 20, 20, 20, 20]
+[pauses] model /Volumes/home/zenon/Library/Application Support/ru.starmel.OpenSuperWhisper/whisper-models/ggml-large-v3-turbo.bin
+[pauses] vad /Volumes/home/zenon/Projects/OpenSuperWhisper-fork/worktrees/OpenSuperWhisper-fm-pauseimpl/build/Build/Products/Debug/OpenSuperWhisper.app/Contents/Resources/ggml-silero-v5.1.2.bin
+[pauses] threshold 0.6 s, cap 0.8 s
+[snapshot] tab-shortcuts-content-default 503x718: bg=(0, 0, 0) bands=[16-196, 217-398, 419-588, 609-701] gaps=[20, 20, 20]
+[determinism] polish/formal on qwen2.5-1.5b-instruct-q4_k_m.gguf: 5 runs in 17.62s, 1 distinct output(s), sha256 4c0db02e4c56ec692b6d1da4f613e826b977a51796e2a0f1ff6d4da4cd2d0dda (90 bytes)
+[pauses] ============================================================
+[pauses] pl-1 (12.1 s) | 5C68BFAC-5EC8-45CC-8239-3B5659272C1A.wav | 193600 samples (12.1 s) | VAD segments 5
+[pauses]   gap 1: VAD 39 cs (0.39 s) | decoder-visible under the switch 0.29 s | segment 0 ends at 377 cs, segment 1 starts at 416 cs
+[pauses]   gap 2: VAD 84 cs (0.84 s) | decoder-visible under the switch 0.74 s | segment 1 ends at 675 cs, segment 2 starts at 759 cs
+[pauses]   gap 3: VAD 20 cs (0.2 s) | decoder-visible under the switch 0.10 s | segment 2 ends at 899 cs, segment 3 starts at 919 cs
+[pauses]   gap 4: VAD 62 cs (0.62 s) | decoder-visible under the switch 0.52 s | segment 3 ends at 985 cs, segment 4 starts at 1047 cs
+[same-language] wired with the 8B resident: 17.04 GB (step 5.45 GB, baseline 11.59 GB)
+[snapshot] tab-advanced-content-default 503x721: bg=(0, 0, 0) bands=[16-103, 124-273, 294-436, 457-578, 599-704] gaps=[20, 20, 20, 20]
+[same-language] wired with the 1.5B resident (the 8B was evicted): 17.34 GB (step 5.75 GB, baseline 11.59 GB)
+[same-language] wired after unload: 17.34 GB (step 5.75 GB, baseline 11.59 GB)
+[same-language] wired: baseline 11.59 GB, 8B 17.04 GB, 8B step 5.45 GB
+[pair] pl-1 (12.1 s) | audio the decoder hears 10.9 s | language pre-pass [2941, 3272] ms (language pl) | full decode [6599, 14814] ms (language pl) | pre-pass is 45% of a decode (9540 ms together vs 6599 ms)
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | before (switch off) | prompt cleared
+[pauses]   language pl | decoder segments 2 | decoder audio 9.69 s of 12.1 s | real pause kept 0.00 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 1 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pauses]   seg 0 0->288cs:  Dobra ziameczku, tak nie możesz tego zrobić.
+[pauses]   seg 1 288->970cs:  Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pauses]   pause 0 291->301cs | silence 0.29 s | long false
+[pauses]   pause 1 570->580cs | silence 0.74 s | long true
+[pauses]   pause 2 730->740cs | silence 0.10 s | long false
+[pauses]   pause 3 816->826cs | silence 0.52 s | long false
+[snapshot] tab-shortcuts-current-418x424 466x424: bg=(0, 0, 0) bands=[16-209, 230-411] gaps=[20]
+[snapshot] tab-model-current-418x424 418x424: bg=(0, 0, 0) bands=[16-407] gaps=[]
+[snapshot] tab-transcription-current-418x424 418x424: bg=(0, 0, 0) bands=[16-398] gaps=[20]
+[snapshot] tab-advanced-current-418x424 418x424: bg=(0, 0, 0) bands=[16-103, 124-273, 294-423] gaps=[20, 20]
+[snapshot] tab-shortcuts-520x560-520x560 520x560: bg=(0, 0, 0) bands=[16-196, 217-398, 419-559] gaps=[20, 20]
+[snapshot] tab-model-520x560-520x560 520x560: bg=(0, 0, 0) bands=[16-543] gaps=[]
+[snapshot] tab-transcription-520x560-520x560 520x560: bg=(0, 0, 0) bands=[16-333, 354-514, 535-559] gaps=[20, 20]
+[snapshot] tab-advanced-520x560-520x560 520x560: bg=(0, 0, 0) bands=[16-103, 124-273, 294-436, 457-559] gaps=[20, 20, 20]
+[snapshot] tab-shortcuts-520x900-520x900 520x900: bg=(0, 0, 0) bands=[16-196, 217-398, 419-588, 609-701] gaps=[20, 20, 20]
+[snapshot] tab-model-520x900-520x900 520x900: bg=(0, 0, 0) bands=[16-642] gaps=[]
+[snapshot] tab-transcription-520x900-520x900 520x900: bg=(0, 0, 0) bands=[16-333, 354-514, 535-692, 713-899] gaps=[20, 20, 20]
+[snapshot] tab-advanced-520x900-520x900 520x900: bg=(0, 0, 0) bands=[16-103, 124-273, 294-436, 457-578, 599-704] gaps=[20, 20, 20, 20]
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | audio only (no terminator) | prompt cleared
+[pauses]   language pl | decoder segments 4 | decoder audio 10.94 s of 12.1 s | real pause kept 1.65 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 1 | junctions with a segment after them 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   seg 0 0->280cs:  Dobra ziameczku, tak nie możesz tego zrobić.
+[pauses]   seg 1 310->570cs:  Musisz pójść zupełnie inną drogą.
+[pauses]   seg 2 660->890cs:  Bo tu chodzi o to, że żeś
+[pauses]   seg 3 930->1094cs:  spieprzył po całości.
+[pauses]   pause 0 291->320cs | silence 0.29 s | long false
+[pauses]   pause 1 589->663cs | silence 0.74 s | long true
+[pauses]   pause 2 813->823cs | silence 0.10 s | long false
+[pauses]   pause 3 899->951cs | silence 0.52 s | long false
+[snapshot] tab-transcription-scroll-top 518x468: bg=(0, 0, 0) bands=[16-333, 354-467] gaps=[20]
+[snapshot] tab-transcription-scroll-bottom 518x468: bg=(30, 30, 30) bands=[71-202, 204-467] gaps=[1, 1]
+[same-language] pl→pl: model qwen3-8b-q4_k_m | policy Polish, formal tone | didRunModel true | 28.21 s
+[same-language] pl→pl input:  no hej, sluchaj, musimy przelozyc to spotkanie z klientem na przyszly tydzien, ok?
+[same-language] pl→pl output: Musimy przesunąć to spotkanie z klientem na następny tydzień, ok?
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | after (switch on) | prompt cleared
+[pauses]   language pl | decoder segments 2 | decoder audio 10.94 s of 12.1 s | real pause kept 1.65 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 1 | junctions with a segment after them 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   seg 0 0->570cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pauses]   seg 1 660->1094cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   pause 0 291->320cs | silence 0.29 s | long false
+[pauses]   pause 1 589->663cs | silence 0.74 s | long true
+[pauses]   pause 2 813->823cs | silence 0.10 s | long false
+[pauses]   pause 3 899->951cs | silence 0.52 s | long false
+[same-language] en→en: model qwen3-8b-q4_k_m | policy English, casual tone | didRunModel true
+[same-language] en→en input:  Please send the report to the client today, and copy me on the reply.
+[same-language] en→en output: Please send the report to the client today and copy me on the reply.
+[pair] pl-2 (23.3 s) | audio the decoder hears 11.6 s | language pre-pass [5913, 5064] ms (language pl) | full decode [11174, 11703] ms (language pl) | pre-pass is 45% of a decode (16238 ms together vs 11174 ms)
+[same-language] Polish without the 8B: model qwen2.5-1.5b-instruct-q4_k_m | didRunModel true | output Cześć, jak się masz dzisiaj rano?
+[same-language] card: A tone rewrite runs on Qwen2.5 1.5B Instruct (Q4_K_M), in both languages. Clean-up alone: Polish runs on Qwen2.5 1.5B Instruct (Q4_K_M). English runs on Qwen2.5 1.5B Instruct (Q4_K_M). The 8B is not installed, so the shipped model does the work — nothing is refused, and nothing has to be downloaded.
+[same-language] card with the 8B missing: A tone rewrite runs on Qwen2.5 1.5B Instruct (Q4_K_M), in both languages. Clean-up alone: Polish runs on Qwen2.5 1.5B Instruct (Q4_K_M). English runs on Qwen2.5 1.5B Instruct (Q4_K_M). The 8B is not installed, so the shipped model does the work — nothing is refused, and nothing has to be downloaded.
+[same-language] card with the 8B installed: A tone rewrite runs on Qwen3 8B (Q4_K_M), in both languages. Clean-up alone: Polish runs on Qwen3 8B (Q4_K_M). English runs on Qwen2.5 1.5B Instruct (Q4_K_M). The 8B is installed.
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | sweep: cap 0.2 s | prompt cleared
+[pauses]   language pl | decoder segments 1 | decoder audio 9.99 s of 12.1 s | real pause kept 0.70 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 1 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   seg 0 0->1000cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   pause 0 291->311cs | silence 0.29 s | long false
+[pauses]   pause 1 580->600cs | silence 0.74 s | long true
+[pauses]   pause 2 750->760cs | silence 0.10 s | long false
+[pauses]   pause 3 836->856cs | silence 0.52 s | long false
+[same-language] idle unload with the interval injected as 1 s: released true after 5.13 s
+[same-language] /Volumes/home/zenon/models/Qwen3-8B-Q4_K_M.gguf verifies: 5027783488 bytes, d98cdcbd03e17ce47681435b5150e34c1417f50b5c0019dd560e4882c5745785
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | sweep: cap 0.4 s | prompt cleared
+[pauses]   language pl | decoder segments 2 | decoder audio 10.48 s of 12.1 s | real pause kept 1.19 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 1 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   seg 0 0->568cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pauses]   seg 1 568->1048cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   pause 0 291->320cs | silence 0.29 s | long false
+[pauses]   pause 1 589->629cs | silence 0.74 s | long true
+[pauses]   pause 2 779->789cs | silence 0.10 s | long false
+[pauses]   pause 3 865->905cs | silence 0.52 s | long false
+[same-language] warm-up (load + throwaway decode): 1.15 s
+[same-language] wired after the warm-up: 13.33 GB (step 0.91 GB, baseline 12.42 GB)
+[pair] en control (33.0 s) | audio the decoder hears 18.6 s | language pre-pass [4156, 3306] ms (language en) | full decode [10270, 7366] ms (language en) | pre-pass is 45% of a decode (10672 ms together vs 7366 ms)
+[pair] ============================================================
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | sweep: cap 0.6 s | prompt cleared
+[pauses]   language pl | decoder segments 2 | decoder audio 10.8 s of 12.1 s | real pause kept 1.51 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 1 | junctions with a segment after them 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   seg 0 0->568cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pauses]   seg 1 648->1080cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   pause 0 291->320cs | silence 0.29 s | long false
+[pauses]   pause 1 589->649cs | silence 0.74 s | long true
+[pauses]   pause 2 799->809cs | silence 0.10 s | long false
+[pauses]   pause 3 885->937cs | silence 0.52 s | long false
+[pair] ================= the shipped configuration =================
+[pair] pl-1 (12.1 s) | off / none (control) | 9509 ms
+[pair]   language pl | decoder segments 2 | pauses measured 4 | long 1 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pair]   seg 0 0->288cs:  Dobra ziameczku, tak nie możesz tego zrobić.
+[pair]   seg 1 288->970cs:  Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | sweep: threshold 0.4 s | prompt cleared
+[pauses]   language pl | decoder segments 2 | decoder audio 10.94 s of 12.1 s | real pause kept 1.65 s
+[pauses]   pauses measured 4 | long (>= 0.4 s) 2 | junctions with a segment after them 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   seg 0 0->570cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pauses]   seg 1 660->1094cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   pause 0 291->320cs | silence 0.29 s | long false
+[pauses]   pause 1 589->663cs | silence 0.74 s | long true
+[pauses]   pause 2 813->823cs | silence 0.10 s | long false
+[pauses]   pause 3 899->951cs | silence 0.52 s | long true
+[pair] pl-1 (12.1 s) | shipped (no stored prompt, switch on) | 13815 ms
+[pair]   language pl | decoder segments 2 | pauses measured 4 | long 1 | junctions 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["pieprzył"] +1 ["spieprzył"] | unchanged false
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pair]   seg 0 0->570cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pair]   seg 1 660->1094cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pair] pl-1 (12.1 s) shipped | the engine measured pl | the table's prompt for it: Zrobiłem to wczoraj. Sprawdzę to jutro. Możesz na to spojrzeć? Nie ma problemu.
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | sweep: threshold 0.5 s | prompt cleared
+[pauses]   language pl | decoder segments 2 | decoder audio 10.94 s of 12.1 s | real pause kept 1.65 s
+[pauses]   pauses measured 4 | long (>= 0.5 s) 2 | junctions with a segment after them 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   seg 0 0->570cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pauses]   seg 1 660->1094cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   pause 0 291->320cs | silence 0.29 s | long false
+[pauses]   pause 1 589->663cs | silence 0.74 s | long true
+[pauses]   pause 2 813->823cs | silence 0.10 s | long false
+[pauses]   pause 3 899->951cs | silence 0.52 s | long true
+[same-language] first utterance after a finished warm-up: 37.39 s
+[determinism] polish/formal on Qwen3-8B-Q4_K_M.gguf: 5 runs in 111.77s, 1 distinct output(s), sha256 5fb491e08b9e5814a89da1ed5dbd6b30743153e85cbff5436325b3537b3f2f27 (124 bytes)
+[pair] pl-1 (12.1 s) | shipped: the same prompt, written out | 7868 ms
+[pair]   language pl | decoder segments 2 | pauses measured 4 | long 1 | junctions 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["pieprzył"] +1 ["spieprzył"] | unchanged false
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pair]   seg 0 0->570cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pair]   seg 1 660->1094cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | sweep: threshold 0.8 s | prompt cleared
+[pauses]   language pl | decoder segments 2 | decoder audio 10.94 s of 12.1 s | real pause kept 1.65 s
+[pauses]   pauses measured 4 | long (>= 0.8 s) 0 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   seg 0 0->570cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pauses]   seg 1 660->1094cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   pause 0 291->320cs | silence 0.29 s | long false
+[pauses]   pause 1 589->663cs | silence 0.74 s | long false
+[pauses]   pause 2 813->823cs | silence 0.10 s | long false
+[pauses]   pause 3 899->951cs | silence 0.52 s | long false
+[pair] pl-2 (23.3 s) | off / none (control) | 6827 ms
+[pair]   language pl | decoder segments 5 | pauses measured 4 | long 4 | junctions 4 | the decoder closed 4 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Będę super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->250cs:  Dobra wiadomość jest taka, że odzyskałem spój polski.
+[pair]   seg 1 286->438cs:  Udało mi się zrobić forkę.
+[pair]   seg 2 468->562cs:  Będę super whisper.
+[pair]   seg 3 598->684cs:  Dałem drugi model.
+[pair]   seg 4 732->882cs:  Jestem. Znowu po polsku.
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | prompt: none (the shipped app) | prompt cleared
+[pauses]   language pl | decoder segments 2 | decoder audio 10.94 s of 12.1 s | real pause kept 1.65 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 1 | junctions with a segment after them 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   seg 0 0->570cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pauses]   seg 1 660->1094cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   pause 0 291->320cs | silence 0.29 s | long false
+[pauses]   pause 1 589->663cs | silence 0.74 s | long true
+[pauses]   pause 2 813->823cs | silence 0.10 s | long false
+[pauses]   pause 3 899->951cs | silence 0.52 s | long false
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | prompt: the instruction-shaped string (hypothetical) | prompt kept
+[pauses]   language pl | decoder segments 2 | decoder audio 10.94 s of 12.1 s | real pause kept 1.65 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 1 | junctions with a segment after them 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,0 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   word delta vs the empty-prompt arm: -0 [] +0 []
+[pauses]   words unchanged: true
+[pauses]   text: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś spieprzył po całości.
+[pauses]   seg 0 0->564cs:  Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pauses]   seg 1 666->1094cs:  Bo tu chodzi o to że żeś spieprzył po całości.
+[pauses]   pause 0 291->320cs | silence 0.29 s | long false
+[pauses]   pause 1 589->663cs | silence 0.74 s | long true
+[pauses]   pause 2 813->823cs | silence 0.10 s | long false
+[pauses]   pause 3 899->951cs | silence 0.52 s | long false
+[pair] pl-2 (23.3 s) | shipped (no stored prompt, switch on) | 8515 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 4 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -3 ["będę", "dałem", "spój"] +3 ["dodałem", "open", "swój"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pair] pl-2 (23.3 s) shipped | the engine measured pl | the table's prompt for it: Zrobiłem to wczoraj. Sprawdzę to jutro. Możesz na to spojrzeć? Nie ma problemu.
+[same-language] first utterance overlapping the warm-up: 26.29 s
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | prompt: candidate 1 (comma, colon, question) | prompt kept
+[pauses]   language pl | decoder segments 1 | decoder audio 10.94 s of 12.1 s | real pause kept 1.65 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 1 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   word delta vs the empty-prompt arm: -0 [] +0 []
+[pauses]   words unchanged: true
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   seg 0 0->1094cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   pause 0 291->320cs | silence 0.29 s | long false
+[pauses]   pause 1 589->663cs | silence 0.74 s | long true
+[pauses]   pause 2 813->823cs | silence 0.10 s | long false
+[pauses]   pause 3 899->951cs | silence 0.52 s | long false
+[pair] pl-2 (23.3 s) | shipped: the same prompt, written out | 6299 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 4 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -3 ["będę", "dałem", "spój"] +3 ["dodałem", "open", "swój"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | prompt: candidate 2 (short sentences, questions) | prompt kept
+[pauses]   language pl | decoder segments 1 | decoder audio 10.94 s of 12.1 s | real pause kept 1.65 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 1 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   word delta vs the empty-prompt arm: -0 [] +0 []
+[pauses]   words unchanged: true
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   seg 0 0->1094cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   pause 0 291->320cs | silence 0.29 s | long false
+[pauses]   pause 1 589->663cs | silence 0.74 s | long true
+[pauses]   pause 2 813->823cs | silence 0.10 s | long false
+[pauses]   pause 3 899->951cs | silence 0.52 s | long false
+[pair] en control (33.0 s) | off / none (control) | 4367 ms
+[pair]   language en | decoder segments 4 | pauses measured 7 | long 5 | junctions 2 | the decoder closed 1 | the pause closed 0 | left open 1
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,0 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   text: Also add feature to ignore pauses. Basically how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->250cs:  Also add feature to ignore pauses.
+[pair]   seg 1 250->750cs:  Basically how it creates a sentence without a sense
+[pair]   seg 2 1030->1270cs:  because of my long pauses.
+[pair]   seg 3 1270->1488cs:  The pauses need to be ignored.
+[pauses] ------------------------------------------------------------
+[pauses] pl-1 (12.1 s) | after (switch on), repeated | prompt cleared
+[pauses]   language pl | decoder segments 2 | decoder audio 10.94 s of 12.1 s | real pause kept 1.65 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 1 | junctions with a segment after them 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   seg 0 0->570cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pauses]   seg 1 660->1094cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses]   pause 0 291->320cs | silence 0.29 s | long false
+[pauses]   pause 1 589->663cs | silence 0.74 s | long true
+[pauses]   pause 2 813->823cs | silence 0.10 s | long false
+[pauses]   pause 3 899->951cs | silence 0.52 s | long false
+[pauses] pl-1 (12.1 s) the same arm twice is identical: true
+[pauses] pl-1 (12.1 s) switch-off text == the app's stored transcript (with his initialPrompt): false
+[pauses] ============================================================
+[pauses] pl-2 (23.3 s) | B2EA9010-97C9-40AB-A7A2-746323A45297.wav | 372800 samples (23.3 s) | VAD segments 5
+[pauses]   gap 1: VAD 195 cs (1.95 s) | decoder-visible under the switch 1.85 s | segment 0 ends at 317 cs, segment 1 starts at 512 cs
+[pauses]   gap 2: VAD 577 cs (5.77 s) | decoder-visible under the switch 5.67 s | segment 1 ends at 678 cs, segment 2 starts at 1255 cs
+[pauses]   gap 3: VAD 343 cs (3.43 s) | decoder-visible under the switch 3.33 s | segment 2 ends at 1366 cs, segment 3 starts at 1709 cs
+[pauses]   gap 4: VAD 125 cs (1.25 s) | decoder-visible under the switch 1.15 s | segment 3 ends at 1814 cs, segment 4 starts at 1939 cs
+[pair] en control (33.0 s) | shipped (no stored prompt, switch on) | 5464 ms
+[pair]   language en | decoder segments 1 | pauses measured 7 | long 5 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -2 ["how", "sentence"] +2 ["now", "sentences"] | unchanged false
+[pair]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair] en control (33.0 s) shipped | the engine measured en | the table's prompt for it: Okay, one more time: I sent the report on Monday, but Anna hasn't replied. Can you check?
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | before (switch off) | prompt cleared
+[pauses]   language pl | decoder segments 5 | decoder audio 8.82 s of 23.3 s | real pause kept 0.00 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 4 | junctions with a segment after them 4 | the decoder closed 4 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Będę super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->250cs:  Dobra wiadomość jest taka, że odzyskałem spój polski.
+[pauses]   seg 1 286->438cs:  Udało mi się zrobić forkę.
+[pauses]   seg 2 468->562cs:  Będę super whisper.
+[pauses]   seg 3 598->684cs:  Dałem drugi model.
+[pauses]   seg 4 732->882cs:  Jestem. Znowu po polsku.
+[pauses]   pause 0 276->286cs | silence 1.85 s | long true
+[pauses]   pause 1 462->472cs | silence 5.67 s | long true
+[pauses]   pause 2 593->603cs | silence 3.33 s | long true
+[pauses]   pause 3 718->728cs | silence 1.15 s | long true
+[pair] en control (33.0 s) | shipped: the same prompt, written out | 4333 ms
+[pair]   language en | decoder segments 1 | pauses measured 7 | long 5 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -2 ["how", "sentence"] +2 ["now", "sentences"] | unchanged false
+[pair]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair] ============================================================
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | audio only (no terminator) | prompt cleared
+[pauses]   language pl | decoder segments 6 | decoder audio 11.62 s of 23.3 s | real pause kept 3.20 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 4 | junctions with a segment after them 4 | the decoder closed 4 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. I jestem. Znowu po polsku.
+[pauses]   seg 0 0->176cs:  Dobra wiadomość jest taka, że odzyskałem
+[pauses]   seg 1 176->248cs:  spój polski.
+[pauses]   seg 2 346->498cs:  Udało mi się zrobić forkę.
+[pauses]   seg 3 592->714cs:  Open Super Whisper.
+[pauses]   seg 4 804->894cs:  Dodałem drugi model.
+[pauses]   seg 5 1008->1162cs:  I jestem. Znowu po polsku.
+[pauses]   pause 0 276->356cs | silence 1.85 s | long true
+[pauses]   pause 1 532->612cs | silence 5.67 s | long true
+[pauses]   pause 2 733->813cs | silence 3.33 s | long true
+[pauses]   pause 3 928->1008cs | silence 1.15 s | long true
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | after (switch on) | prompt cleared
+[pauses]   language pl | decoder segments 1 | decoder audio 11.62 s of 23.3 s | real pause kept 3.20 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   pause 0 276->356cs | silence 1.85 s | long true
+[pauses]   pause 1 532->612cs | silence 5.67 s | long true
+[pauses]   pause 2 733->813cs | silence 3.33 s | long true
+[pauses]   pause 3 928->1008cs | silence 1.15 s | long true
+[pair] ============================================================
+[pair] model /Volumes/home/zenon/Library/Application Support/ru.starmel.OpenSuperWhisper/whisper-models/ggml-large-v3-turbo.bin
+[pair] vad /Volumes/home/zenon/Projects/OpenSuperWhisper-fork/worktrees/OpenSuperWhisper-fm-pauseimpl/build/Build/Products/Debug/OpenSuperWhisper.app/Contents/Resources/ggml-silero-v5.1.2.bin
+[pair] the control is the switch off with no prompt: upstream's 0.1 s of zeros at every pause. Every arm below is diffed against it, word by word.
+[pair] on a switch-on arm an empty stored prompt sends the engine's own default for the language it measures (pl: 'Zrobiłem to wczoraj. Sprawdzę to jutro. Możesz na to spojrzeć? Nie ma problemu.'; en: 'Okay, one more time: I sent the report on Monday, but Anna hasn't replied. Can you check?') — the `none` rows of this run's tables are that default, and the switch-off control above sends nothing at all.
+[pair] ============================================================
+[pair] pl-1 (12.1 s) | 5C68BFAC-5EC8-45CC-8239-3B5659272C1A.wav | 193600 samples (12.1 s) | VAD segments 5
+[pair]   gap 1: VAD 39 cs (0.39 s) | decoder-visible under the switch 0.29 s
+[pair]   gap 2: VAD 84 cs (0.84 s) | decoder-visible under the switch 0.74 s
+[pair]   gap 3: VAD 20 cs (0.2 s) | decoder-visible under the switch 0.10 s
+[pair]   gap 4: VAD 62 cs (0.62 s) | decoder-visible under the switch 0.52 s
+[pair] pl-1 (12.1 s) | off / none (control) | 4923 ms
+[pair]   language pl | decoder segments 2 | pauses measured 4 | long 1 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pair]   seg 0 0->288cs:  Dobra ziameczku, tak nie możesz tego zrobić.
+[pair]   seg 1 288->970cs:  Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pair] pl-1 (12.1 s) switch-off/none text == the app's stored transcript: false
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | sweep: cap 0.2 s | prompt cleared
+[pauses]   language pl | decoder segments 1 | decoder audio 9.22 s of 23.3 s | real pause kept 0.80 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->922cs:  Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   pause 0 276->296cs | silence 1.85 s | long true
+[pauses]   pause 1 472->492cs | silence 5.67 s | long true
+[pauses]   pause 2 613->633cs | silence 3.33 s | long true
+[pauses]   pause 3 748->768cs | silence 1.15 s | long true
+[pair] pl-1 (12.1 s) | on / none (the shipped default) | 6460 ms
+[pair]   language pl | decoder segments 2 | pauses measured 4 | long 1 | junctions 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["pieprzył"] +1 ["spieprzył"] | unchanged false
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pair]   seg 0 0->570cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pair]   seg 1 660->1094cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | sweep: cap 0.4 s | prompt cleared
+[pauses]   language pl | decoder segments 1 | decoder audio 10.02 s of 23.3 s | real pause kept 1.60 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->1002cs:  Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   pause 0 276->316cs | silence 1.85 s | long true
+[pauses]   pause 1 492->532cs | silence 5.67 s | long true
+[pauses]   pause 2 653->693cs | silence 3.33 s | long true
+[pauses]   pause 3 808->848cs | silence 1.15 s | long true
+[pair] pl-1 (12.1 s) | on / attributed (instruction-shaped) | 4847 ms
+[pair]   language pl | decoder segments 2 | pauses measured 4 | long 1 | junctions 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,0 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["pieprzył"] +1 ["spieprzył"] | unchanged false
+[pair]   text: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś spieprzył po całości.
+[pair]   seg 0 0->564cs:  Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pair]   seg 1 666->1094cs:  Bo tu chodzi o to że żeś spieprzył po całości.
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | sweep: cap 0.6 s | prompt cleared
+[pauses]   language pl | decoder segments 1 | decoder audio 10.82 s of 23.3 s | real pause kept 2.40 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->1082cs:  Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   pause 0 276->336cs | silence 1.85 s | long true
+[pauses]   pause 1 512->572cs | silence 5.67 s | long true
+[pauses]   pause 2 693->753cs | silence 3.33 s | long true
+[pauses]   pause 3 868->928cs | silence 1.15 s | long true
+[pair] pl-1 (12.1 s) | on / c1 (pl) | 2964 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 1 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["pieprzył"] +1 ["spieprzył"] | unchanged false
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś spieprzył po całości.
+[pair]   seg 0 0->1094cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś spieprzył po całości.
+[pair] pl-1 (12.1 s) | on / c2 (pl) | 4890 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 1 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["pieprzył"] +1 ["spieprzył"] | unchanged false
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś spieprzył po całości.
+[pair]   seg 0 0->1094cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | sweep: threshold 0.4 s | prompt cleared
+[pauses]   language pl | decoder segments 1 | decoder audio 11.62 s of 23.3 s | real pause kept 3.20 s
+[pauses]   pauses measured 4 | long (>= 0.4 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   pause 0 276->356cs | silence 1.85 s | long true
+[pauses]   pause 1 532->612cs | silence 5.67 s | long true
+[pauses]   pause 2 733->813cs | silence 3.33 s | long true
+[pauses]   pause 3 928->1008cs | silence 1.15 s | long true
+[pair] pl-1 (12.1 s) | on / c3 (pl, no commas) | 5005 ms
+[pair]   language pl | decoder segments 2 | pauses measured 4 | long 1 | junctions 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["pieprzył"] +1 ["spieprzył"] | unchanged false
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pair]   seg 0 0->570cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pair]   seg 1 660->1094cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | sweep: threshold 0.5 s | prompt cleared
+[pauses]   language pl | decoder segments 1 | decoder audio 11.62 s of 23.3 s | real pause kept 3.20 s
+[pauses]   pauses measured 4 | long (>= 0.5 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   pause 0 276->356cs | silence 1.85 s | long true
+[pauses]   pause 1 532->612cs | silence 5.67 s | long true
+[pauses]   pause 2 733->813cs | silence 3.33 s | long true
+[pauses]   pause 3 928->1008cs | silence 1.15 s | long true
+[pair] pl-1 (12.1 s) | on / c1 EN | 3707 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 1 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["pieprzył"] +1 ["spieprzył"] | unchanged false
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś spieprzył po całości.
+[pair]   seg 0 0->1094cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś spieprzył po całości.
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | sweep: threshold 0.8 s | prompt cleared
+[pauses]   language pl | decoder segments 1 | decoder audio 11.62 s of 23.3 s | real pause kept 3.20 s
+[pauses]   pauses measured 4 | long (>= 0.8 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   pause 0 276->356cs | silence 1.85 s | long true
+[pauses]   pause 1 532->612cs | silence 5.67 s | long true
+[pauses]   pause 2 733->813cs | silence 3.33 s | long true
+[pauses]   pause 3 928->1008cs | silence 1.15 s | long true
+[pair] pl-1 (12.1 s) | off / attributed (instruction-shaped) | 4081 ms
+[pair]   language pl | decoder segments 2 | pauses measured 4 | long 1 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,0 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -0 [] +0 [] | unchanged true
+[pair]   text: Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to że żeś pieprzył po całości.
+[pair]   seg 0 0->550cs:  Dobra ziameczku tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pair]   seg 1 550->970cs:  Bo tu chodzi o to że żeś pieprzył po całości.
+[pair] pl-1 (12.1 s) | off / c1 (pl) | 5182 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 1 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -0 [] +0 [] | unchanged true
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pair]   seg 0 0->970cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | prompt: none (the shipped app) | prompt cleared
+[pauses]   language pl | decoder segments 1 | decoder audio 11.62 s of 23.3 s | real pause kept 3.20 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   pause 0 276->356cs | silence 1.85 s | long true
+[pauses]   pause 1 532->612cs | silence 5.67 s | long true
+[pauses]   pause 2 733->813cs | silence 3.33 s | long true
+[pauses]   pause 3 928->1008cs | silence 1.15 s | long true
+[pair] pl-1 (12.1 s) | off / c2 (pl) | 4424 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 1 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -0 [] +0 [] | unchanged true
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pair]   seg 0 0->970cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | prompt: the instruction-shaped string (hypothetical) | prompt kept
+[pauses]   language pl | decoder segments 1 | decoder audio 11.62 s of 23.3 s | real pause kept 3.20 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   word delta vs the empty-prompt arm: -1 ["forkę"] +1 ["fork"]
+[pauses]   words unchanged: false
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   pause 0 276->356cs | silence 1.85 s | long true
+[pauses]   pause 1 532->612cs | silence 5.67 s | long true
+[pauses]   pause 2 733->813cs | silence 3.33 s | long true
+[pauses]   pause 3 928->1008cs | silence 1.15 s | long true
+[pair] pl-1 (12.1 s) | off / c3 (pl, no commas) | 4512 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 1 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -0 [] +0 [] | unchanged true
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pair]   seg 0 0->968cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | prompt: candidate 1 (comma, colon, question) | prompt kept
+[pauses]   language pl | decoder segments 1 | decoder audio 11.62 s of 23.3 s | real pause kept 3.20 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   word delta vs the empty-prompt arm: -1 ["swój"] +1 ["spój"]
+[pauses]   words unchanged: false
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   pause 0 276->356cs | silence 1.85 s | long true
+[pauses]   pause 1 532->612cs | silence 5.67 s | long true
+[pauses]   pause 2 733->813cs | silence 3.33 s | long true
+[pauses]   pause 3 928->1008cs | silence 1.15 s | long true
+[pair] pl-1 (12.1 s) | off / c1 EN | 4452 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 1 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 2 | fragments (<=2 words) 0 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -0 [] +0 [] | unchanged true
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pair]   seg 0 0->970cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą, bo tu chodzi o to, że żeś pieprzył po całości.
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | prompt: candidate 2 (short sentences, questions) | prompt kept
+[pauses]   language pl | decoder segments 1 | decoder audio 11.62 s of 23.3 s | real pause kept 3.20 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   word delta vs the empty-prompt arm: -1 ["swój"] +1 ["spój"]
+[pauses]   words unchanged: false
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   pause 0 276->356cs | silence 1.85 s | long true
+[pauses]   pause 1 532->612cs | silence 5.67 s | long true
+[pauses]   pause 2 733->813cs | silence 3.33 s | long true
+[pauses]   pause 3 928->1008cs | silence 1.15 s | long true
+[pair] pl-1 (12.1 s) | on / none (repeated) | 6330 ms
+[pair]   language pl | decoder segments 2 | pauses measured 4 | long 1 | junctions 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["pieprzył"] +1 ["spieprzył"] | unchanged false
+[pair]   text: Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą. Bo tu chodzi o to, że żeś spieprzył po całości.
+[pair]   seg 0 0->570cs:  Dobra ziameczku, tak nie możesz tego zrobić. Musisz pójść zupełnie inną drogą.
+[pair]   seg 1 660->1094cs:  Bo tu chodzi o to, że żeś spieprzył po całości.
+[pair] pl-1 (12.1 s) the same arm twice is identical: true
+[pair] ------------------------------------------------------------
+[pair] pl-1 (12.1 s) | attributed (instruction-shaped) | sentences 3 | punctuation .3 ,0 ?0 !0 :0 ;0 …0 —0 "0 | words -1 +1 | win-words:yes boundary:yes(2->3)
+[pair] pl-1 (12.1 s) | c1 (pl) | sentences 2 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0 | words -1 +1 | win-words:NO(drogą.) boundary:NO(2->2)
+[pair] pl-1 (12.1 s) | c1 EN | sentences 2 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0 | words -1 +1 | win-words:NO(drogą.) boundary:NO(2->2)
+[pair] pl-1 (12.1 s) | c2 (pl) | sentences 2 | punctuation .2 ,3 ?0 !0 :0 ;0 …0 —0 "0 | words -1 +1 | win-words:NO(drogą.) boundary:NO(2->2)
+[pair] pl-1 (12.1 s) | c3 (pl, no commas) | sentences 3 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0 | words -1 +1 | win-words:yes boundary:yes(2->3)
+[pair] pl-1 (12.1 s) | none (the shipped default) | sentences 3 | punctuation .3 ,2 ?0 !0 :0 ;0 …0 —0 "0 | words -1 +1 | win-words:yes boundary:yes(2->3)
+[pair] ------------------------------------------------------------
+[pair] pl-1 (12.1 s) arms decoded: 13 | slowest 6460 ms
+[pauses] ------------------------------------------------------------
+[pauses] pl-2 (23.3 s) | after (switch on), repeated | prompt cleared
+[pauses]   language pl | decoder segments 1 | decoder audio 11.62 s of 23.3 s | real pause kept 3.20 s
+[pauses]   pauses measured 4 | long (>= 0.6 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses]   pause 0 276->356cs | silence 1.85 s | long true
+[pauses]   pause 1 532->612cs | silence 5.67 s | long true
+[pauses]   pause 2 733->813cs | silence 3.33 s | long true
+[pauses]   pause 3 928->1008cs | silence 1.15 s | long true
+[pauses] pl-2 (23.3 s) the same arm twice is identical: true
+[pauses] pl-2 (23.3 s) switch-off text == the app's stored transcript (with his initialPrompt): false
+[pair] ============================================================
+[pair] pl-2 (23.3 s) | B2EA9010-97C9-40AB-A7A2-746323A45297.wav | 372800 samples (23.3 s) | VAD segments 5
+[pair]   gap 1: VAD 195 cs (1.95 s) | decoder-visible under the switch 1.85 s
+[pair]   gap 2: VAD 577 cs (5.77 s) | decoder-visible under the switch 5.67 s
+[pair]   gap 3: VAD 343 cs (3.43 s) | decoder-visible under the switch 3.33 s
+[pair]   gap 4: VAD 125 cs (1.25 s) | decoder-visible under the switch 1.15 s
+[pauses] ============================================================
+[pauses] en control (33.0 s) | D92A0B10-EB8D-4D47-80B9-A9F3A88C112F.wav | 528000 samples (33.0 s) | VAD segments 8
+[pauses]   gap 1: VAD 87 cs (0.87 s) | decoder-visible under the switch 0.77 s | segment 0 ends at 297 cs, segment 1 starts at 384 cs
+[pauses]   gap 2: VAD 445 cs (4.45 s) | decoder-visible under the switch 4.35 s | segment 1 ends at 483 cs, segment 2 starts at 928 cs
+[pauses]   gap 3: VAD 42 cs (0.42 s) | decoder-visible under the switch 0.32 s | segment 2 ends at 1008 cs, segment 3 starts at 1050 cs
+[pauses]   gap 4: VAD 145 cs (1.45 s) | decoder-visible under the switch 1.35 s | segment 3 ends at 1145 cs, segment 4 starts at 1290 cs
+[pauses]   gap 5: VAD 317 cs (3.17 s) | decoder-visible under the switch 3.07 s | segment 4 ends at 1395 cs, segment 5 starts at 1712 cs
+[pauses]   gap 6: VAD 118 cs (1.18 s) | decoder-visible under the switch 1.08 s | segment 5 ends at 1853 cs, segment 6 starts at 1971 cs
+[pauses]   gap 7: VAD 16 cs (0.16 s) | decoder-visible under the switch 0.06 s | segment 6 ends at 2349 cs, segment 7 starts at 2365 cs
+[pair] pl-2 (23.3 s) | off / none (control) | 4911 ms
+[pair]   language pl | decoder segments 5 | pauses measured 4 | long 4 | junctions 4 | the decoder closed 4 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Będę super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->250cs:  Dobra wiadomość jest taka, że odzyskałem spój polski.
+[pair]   seg 1 286->438cs:  Udało mi się zrobić forkę.
+[pair]   seg 2 468->562cs:  Będę super whisper.
+[pair]   seg 3 598->684cs:  Dałem drugi model.
+[pair]   seg 4 732->882cs:  Jestem. Znowu po polsku.
+[pair] pl-2 (23.3 s) switch-off/none text == the app's stored transcript: false
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | before (switch off) | prompt cleared
+[pauses]   language en | decoder segments 4 | decoder audio 14.88 s of 33.0 s | real pause kept 0.00 s
+[pauses]   pauses measured 7 | long (>= 0.6 s) 5 | junctions with a segment after them 2 | the decoder closed 1 | the pause closed 0 | left open 1
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,0 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Also add feature to ignore pauses. Basically how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->250cs:  Also add feature to ignore pauses.
+[pauses]   seg 1 250->750cs:  Basically how it creates a sentence without a sense
+[pauses]   seg 2 1030->1270cs:  because of my long pauses.
+[pauses]   seg 3 1270->1488cs:  The pauses need to be ignored.
+[pauses]   pause 0 240->250cs | silence 0.77 s | long true
+[pauses]   pause 1 359->369cs | silence 4.35 s | long true
+[pauses]   pause 2 459->469cs | silence 0.32 s | long false
+[pauses]   pause 3 574->584cs | silence 1.35 s | long true
+[pauses]   pause 4 699->709cs | silence 3.07 s | long true
+[pauses]   pause 5 860->870cs | silence 1.08 s | long true
+[pauses]   pause 6 1258->1268cs | silence 0.06 s | long false
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | audio only (no terminator) | prompt cleared
+[pauses]   language en | decoder segments 5 | decoder audio 18.57 s of 33.0 s | real pause kept 4.35 s
+[pauses]   pauses measured 7 | long (>= 0.6 s) 5 | junctions with a segment after them 2 | the decoder closed 1 | the pause closed 0 | left open 1
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,4 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Also add feature to ignore pauses. Basically, now it creates, based, no, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->312cs:  Also add feature to ignore pauses.
+[pauses]   seg 1 312->808cs:  Basically, now it creates,
+[pauses]   seg 2 808->1308cs:  based, no, now it creates a sentences without a sense
+[pauses]   seg 3 1400->1638cs:  because of my long pauses.
+[pauses]   seg 4 1638->1856cs:  The pauses need to be ignored.
+[pauses]   pause 0 240->317cs | silence 0.77 s | long true
+[pauses]   pause 1 426->506cs | silence 4.35 s | long true
+[pauses]   pause 2 596->628cs | silence 0.32 s | long false
+[pauses]   pause 3 733->813cs | silence 1.35 s | long true
+[pauses]   pause 4 928->1008cs | silence 3.07 s | long true
+[pauses]   pause 5 1159->1239cs | silence 1.08 s | long true
+[pauses]   pause 6 1627->1637cs | silence 0.06 s | long false
+[pair] pl-2 (23.3 s) | on / none (the shipped default) | 5949 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 4 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -3 ["będę", "dałem", "spój"] +3 ["dodałem", "open", "swój"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pair] pl-2 (23.3 s) | on / attributed (instruction-shaped) | 5535 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 4 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -4 ["będę", "dałem", "forkę", "spój"] +4 ["dodałem", "fork", "open", "swój"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | after (switch on) | prompt cleared
+[pauses]   language en | decoder segments 1 | decoder audio 18.57 s of 33.0 s | real pause kept 4.35 s
+[pauses]   pauses measured 7 | long (>= 0.6 s) 5 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   pause 0 240->317cs | silence 0.77 s | long true
+[pauses]   pause 1 426->506cs | silence 4.35 s | long true
+[pauses]   pause 2 596->628cs | silence 0.32 s | long false
+[pauses]   pause 3 733->813cs | silence 1.35 s | long true
+[pauses]   pause 4 928->1008cs | silence 3.07 s | long true
+[pauses]   pause 5 1159->1239cs | silence 1.08 s | long true
+[pauses]   pause 6 1627->1637cs | silence 0.06 s | long false
+[pair] pl-2 (23.3 s) | on / c1 (pl) | 5415 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 4 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -2 ["będę", "dałem"] +2 ["dodałem", "open"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | sweep: cap 0.2 s | prompt cleared
+[pauses]   language en | decoder segments 1 | decoder audio 15.48 s of 33.0 s | real pause kept 1.26 s
+[pauses]   pauses measured 7 | long (>= 0.6 s) 5 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->1548cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   pause 0 240->260cs | silence 0.77 s | long true
+[pauses]   pause 1 369->389cs | silence 4.35 s | long true
+[pauses]   pause 2 479->499cs | silence 0.32 s | long false
+[pauses]   pause 3 604->624cs | silence 1.35 s | long true
+[pauses]   pause 4 739->759cs | silence 3.07 s | long true
+[pauses]   pause 5 910->930cs | silence 1.08 s | long true
+[pauses]   pause 6 1318->1328cs | silence 0.06 s | long false
+[pair] pl-2 (23.3 s) | on / c2 (pl) | 5401 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 4 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -2 ["będę", "dałem"] +2 ["dodałem", "open"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | sweep: cap 0.4 s | prompt cleared
+[pauses]   language en | decoder segments 1 | decoder audio 16.6 s of 33.0 s | real pause kept 2.38 s
+[pauses]   pauses measured 7 | long (>= 0.6 s) 5 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Also add feature to ignore pauses. Basically, now it creates a sentences profound sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->1660cs:  Also add feature to ignore pauses. Basically, now it creates a sentences profound sense because of my long pauses. The pauses need to be ignored.
+[pauses]   pause 0 240->280cs | silence 0.77 s | long true
+[pauses]   pause 1 389->429cs | silence 4.35 s | long true
+[pauses]   pause 2 519->551cs | silence 0.32 s | long false
+[pauses]   pause 3 656->696cs | silence 1.35 s | long true
+[pauses]   pause 4 811->851cs | silence 3.07 s | long true
+[pauses]   pause 5 1002->1042cs | silence 1.08 s | long true
+[pauses]   pause 6 1430->1440cs | silence 0.06 s | long false
+[pair] pl-2 (23.3 s) | on / c3 (pl, no commas) | 5294 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 4 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -3 ["będę", "dałem", "spój"] +3 ["dodałem", "open", "swój"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | sweep: cap 0.6 s | prompt cleared
+[pauses]   language en | decoder segments 1 | decoder audio 17.6 s of 33.0 s | real pause kept 3.38 s
+[pauses]   pauses measured 7 | long (>= 0.6 s) 5 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->1760cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   pause 0 240->300cs | silence 0.77 s | long true
+[pauses]   pause 1 409->469cs | silence 4.35 s | long true
+[pauses]   pause 2 559->591cs | silence 0.32 s | long false
+[pauses]   pause 3 696->756cs | silence 1.35 s | long true
+[pauses]   pause 4 871->931cs | silence 3.07 s | long true
+[pauses]   pause 5 1082->1142cs | silence 1.08 s | long true
+[pauses]   pause 6 1530->1540cs | silence 0.06 s | long false
+[pair] pl-2 (23.3 s) | on / c1 EN | 4856 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 4 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -4 ["będę", "dałem", "forkę", "spój"] +5 ["a", "dodałem", "fork", "open", "swój"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork-a. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork-a. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | sweep: threshold 0.4 s | prompt cleared
+[pauses]   language en | decoder segments 1 | decoder audio 18.57 s of 33.0 s | real pause kept 4.35 s
+[pauses]   pauses measured 7 | long (>= 0.4 s) 5 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   pause 0 240->317cs | silence 0.77 s | long true
+[pauses]   pause 1 426->506cs | silence 4.35 s | long true
+[pauses]   pause 2 596->628cs | silence 0.32 s | long false
+[pauses]   pause 3 733->813cs | silence 1.35 s | long true
+[pauses]   pause 4 928->1008cs | silence 3.07 s | long true
+[pauses]   pause 5 1159->1239cs | silence 1.08 s | long true
+[pauses]   pause 6 1627->1637cs | silence 0.06 s | long false
+[pair] pl-2 (23.3 s) | off / attributed (instruction-shaped) | 4077 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 4 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -3 ["będę", "forkę", "spój"] +3 ["ben", "fork", "swój"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->882cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | sweep: threshold 0.5 s | prompt cleared
+[pauses]   language en | decoder segments 1 | decoder audio 18.57 s of 33.0 s | real pause kept 4.35 s
+[pauses]   pauses measured 7 | long (>= 0.5 s) 5 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   pause 0 240->317cs | silence 0.77 s | long true
+[pauses]   pause 1 426->506cs | silence 4.35 s | long true
+[pauses]   pause 2 596->628cs | silence 0.32 s | long false
+[pauses]   pause 3 733->813cs | silence 1.35 s | long true
+[pauses]   pause 4 928->1008cs | silence 3.07 s | long true
+[pauses]   pause 5 1159->1239cs | silence 1.08 s | long true
+[pauses]   pause 6 1627->1637cs | silence 0.06 s | long false
+[pair] pl-2 (23.3 s) | off / c1 (pl) | 4418 ms
+[pair]   language pl | decoder segments 2 | pauses measured 4 | long 4 | junctions 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pair]   sentences 4 | fragments (<=2 words) 0 | punctuation .4 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -3 ["będę", "dałem", "forkę"] +5 ["a", "ben", "fork", "i", "udałem"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić fork-a. Ben super whisper. Udałem drugi model i jestem znowu po polsku.
+[pair]   seg 0 0->460cs:  Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić fork-a.
+[pair]   seg 1 460->882cs:  Ben super whisper. Udałem drugi model i jestem znowu po polsku.
+[pair] pl-2 (23.3 s) | off / c2 (pl) | 5688 ms
+[pair]   language pl | decoder segments 5 | pauses measured 4 | long 4 | junctions 2 | the decoder closed 2 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -2 ["będę", "forkę"] +3 ["a", "ben", "fork"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić fork-a. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->260cs:  Dobra wiadomość jest taka, że odzyskałem spój polski.
+[pair]   seg 1 260->460cs:  Udało mi się zrobić fork-a.
+[pair]   seg 2 460->580cs:  Ben super whisper.
+[pair]   seg 3 580->700cs:  Dałem drugi model.
+[pair]   seg 4 700->882cs:  Jestem. Znowu po polsku.
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | sweep: threshold 0.8 s | prompt cleared
+[pauses]   language en | decoder segments 1 | decoder audio 18.57 s of 33.0 s | real pause kept 4.35 s
+[pauses]   pauses measured 7 | long (>= 0.8 s) 4 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   pause 0 240->317cs | silence 0.77 s | long false
+[pauses]   pause 1 426->506cs | silence 4.35 s | long true
+[pauses]   pause 2 596->628cs | silence 0.32 s | long false
+[pauses]   pause 3 733->813cs | silence 1.35 s | long true
+[pauses]   pause 4 928->1008cs | silence 3.07 s | long true
+[pauses]   pause 5 1159->1239cs | silence 1.08 s | long true
+[pauses]   pause 6 1627->1637cs | silence 0.06 s | long false
+[pair] pl-2 (23.3 s) | off / c3 (pl, no commas) | 5421 ms
+[pair]   language pl | decoder segments 2 | pauses measured 4 | long 4 | junctions 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["będę"] +1 ["ben"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->456cs:  Dobra wiadomość jest taka, że odzyskałem spój polski. Udało mi się zrobić forkę.
+[pair]   seg 1 456->882cs:  Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | prompt: none (the shipped app) | prompt cleared
+[pauses]   language en | decoder segments 1 | decoder audio 18.57 s of 33.0 s | real pause kept 4.35 s
+[pauses]   pauses measured 7 | long (>= 0.6 s) 5 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   pause 0 240->317cs | silence 0.77 s | long true
+[pauses]   pause 1 426->506cs | silence 4.35 s | long true
+[pauses]   pause 2 596->628cs | silence 0.32 s | long false
+[pauses]   pause 3 733->813cs | silence 1.35 s | long true
+[pauses]   pause 4 928->1008cs | silence 3.07 s | long true
+[pauses]   pause 5 1159->1239cs | silence 1.08 s | long true
+[pauses]   pause 6 1627->1637cs | silence 0.06 s | long false
+[pair] pl-2 (23.3 s) | off / c1 EN | 4855 ms
+[pair]   language pl | decoder segments 5 | pauses measured 4 | long 4 | junctions 3 | the decoder closed 3 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -3 ["będę", "forkę", "spój"] +4 ["a", "ben", "fork", "swój"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić fork-a. Ben super whisper. Dałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->260cs:  Dobra wiadomość jest taka, że odzyskałem swój polski.
+[pair]   seg 1 260->456cs:  Udało mi się zrobić fork-a.
+[pair]   seg 2 456->584cs:  Ben super whisper.
+[pair]   seg 3 584->704cs:  Dałem drugi model.
+[pair]   seg 4 704->882cs:  Jestem. Znowu po polsku.
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | prompt: the instruction-shaped string (hypothetical) | prompt kept
+[pauses]   language en | decoder segments 1 | decoder audio 18.57 s of 33.0 s | real pause kept 4.35 s
+[pauses]   pauses measured 7 | long (>= 0.6 s) 5 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,0 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   word delta vs the empty-prompt arm: -0 [] +0 []
+[pauses]   words unchanged: true
+[pauses]   text: Also add feature to ignore pauses. Basically now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   pause 0 240->317cs | silence 0.77 s | long true
+[pauses]   pause 1 426->506cs | silence 4.35 s | long true
+[pauses]   pause 2 596->628cs | silence 0.32 s | long false
+[pauses]   pause 3 733->813cs | silence 1.35 s | long true
+[pauses]   pause 4 928->1008cs | silence 3.07 s | long true
+[pauses]   pause 5 1159->1239cs | silence 1.08 s | long true
+[pauses]   pause 6 1627->1637cs | silence 0.06 s | long false
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | prompt: candidate 1 EN (the English counterpart) | prompt kept
+[pauses]   language en | decoder segments 1 | decoder audio 18.57 s of 33.0 s | real pause kept 4.35 s
+[pauses]   pauses measured 7 | long (>= 0.6 s) 5 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   word delta vs the empty-prompt arm: -0 [] +0 []
+[pauses]   words unchanged: true
+[pauses]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   pause 0 240->317cs | silence 0.77 s | long true
+[pauses]   pause 1 426->506cs | silence 4.35 s | long true
+[pauses]   pause 2 596->628cs | silence 0.32 s | long false
+[pauses]   pause 3 733->813cs | silence 1.35 s | long true
+[pauses]   pause 4 928->1008cs | silence 3.07 s | long true
+[pauses]   pause 5 1159->1239cs | silence 1.08 s | long true
+[pauses]   pause 6 1627->1637cs | silence 0.06 s | long false
+[pair] pl-2 (23.3 s) | on / none (repeated) | 5952 ms
+[pair]   language pl | decoder segments 1 | pauses measured 4 | long 4 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 6 | fragments (<=2 words) 1 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -3 ["będę", "dałem", "spój"] +3 ["dodałem", "open", "swój"] | unchanged false
+[pair]   text: Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pair]   seg 0 0->1162cs:  Dobra wiadomość jest taka, że odzyskałem swój polski. Udało mi się zrobić forkę. Open Super Whisper. Dodałem drugi model. Jestem. Znowu po polsku.
+[pair] pl-2 (23.3 s) the same arm twice is identical: true
+[pair] ------------------------------------------------------------
+[pair] pl-2 (23.3 s) | attributed (instruction-shaped) | sentences 6 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0 | words -4 +4 | win-words:yes
+[pair] pl-2 (23.3 s) | c1 (pl) | sentences 6 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0 | words -2 +2 | win-words:yes
+[pair] pl-2 (23.3 s) | c1 EN | sentences 6 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0 | words -4 +5 | win-words:yes
+[pair] pl-2 (23.3 s) | c2 (pl) | sentences 6 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0 | words -2 +2 | win-words:yes
+[pair] pl-2 (23.3 s) | c3 (pl, no commas) | sentences 6 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0 | words -3 +3 | win-words:yes
+[pair] pl-2 (23.3 s) | none (the shipped default) | sentences 6 | punctuation .6 ,1 ?0 !0 :0 ;0 …0 —0 "0 | words -3 +3 | win-words:yes
+[pair] ------------------------------------------------------------
+[pair] pl-2 (23.3 s) arms decoded: 13 | slowest 5952 ms
+[pair] ============================================================
+[pair] en control (33.0 s) | D92A0B10-EB8D-4D47-80B9-A9F3A88C112F.wav | 528000 samples (33.0 s) | VAD segments 8
+[pair]   gap 1: VAD 87 cs (0.87 s) | decoder-visible under the switch 0.77 s
+[pair]   gap 2: VAD 445 cs (4.45 s) | decoder-visible under the switch 4.35 s
+[pair]   gap 3: VAD 42 cs (0.42 s) | decoder-visible under the switch 0.32 s
+[pair]   gap 4: VAD 145 cs (1.45 s) | decoder-visible under the switch 1.35 s
+[pair]   gap 5: VAD 317 cs (3.17 s) | decoder-visible under the switch 3.07 s
+[pair]   gap 6: VAD 118 cs (1.18 s) | decoder-visible under the switch 1.08 s
+[pair]   gap 7: VAD 16 cs (0.16 s) | decoder-visible under the switch 0.06 s
+[pauses] ------------------------------------------------------------
+[pauses] en control (33.0 s) | after (switch on), repeated | prompt cleared
+[pauses]   language en | decoder segments 1 | decoder audio 18.57 s of 33.0 s | real pause kept 4.35 s
+[pauses]   pauses measured 7 | long (>= 0.6 s) 5 | junctions with a segment after them 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pauses]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pauses]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pauses]   pause 0 240->317cs | silence 0.77 s | long true
+[pauses]   pause 1 426->506cs | silence 4.35 s | long true
+[pauses]   pause 2 596->628cs | silence 0.32 s | long false
+[pauses]   pause 3 733->813cs | silence 1.35 s | long true
+[pauses]   pause 4 928->1008cs | silence 3.07 s | long true
+[pauses]   pause 5 1159->1239cs | silence 1.08 s | long true
+[pauses]   pause 6 1627->1637cs | silence 0.06 s | long false
+[pauses] en control (33.0 s) the same arm twice is identical: true
+[pauses] en control (33.0 s) switch-off text == the app's stored transcript (with his initialPrompt): false
+[pair] en control (33.0 s) | off / none (control) | 4925 ms
+[pair]   language en | decoder segments 4 | pauses measured 7 | long 5 | junctions 2 | the decoder closed 1 | the pause closed 0 | left open 1
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,0 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   text: Also add feature to ignore pauses. Basically how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->250cs:  Also add feature to ignore pauses.
+[pair]   seg 1 250->750cs:  Basically how it creates a sentence without a sense
+[pair]   seg 2 1030->1270cs:  because of my long pauses.
+[pair]   seg 3 1270->1488cs:  The pauses need to be ignored.
+[pair] en control (33.0 s) switch-off/none text == the app's stored transcript: true
+[pair] en control (33.0 s) | on / none (the shipped default) | 4191 ms
+[pair]   language en | decoder segments 1 | pauses measured 7 | long 5 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -2 ["how", "sentence"] +2 ["now", "sentences"] | unchanged false
+[pair]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair] en control (33.0 s) | on / attributed (instruction-shaped) | 3128 ms
+[pair]   language en | decoder segments 1 | pauses measured 7 | long 5 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,0 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -2 ["how", "sentence"] +2 ["now", "sentences"] | unchanged false
+[pair]   text: Also add feature to ignore pauses. Basically now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair] en control (33.0 s) | on / c1 (pl) | 3176 ms
+[pair]   language en | decoder segments 1 | pauses measured 7 | long 5 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 12 | fragments (<=2 words) 7 | punctuation .12 ,0 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -2 ["how", "sentence"] +6 ["creates", "it", "no", "now", "now", "sentences"] | unchanged false
+[pair]   text: Also add feature to ignore pauses. Basically now it creates... no... now it creates a... sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically now it creates... no... now it creates a... sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair] en control (33.0 s) | on / c2 (pl) | 3265 ms
+[pair]   language en | decoder segments 6 | pauses measured 7 | long 5 | junctions 4 | the decoder closed 4 | the pause closed 0 | left open 0
+[pair]   sentences 12 | fragments (<=2 words) 7 | punctuation .12 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -3 ["also", "how", "sentence"] +8 ["aż", "creates", "it", "nooo", "now", "now", "sentences", "to"] | unchanged false
+[pair]   text: Aż to add feature to ignore pauses. Basically, now it creates... Nooo... Now it creates a... Sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->230cs:  Aż to add feature to ignore pauses.
+[pair]   seg 1 314->742cs:  Basically, now it creates...
+[pair]   seg 2 806->938cs:  Nooo...
+[pair]   seg 3 992->1160cs:  Now it creates a...
+[pair]   seg 4 1232->1588cs:  Sentences without a sense because of my long pauses.
+[pair]   seg 5 1638->1856cs:  The pauses need to be ignored.
+[pair] en control (33.0 s) | on / c3 (pl, no commas) | 3993 ms
+[pair]   language en | decoder segments 1 | pauses measured 7 | long 5 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 12 | fragments (<=2 words) 7 | punctuation .12 ,0 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -2 ["how", "sentence"] +6 ["creates", "it", "no", "now", "now", "sentences"] | unchanged false
+[pair]   text: Also add feature to ignore pauses. Basically now it creates... No... Now it creates a... Sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically now it creates... No... Now it creates a... Sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair] en control (33.0 s) | on / c1 EN | 3144 ms
+[pair]   language en | decoder segments 1 | pauses measured 7 | long 5 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -2 ["how", "sentence"] +2 ["now", "sentences"] | unchanged false
+[pair]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair] en control (33.0 s) | off / attributed (instruction-shaped) | 3103 ms
+[pair]   language en | decoder segments 1 | pauses measured 7 | long 5 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,0 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -0 [] +0 [] | unchanged true
+[pair]   text: Also add feature to ignore pauses. Basically how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->1488cs:  Also add feature to ignore pauses. Basically how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[pair] en control (33.0 s) | off / c1 (pl) | 3101 ms
+[pair]   language en | decoder segments 1 | pauses measured 7 | long 5 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["also"] +0 [] | unchanged false
+[pair]   text: Add feature to ignore pauses. Basically, how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->1488cs:  Add feature to ignore pauses. Basically, how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[pair] en control (33.0 s) | off / c2 (pl) | 3172 ms
+[pair]   language en | decoder segments 3 | pauses measured 7 | long 5 | junctions 1 | the decoder closed 1 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["also"] +2 ["aż", "to"] | unchanged false
+[pair]   text: Aż to add feature to ignore pauses. Basically, how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->240cs:  Aż to add feature to ignore pauses.
+[pair]   seg 1 240->1240cs:  Basically, how it creates a sentence without a sense because of my long pauses.
+[pair]   seg 2 1240->1488cs:  The pauses need to be ignored.
+[pair] en control (33.0 s) | off / c3 (pl, no commas) | 3150 ms
+[pair]   language en | decoder segments 3 | pauses measured 7 | long 5 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["also"] +1 ["to"] | unchanged false
+[pair]   text: To add feature to ignore pauses. Basically, how it creates a sentence without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->300cs:  To add feature to ignore pauses.
+[pair]   seg 1 300->1200cs:  Basically, how it creates a sentence without a sense because of my long pauses.
+[pair]   seg 2 1200->1500cs:  The pauses need to be ignored.
+[pair] en control (33.0 s) | off / c1 EN | 3091 ms
+[pair]   language en | decoder segments 1 | pauses measured 7 | long 5 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -1 ["sense"] +1 ["sentence"] | unchanged false
+[pair]   text: Also add feature to ignore pauses. Basically, how it creates a sentence without a sentence because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->1488cs:  Also add feature to ignore pauses. Basically, how it creates a sentence without a sentence because of my long pauses. The pauses need to be ignored.
+[pair] en control (33.0 s) | on / none (repeated) | 4151 ms
+[pair]   language en | decoder segments 1 | pauses measured 7 | long 5 | junctions 0 | the decoder closed 0 | the pause closed 0 | left open 0
+[pair]   sentences 3 | fragments (<=2 words) 0 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0
+[pair]   word delta vs the switch-off/none control: -2 ["how", "sentence"] +2 ["now", "sentences"] | unchanged false
+[pair]   text: Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair]   seg 0 0->1856cs:  Also add feature to ignore pauses. Basically, now it creates a sentences without a sense because of my long pauses. The pauses need to be ignored.
+[pair] en control (33.0 s) the same arm twice is identical: true
+[pair] ------------------------------------------------------------
+[pair] en control (33.0 s) | attributed (instruction-shaped) | sentences 3 | punctuation .3 ,0 ?0 !0 :0 ;0 …0 —0 "0 | words -2 +2 | english-clean:NO
+[pair] en control (33.0 s) | c1 (pl) | sentences 12 | punctuation .12 ,0 ?0 !0 :0 ;0 …0 —0 "0 | words -2 +6 | english-clean:NO
+[pair] en control (33.0 s) | c1 EN | sentences 3 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0 | words -2 +2 | english-clean:NO
+[pair] en control (33.0 s) | c2 (pl) | sentences 12 | punctuation .12 ,1 ?0 !0 :0 ;0 …0 —0 "0 | words -3 +8 | english-clean:NO
+[pair] en control (33.0 s) | c3 (pl, no commas) | sentences 12 | punctuation .12 ,0 ?0 !0 :0 ;0 …0 —0 "0 | words -2 +6 | english-clean:NO
+[pair] en control (33.0 s) | none (the shipped default) | sentences 3 | punctuation .3 ,1 ?0 !0 :0 ;0 …0 —0 "0 | words -2 +2 | english-clean:NO
+[pair] ------------------------------------------------------------
+[pair] en control (33.0 s) arms decoded: 13 | slowest 4925 ms
+[pair] ===================== THE PAIRING TABLE =====================
+[pair] pl prompt × en prompt | english control words vs control | pl-1 boundary | pl-2 words | verdict
+[pair] none (the shipped default) × none (the shipped default) | NO -2 +2 | yes | yes | FAIL
+[pair] none (the shipped default) × attributed (instruction-shaped) | NO -2 +2 | yes | yes | FAIL
+[pair] none (the shipped default) × c1 (pl) | NO -2 +6 | yes | yes | FAIL
+[pair] none (the shipped default) × c2 (pl) | NO -3 +8 | yes | yes | FAIL
+[pair] none (the shipped default) × c3 (pl, no commas) | NO -2 +6 | yes | yes | FAIL
+[pair] none (the shipped default) × c1 EN | NO -2 +2 | yes | yes | FAIL
+[pair] attributed (instruction-shaped) × none (the shipped default) | NO -2 +2 | yes | yes | FAIL
+[pair] attributed (instruction-shaped) × attributed (instruction-shaped) | NO -2 +2 | yes | yes | FAIL
+[pair] attributed (instruction-shaped) × c1 (pl) | NO -2 +6 | yes | yes | FAIL
+[pair] attributed (instruction-shaped) × c2 (pl) | NO -3 +8 | yes | yes | FAIL
+[pair] attributed (instruction-shaped) × c3 (pl, no commas) | NO -2 +6 | yes | yes | FAIL
+[pair] attributed (instruction-shaped) × c1 EN | NO -2 +2 | yes | yes | FAIL
+[pair] c1 (pl) × none (the shipped default) | NO -2 +2 | NO | yes | FAIL
+[pair] c1 (pl) × attributed (instruction-shaped) | NO -2 +2 | NO | yes | FAIL
+[pair] c1 (pl) × c1 (pl) | NO -2 +6 | NO | yes | FAIL
+[pair] c1 (pl) × c2 (pl) | NO -3 +8 | NO | yes | FAIL
+[pair] c1 (pl) × c3 (pl, no commas) | NO -2 +6 | NO | yes | FAIL
+[pair] c1 (pl) × c1 EN | NO -2 +2 | NO | yes | FAIL
+[pair] c2 (pl) × none (the shipped default) | NO -2 +2 | NO | yes | FAIL
+[pair] c2 (pl) × attributed (instruction-shaped) | NO -2 +2 | NO | yes | FAIL
+[pair] c2 (pl) × c1 (pl) | NO -2 +6 | NO | yes | FAIL
+[pair] c2 (pl) × c2 (pl) | NO -3 +8 | NO | yes | FAIL
+[pair] c2 (pl) × c3 (pl, no commas) | NO -2 +6 | NO | yes | FAIL
+[pair] c2 (pl) × c1 EN | NO -2 +2 | NO | yes | FAIL
+[pair] c3 (pl, no commas) × none (the shipped default) | NO -2 +2 | yes | yes | FAIL
+[pair] c3 (pl, no commas) × attributed (instruction-shaped) | NO -2 +2 | yes | yes | FAIL
+[pair] c3 (pl, no commas) × c1 (pl) | NO -2 +6 | yes | yes | FAIL
+[pair] c3 (pl, no commas) × c2 (pl) | NO -3 +8 | yes | yes | FAIL
+[pair] c3 (pl, no commas) × c3 (pl, no commas) | NO -2 +6 | yes | yes | FAIL
+[pair] c3 (pl, no commas) × c1 EN | NO -2 +2 | yes | yes | FAIL
+[pair] c1 EN × none (the shipped default) | NO -2 +2 | NO | yes | FAIL
+[pair] c1 EN × attributed (instruction-shaped) | NO -2 +2 | NO | yes | FAIL
+[pair] c1 EN × c1 (pl) | NO -2 +6 | NO | yes | FAIL
+[pair] c1 EN × c2 (pl) | NO -3 +8 | NO | yes | FAIL
+[pair] c1 EN × c3 (pl, no commas) | NO -2 +6 | NO | yes | FAIL
+[pair] c1 EN × c1 EN | NO -2 +2 | NO | yes | FAIL
+[pair] ============================================================
