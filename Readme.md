@@ -312,11 +312,14 @@ Several of these are the difference between a feature existing and a feature bei
 
 Upstream ships a package built from its own release process and has no uninstaller. This fork adds
 `packaging/{build-pkg.sh,distribution.xml,scripts/preinstall,uninstall.sh}` plus `UninstallService.swift`: one
-package installs the app with everything it needs inside it, and one operation — **Settings → Advanced → Uninstall
+package installs the app and its uninstall command (no model weights — the app downloads those itself, from the
+URLs and checksums it carries, so the package stays ~88 MB). One operation — **Settings → Advanced → Uninstall
 OpenSuperWhisper…**, the same item in the menu-bar menu, or `/Applications/Uninstall OpenSuperWhisper.command` if
-the app is already gone — removes the app, the dictation history, the downloaded models and the installer receipt,
-leaving other applications' data alone. Running it twice is harmless, and `Scripts/verify-packaging.sh` checks the
-path list, the idempotence and a built package's payload rather than trusting them.
+the app is already gone — removes the app, that command, the models the app downloaded, the caches and the installer
+receipt, and **keeps the recordings, the transcriptions and the settings**; only `--remove-user-data` takes those,
+and `--help` says so in as many words. Running it twice is harmless, other applications' data is never touched, and
+`Scripts/verify-packaging.sh` runs the whole install → uninstall → install-again cycle against scratch roots,
+asserting what survives and what does not, rather than trusting the path list.
 
 ### 11. Developer tooling
 

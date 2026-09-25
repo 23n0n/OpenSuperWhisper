@@ -12,30 +12,35 @@ code { font-family: Menlo, monospace; font-size: 12px; }
 
 <p>The app is in <code>/Applications</code>, and everything it needs to run is inside it:
 the whisper speech engine and the llama.cpp transform engine are linked into the same
-binary, and neither one needs Homebrew, a background server or a listening port.</p>
+binary, and neither one needs Homebrew, a background server or a listening port. The
+package carries no model weights, so it stays small and an update ships no weights again.</p>
 
-<h2>The transform models download on first use</h2>
+<h2>The models download on first use</h2>
 
-<p>Translation and tone need a language model, one per output direction: about 1 GB for
-English output and about 5 GB for Polish output. They are <em>not</em> in this installer
-&mdash; every update would then carry them again. Turn on
-<strong>Translate into &hellip;</strong> or <strong>Apply tone</strong> in
-Settings &rarr; Transcription, press <strong>Download model</strong> next to the direction
-you use, and the app fetches those weights into its own folder, verifies the pinned
-checksum, and keeps them there. Until then, dictation in that direction is pasted
-unchanged — one direction's model never stands in for the other's.</p>
+<p>Dictation needs a speech model, and translation or tone need a language model, one per
+output direction: about 1.6 GB for the speech model, about 1 GB for English output and about
+5 GB for Polish output. Turn on <strong>Translate into &hellip;</strong> or
+<strong>Apply tone</strong> in Settings &rarr; Transcription, press
+<strong>Download model</strong> next to the direction you use, and the app fetches the
+weights into its own folder, verifies the pinned checksum, and keeps them there. Until then,
+dictation in that direction is pasted unchanged — one direction's model never stands in for
+the other's.</p>
 
 <h2>Uninstalling</h2>
 
-<p>One operation removes everything: the app, your dictation history, the downloaded
-models and the installer receipt.</p>
+<p><code>/Applications/Uninstall OpenSuperWhisper.command</code>, or
+Settings &rarr; Advanced &rarr; <strong>Uninstall OpenSuperWhisper&hellip;</strong>, removes the
+app, this uninstall command, the models the app downloaded and its caches &mdash; and stops
+there. <strong>Your recordings, your transcriptions and your settings are kept</strong>, so a
+later install finds them again.</p>
+
+<p>To remove those too, run it with the one flag that does that:</p>
 
 <ul>
-  <li>Settings &rarr; Advanced &rarr; <strong>Uninstall OpenSuperWhisper&hellip;</strong>, or the same item in the menu-bar menu.</li>
-  <li><code>/Applications/Uninstall OpenSuperWhisper.command</code>, if the app is already gone.</li>
+  <li><code>/Applications/Uninstall OpenSuperWhisper.command --remove-user-data</code></li>
 </ul>
 
 <p>It leaves <code>~/models</code>, <code>/opt/homebrew</code> and every other
-application's data untouched.</p>
+application's data untouched, and running it twice is harmless.</p>
 </body>
 </html>
