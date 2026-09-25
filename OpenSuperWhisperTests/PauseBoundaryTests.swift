@@ -31,8 +31,8 @@ final class WhisperPauseBoundaryTests: XCTestCase {
 
     /// VAD segments, from speech blocks given in samples: centiseconds, as the
     /// VAD reports them.
-    private func segments(_ ranges: [(Int, Int)]) -> [WhisperVadSegment] {
-        ranges.map { WhisperVadSegment(startCs: Int64($0.0 / 160), endCs: Int64($0.1 / 160)) }
+    private func segments(_ ranges: [(start: Int, end: Int)]) -> [WhisperVadSegment] {
+        ranges.map { WhisperVadSegment(startCs: Int64($0.start / 160), endCs: Int64($0.end / 160)) }
     }
 
     /// Two one-second speech blocks with three seconds of silence between them.
@@ -141,6 +141,62 @@ final class WhisperPauseBoundaryTests: XCTestCase {
             WhisperEngine.speechOnlySamples(from: samples, segments: segmentList),
             WhisperEngine.stitch(from: samples, segments: segmentList, policy: .upstream).samples
         )
+    }
+
+    /// The body this replaced, kept here as the reference the switch off has to
+    /// reproduce: every speech segment, 0.1 s of the following audio as overlap,
+    /// and exactly 0.1 s of zeros between consecutive segments.
+    private func legacySpeechOnlySamples(
+        from samples: [Float],
+        segments: [WhisperVadSegment]
+    ) -> [Float] {
+        let samplesPerCs = 160
+        let overlapSamples = 1600
+        let gapSamples = 1600
+
+        var result = [Float]()
+        for (index, segment) in segments.enumerated() {
+            let start = min(max(0, Int(segment.startCs) * samplesPerCs), samples.count)
+            var end = min(Int(segment.endCs) * samplesPerCs, samples.count)
+            if index < segments.count - 1 {
+                end = min(end + overlapSamples, samples.count)
+            }
+            guard end > start else { continue }
+
+            result.append(contentsOf: samples[start..<end])
+            if index < segments.count - 1 {
+                result.append(contentsOf: repeatElement(0, count: gapSamples))
+            }
+        }
+        return result
+    }
+
+    /// Every segmentation the VAD can produce (it never emits a segment shorter
+    /// than its own 250 ms minimum), so "off" is the old audio exactly.
+    func testTheSwitchOffIsTheOldStitchingByteForByte() {
+        let layouts: [[(startCs: Int64, endCs: Int64)]] = [
+            [(0, 100), (400, 500)],
+            [(0, 100), (140, 240), (490, 590)],
+            [(0, 100), (400, 500), (520, 620), (900, 1000)],
+            [(0, 100), (105, 205)],
+            [(50, 150)],
+        ]
+
+        for layout in layouts {
+            let last = layout.map(\.endCs).max() ?? 0
+            let sampleCount = Int(last) * 160
+            let blocks: [(start: Int, end: Int)] = layout.map {
+                (start: Int($0.startCs) * 160, end: Int($0.endCs) * 160)
+            }
+            let samples = audio(sampleCount: sampleCount, speech: blocks)
+            let segmentList = layout.map { WhisperVadSegment(startCs: $0.startCs, endCs: $0.endCs) }
+
+            XCTAssertEqual(
+                WhisperEngine.stitch(from: samples, segments: segmentList, policy: .upstream).samples,
+                legacySpeechOnlySamples(from: samples, segments: segmentList),
+                "switch off changed the audio for \(layout)"
+            )
+        }
     }
 
     // MARK: - The policy follows the switch
