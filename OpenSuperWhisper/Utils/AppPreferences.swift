@@ -166,6 +166,31 @@ final class AppPreferences {
     
     @UserDefault(key: "showTimestamps", defaultValue: false)
     var showTimestamps: Bool
+
+    /// "Long Pauses End the Sentence" — the switch that keeps a pause instead of
+    /// dissolving it.
+    ///
+    /// The name says what the behaviour is, not what the captain first asked
+    /// for: the nonsense came from *dissolving* the pause into a 0.1 s breath,
+    /// so "ignore pauses" would name the defect. On, a pause of at least
+    /// `PauseBoundaryPolicy.restored.sentenceThreshold` between two speech
+    /// segments is kept as real silence (up to `maxPause`) and closes the
+    /// sentence in the assembled text when the decoder did not close it.
+    ///
+    /// **Off by default, and that is a measurement rather than caution.** On his
+    /// own recordings the switch-on state fixes the Polish the complaint is about
+    /// (`pl-2`: "Ben super whisper" → "Open Super Whisper", "Dałem" → "Dodałem";
+    /// `pl-1`: "pieprzył" → "spieprzył"), but with the decoder prompt this app
+    /// sends — none: `initialPrompt` defaults to the empty string — it also makes
+    /// the English control hallucinate a fragment that the switch off does not
+    /// produce ("Basically, now it creates,. based, no, now it creates a
+    /// sentences…"), at every silence cap tried. Handing the decoder a deliberate
+    /// prompt removes that hallucination and keeps the Polish win (measured:
+    /// `WhisperPauseBoundaryMeasurementTests`), but that is the captain's
+    /// preference to set, not this branch's to set for him — so the switch ships
+    /// off, and flipping it is this one line.
+    @UserDefault(key: "longPausesEndSentences", defaultValue: false)
+    var longPausesEndSentences: Bool
     
     @UserDefault(key: "temperature", defaultValue: 0.0)
     var temperature: Double

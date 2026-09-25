@@ -54,6 +54,10 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 - 🗂️ **Model storage controls** — installed models listed with the one in use, SHA-256 verification against the
   digest each publisher reports, removal with the space it frees
 - 🧯 **Long-form audio fix** — dictation longer than 30 s no longer skips audio
+- ⏸️ **A long pause ends the sentence** — a switch (off by default, with the reason measured in §8) that keeps the
+  pause the speaker left instead of dissolving it into a 0.1 s breath, so a pause cannot split a thought into a
+  fragment or run two thoughts together — Polish in particular, where the model's punctuation is weaker than
+  English's
 - 🧾 **Readable settings, reachable settings** — the Settings sheet lays out correctly, and the status-bar menu
   reaches it even with the main window closed
 - 📦 **One-package install, one-operation uninstall** — from inside the app
@@ -177,7 +181,79 @@ Measured on the delivery tip against `large-v3-turbo`, in `LongFormTranscription
 The transcripts are captured verbatim next to the measurement, and four independent derivations of the numbers
 agree to the last printed digit.
 
-### 8. Settings, models and diagnostics made visible
+### 8. A long pause ends the sentence
+
+The pause was never ignored — it was **dissolved**. Decoding takes the silence-removed path
+(`params.language = nil`, so `showTimestamps` decides only the `[t0->t1]` prefixes), and
+`Engines/WhisperEngine.swift` rebuilt the speech-only audio by replacing **every** gap the VAD found with a fixed
+**0.1 s of zeros** — the same 0.1 s upstream `whisper_full` uses when it stitches VAD segments
+(`libwhisper/whisper.cpp/src/whisper.cpp:6730-6800`). A pause of any length therefore reached the decoder as a
+breath, and `assembleSegmentTexts` joined the decoder's segments with `""`, so the VAD's own timing — the one
+signal that survived — was discarded. The decoder then decided sentence boundaries from prosody alone, which is
+enough in English and is not enough in Polish, where the model's punctuation is markedly weaker.
+
+**The switch is named for what it does, not for what was asked.** One line in **Settings → Transcription →
+Language Settings**: **Long Pauses End the Sentence** — "a pause of 0.6 s or longer keeps its silence and closes the
+sentence, instead of dissolving into a breath that lets two thoughts merge". Off is byte-for-byte the behaviour
+every earlier build had, and it ships **off by default** — not out of caution, but because the measurement below
+says the switch-on state regresses the English control while this app sends no decoder prompt.
+
+What it does, in the decoder's terms:
+
+* `PauseBoundaryPolicy.restored` keeps `min(pause, 0.8 s)` of the recording's **own** silence at each gap, and
+  zero-pads only up to upstream's 0.1 s minimum — so the silence the decoder hears is the silence the speaker
+  left, never a synthetic block;
+* the same pass returns the pauses it measured, with their span in the decoder's own centisecond clock, and a
+  pause of **0.6 s or more** ends the sentence: the join gets a terminator where the decoder left the sentence
+  open. A segment that already closed its sentence is untouched, so nothing is doubled; a segment that *starts*
+  before the pause ends decoded straight through the pause, and no boundary is invented inside its text;
+* the terminator is language-aware (`.` — `。` for Chinese, Japanese and Korean), timestamp mode is unchanged
+  (one decoder segment per line), no word is ever altered, and no punctuation is added inside a sentence.
+
+**What the measurement said, including the parts that argue against it.** Measured on his own two Polish
+recordings and an English control, through this app's own decode path, with his settings and the decoder prompt
+this app actually sends — **none**.
+
+* The same arm decoded twice is identical on all three recordings, so a before/after difference is the switch and
+  not sampling. The transcripts the app stored for those recordings are reproduced **byte for byte by the
+  switch-off arm with the instruction-shaped prompt an earlier brief attributed to his preferences** as the
+  decoder prompt — which is evidence that *that* string was reaching the decoder when he dictated them, not of
+  anything the app ships: `initialPrompt` defaults to the empty string and his stored domain holds no value. (On
+  `pl-2` the switch off with that string reads "Ben super whisper… Dałem drugi model"; with no prompt, "Będę super
+  whisper… Dałem drugi model".)
+* The pause being kept is what fixes the Polish: `pl-2` comes back "**Open Super Whisper**" and "**Dodałem** drugi
+  model" where the switch off garbles the same two places ("Będę super whisper… Dałem drugi model" with no prompt,
+  "Ben super whisper… Dałem drugi model" with the attributed string), and `pl-1`'s verb arrives as "spieprzył po
+  całości" instead of "pieprzył po całości"; with no prompt the switch also turns `pl-1` from two comma-joined
+  sentences back into three.
+* **With no decoder prompt the English control regresses** — and not by two words, by inventing a fragment:
+  "Basically, now it creates,. **based, no,** now it creates a sentences…" where the switch off is clean, **at
+  every silence cap tried** (0.2 s, 0.4 s, 0.6 s, 0.8 s; 0.4 s and 0.6 s are worse still — "profound sense",
+  lowercase drift). That is why the switch ships off.
+* **A deliberate decoder prompt removes that regression and keeps the Polish win.** Four prompts were measured on
+  the same recordings with the same sampling — none, the instruction-shaped string the brief attributed to him,
+  and two candidates written as ordinary Polish dictation with full punctuation and no instruction — and each is
+  reported as a **counted word-level delta** against the no-prompt arm, because a prompt that fixes punctuation by
+  moving words is not a win. With the English counterpart of candidate 1 the control comes back clean ("Basically,
+  now it creates a sentences…", nothing invented); on `pl-2` the instruction-shaped string is the only arm that
+  recovers the words he said ("spój" → "swój", "forkę" → "fork", and it drops a spurious "I"); on `pl-1` every arm
+  keeps the words identical and only punctuation moves, where the two candidates add the commas but trade away a
+  sentence boundary. The app ships none of them: that is the captain's setting to choose, and this branch does not
+  set it for him.
+* **The threshold was 0.5 s and the measurement removed it.** On `pl-1` a pause the VAD measured at 0.52 s falls
+  inside "…o to, że żeś | spieprzył po całości", and 0.5 s closed the sentence there — "że żeś. spieprzył" (the
+  same wrong break appears at 0.4 s). On the app's own numbers every pause he talks across is 0.52 s or below and
+  every boundary he punctuates is 0.74 s or above, so the threshold is **0.6 s**, and at 0.6 s that arm comes back
+  unchanged.
+* **The cap is measured too.** At 0.2 s the decoder loses `pl-1`'s sentence break (two comma-joined sentences
+  where the switch off has a full stop and the stored text has three), 0.4 s and 0.6 s leave a stray ". ," at the
+  join, and only 0.8 s keeps `pl-1` at three sentences while leaving the join clean — so the cap is 0.8 s.
+* **A smaller cap does not save the English control**, which is worth knowing before anyone tries: the invented
+  fragment is there at 0.2 s, 0.4 s, 0.6 s and 0.8 s alike. What perturbs it is keeping *any* real silence where
+  upstream had a 0.1 s breath, not how long that silence is — the switch, or a prompt, is the answer to that, not
+  another cap.
+
+### 9. Settings, models and diagnostics made visible
 
 Several of these are the difference between a feature existing and a feature being *findable*:
 
@@ -193,7 +269,7 @@ Several of these are the difference between a feature existing and a feature bei
 - **The indicator is honest.** With no microphone it says so, instead of showing "Processing…" forever, and a
   dictation whose transcript was lost says why.
 
-### 9. Packaging and uninstall
+### 10. Packaging and uninstall
 
 Upstream ships a package built from its own release process and has no uninstaller. This fork adds
 `packaging/{build-pkg.sh,distribution.xml,scripts/preinstall,uninstall.sh}` plus `UninstallService.swift`: one
@@ -203,7 +279,7 @@ the app is already gone — removes the app, the dictation history, the download
 leaving other applications' data alone. Running it twice is harmless, and `Scripts/verify-packaging.sh` checks the
 path list, the idempotence and a built package's payload rather than trusting them.
 
-### 10. Developer tooling
+### 11. Developer tooling
 
 Local Debug builds are signed with a stable self-signed identity (`Scripts/dev-signing-identity.sh`,
 `dev-sign.sh`) so the Accessibility grant survives rebuilds, and `Scripts/dev-run.sh` is the single entry point
