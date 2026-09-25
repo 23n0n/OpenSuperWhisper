@@ -117,6 +117,11 @@ worktree) — and make no other change, per §1.
   automation SIGHUP'd two whole sessions. Launch the GUI app only through the build/dev-run path, and run
   any long build or measurement detached (`setsid … > log 2>&1 &`), never in the foreground of a session
   whose terminal matters.
+- **Never launch a long build through a harness-backgrounded job.** A `bash` call the harness backgrounds (the
+  "Backgrounded early to handle an incoming message" path) is torn down with its session: `fm-20260924-12`'s first
+  focused run died mid-build that way, leaving a log with no exit marker and a redirect error naming a path the
+  command never used. Detach instead — macOS has no `setsid`, so `python3 -c "subprocess.Popen([...],
+  start_new_session=True, stdout=open(log,'w'), stderr=subprocess.STDOUT)"` — and pass that recipe to every crew.
 - Heavy local work (llama, xcodebuild) spends no provider tokens; the peak rule is about **token spend**.
   That is exactly what the guard gates — so consult the guard, not the clock, and not your own arithmetic.
 

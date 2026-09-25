@@ -1152,3 +1152,18 @@ running) so the app the captain launches carries the change; the worktree comes 
 published** — `origin/main` is still `3dcde52` and the push waits on the captain. `fm/pause-boundary` is in flight on
 its own branch (implementation committed at `1383234`, measurement and suite still owed); it was cut from `3dcde52`,
 so expect conflicts in `Settings.swift` and `Readme.md` where both branches touched them.
+
+## [2026-09-25T08:01:42Z] FLEET LESSON — a harness-backgrounded build dies with its session; detach with `start_new_session`
+
+`fm-20260924-12`'s first focused run was launched by its crew through a `bash` call the harness backgrounded, and it
+was torn down mid-`xcodebuild`: the log ends with no exit marker and the only diagnostic is a redirect error naming a
+path the command never redirected to. The crew re-launched with
+`python3 -c "subprocess.Popen([...], start_new_session=True, stdout=open(log,'w'), stderr=subprocess.STDOUT)"` and
+that survived. This is the same failure family as the SIGHUP that ended two sessions (2026-09-24) and the reason the
+invariants list now carries it: **detach every long build or measurement, never rely on the harness's backgrounding**.
+Pass the recipe in the crew brief, because a crew cannot discover it from the failure — the error it sees names a
+path it never used.
+
+Also recorded: the tone worktree came down after landing (`git worktree remove --force`; a plain remove refuses with
+"working trees containing submodules cannot be moved or removed" — that is what the `--force` is for, and it frees
+2.7 GB). The branch `fm/tone-output` @ `877d19e` survives and is inside `fleet-state/archive/all-local-branches-*.bundle`.
