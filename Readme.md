@@ -201,6 +201,31 @@ What it does, in the decoder's terms:
 * the terminator is language-aware (`.` — `。` for Chinese, Japanese and Korean), timestamp mode is unchanged
   (one decoder segment per line), no word is ever altered, and no punctuation is added inside a sentence.
 
+**What the measurement said, including the parts that argue against it.** Measured on his own two Polish
+recordings and an English control, through this app's own decode path, with his settings:
+
+* The switch-off arm reproduces the transcript the app itself stored for each recording, byte for byte — so the
+  numbers below are this app's path, not a harness's idea of it, and the same decode twice gives the same text.
+* The pause being kept is what fixes his two recordings: `pl-2` comes back "**Open Super Whisper**… **Dodałem**
+  drugi model" where the switch off gives "Ben super whisper… Dałem drugi model", and `pl-1`'s verb arrives as
+  "spieprzył po całości" instead of "pieprzył po całości". Both are the *words*, not the punctuation, so this is
+  the audio half doing the work.
+* **The English control changes two words** with the same settings ("how it creates a sentence" becomes "now it
+  creates a sentences"). That is the cost of handing the decoder a real pause instead of a 0.1 s breath, it is
+  why the switch exists, and it is not hidden in the tables: the control's sentence count is unchanged, its words
+  are not.
+* **The threshold was 0.5 s and the measurement removed it.** On `pl-1` a pause the VAD measured at 0.52 s falls
+  inside "…o to, że żeś | spieprzył po całości", and 0.5 s closed the sentence there — "że żeś. spieprzył". On the
+  app's own numbers every pause he talks across is 0.52 s or below and every boundary he punctuates is 0.74 s or
+  above, so the threshold is **0.6 s**, and at 0.6 s that arm comes back unchanged.
+* **The cap is measured too.** At 0.2 s or 0.4 s the decoder merges "…inną drogą. Bo tu chodzi…" into one sentence
+  on `pl-1` (two where there were three, worse than the switch off), and 0.4 s invents "profound" on the English
+  control; at 0.6 s and 0.8 s `pl-1` keeps its three sentences, and only at 0.8 s does `pl-2` come back with
+  "zrobić fork" rather than "zrobić forkę" — so the cap is 0.8 s.
+* **A smaller cap does not save the English control**, which is worth knowing before anyone tries: its two changed
+  words appear at 0.2 s, 0.4 s, 0.6 s and 0.8 s alike. What perturbs it is keeping *any* real silence where
+  upstream had a 0.1 s breath, not how long that silence is — the switch is the answer to that, not another cap.
+
 ### 9. Settings, models and diagnostics made visible
 
 Several of these are the difference between a feature existing and a feature being *findable*:
