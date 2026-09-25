@@ -9,7 +9,7 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 > [What is unchanged](#what-is-unchanged) lists what is inherited verbatim.
 >
 > **The `brew install` line and the release links below install the *original* app, not this build.** This fork
-> publishes no downloads: it is built from source ([Building locally](#building-locally)), and its work lives at
+> publishes no binary downloads: it is built from source ([Building locally](#building-locally)), and its work lives at
 > `main` in this fork's own repository ([23n0n/OpenSuperWhisper](https://github.com/23n0n/OpenSuperWhisper)) —
 > nothing has been sent upstream, and no pull request is open against it.
 
@@ -367,8 +367,9 @@ Whisper Models — are kept as they are, apart from the notes this fork needed.
   seeding. Unresolved, and not a claim this fork makes.
 - **The delivery path is the least covered by tests** (see the skip breakdown above), which is the next test work
   queued.
-- This fork has **no releases**: it is built from source, and its permission grants are tied to a locally created
-  signing identity. The code itself is at `main` in this fork's own repository; upstream has received nothing.
+- This fork has **no binary releases**: it is built from source, and its permission grants are tied to a locally created
+  signing identity. A tagged release carries these notes and no installer — an unsigned package would be refused by
+  Gatekeeper on any other Mac and could never carry a stable Accessibility grant there. The code itself is at `main` in this fork's own repository; upstream has received nothing.
 
 ## Installation
 
