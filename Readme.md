@@ -215,9 +215,10 @@ this app actually sends — **none**.
   `pl-2` the switch off with that string reads "Ben super whisper… Dałem drugi model"; with no prompt, "Będę super
   whisper… Dałem drugi model".)
 * The pause being kept is what fixes the Polish: `pl-2` comes back "**Open Super Whisper**" and "**Dodałem** drugi
-  model" where the switch off gives "Ben super whisper" and "Dałem drugi model", and `pl-1`'s verb arrives as
-  "spieprzył po całości" instead of "pieprzył po całości"; with no prompt the switch also turns `pl-1` from two
-  comma-joined sentences back into three.
+  model" where the switch off garbles the same two places ("Będę super whisper… Dałem drugi model" with no prompt,
+  "Ben super whisper… Dałem drugi model" with the attributed string), and `pl-1`'s verb arrives as "spieprzył po
+  całości" instead of "pieprzył po całości"; with no prompt the switch also turns `pl-1` from two comma-joined
+  sentences back into three.
 * **With no decoder prompt the English control regresses** — and not by two words, by inventing a fragment:
   "Basically, now it creates,. **based, no,** now it creates a sentences…" where the switch off is clean, **at
   every silence cap tried** (0.2 s, 0.4 s, 0.6 s, 0.8 s; 0.4 s and 0.6 s are worse still — "profound sense",
