@@ -195,7 +195,7 @@ class RecordingStore: ObservableObject {
             try AudioRecorder.shared.moveTemporaryRecording(from: audio.url, to: destination)
         }
         let row = Recording(id: id, timestamp: Date(), fileName: name,
-                            transcription: error.localizedDescription, duration: audio.duration,
+                            transcription: "", duration: audio.duration,
                             status: .failed, progress: 0, sourceFileURL: destination.path)
         do { try await addRecordingSync(row) }
         catch { throw PreservedAudioError(url: destination, underlying: error) }
