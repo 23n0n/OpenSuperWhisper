@@ -277,26 +277,40 @@ that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
   compares the digest of the text that is on the clipboard with the digest of the text the delivery wrote, so a
   third party who wrote the *byte-identical* transcription after a crash would still be overwritten. An
   independent audit measured that window and called it negligible; it is stated here rather than left implied.
-* **What remains unclosed, stated rather than hidden.** A target that services the paste *later* than the restore
-  gets the **restored** clipboard contents — the user's own previous clipboard pasted into their document instead
-  of the dictation (measured case: `TextDeliveryTests`); an app killed between the copy and the restore keeps the
-  transcription on the clipboard until the next launch puts the old contents back; and if the session has
-  clipboard redirection switched off, the paste delivers **nothing at all** and this app cannot tell, because the
-  only thing it can observe is its own pasteboard. `Settings → Transcription` offers **Delivery** (Automatic,
-  Keystrokes only, Clipboard paste) plus the vendor toggle: "Keystrokes only" turns the clipboard path off
-  entirely, and every dictation's unified-log line records `mechanism=`, the `target=` bundle identifier and
-  whether the match was `match=verified-client` or `match=vendor-family`.
+* **What remains unclosed, stated rather than hidden.** Four paths, three of them silent:
+  * A target that services the paste *later* than the restore gets the **restored** clipboard contents — the
+    user's own previous clipboard pasted into their document instead of the dictation (measured case:
+    `TextDeliveryTests`).
+  * An app killed between the copy and the restore keeps the transcription on the clipboard until the next launch
+    puts the old contents back — unless the record could not be written: **a record-write failure is silent**, and
+    its cost is the user's clipboard rather than their text (they keep the dictation in History; what is lost is
+    what they had copied). Nothing reports it.
+  * If the session has clipboard redirection switched off, the paste delivers **nothing at all** and this app
+    cannot tell, because the only thing it can observe is its own pasteboard. The once-per-install notice says the
+    dictation went through the clipboard and what a silence means — **once**, never again, so a later session
+    without clipboard sharing is silent.
+  * That notice is once per install by design; after it, the Settings copy and the delivery record are the only
+    places the mechanism is visible.
+  `Settings → Transcription` offers **Delivery** (Automatic, Keystrokes only, Clipboard paste) plus the vendor
+  toggle: "Keystrokes only" turns the clipboard path off entirely, and every dictation's unified-log line records
+  `mechanism=`, the `target=` bundle identifier and whether the match was `match=verified-client` or
+  `match=vendor-family`.
 
 **Verified and not verified.** On this side: the events a delivery posts, the shape of the pair, the key code and
 Unicode field each event carries, which mechanism the target rule selects for a given application and preference,
-that ⌘V is posted, that the pasteboard holds the transcript and gets its previous contents back byte-identically,
-what a target that services the paste late receives, and that a killed process's clipboard record is recovered on
-the next run. That the text *arrives* is verified for a native macOS target, through a real `NSTextView` driven by
-AppKit's own key bindings. It is **not** verified for a Citrix session: there is no session in the test suite and
-nothing about a session is observable from the host — whether the session reads key codes rather than the event's
-text field, and whether the paste lands at all (that one needs clipboard redirection enabled in the session), are
-both open. Which bundle is in front during a real delivery *is* answered by the log line's `target=` and `match=`
-fields on the next real dictation; the rest needs a probe inside the session.
+that ⌘V is posted, that the transcript arrives in a text view that services the paste from the board the delivery
+wrote, that the clipboard is put back byte-identically on a pasteboard the test owns, what a target that services
+the paste late receives, and that a killed process's clipboard record is recovered — with the launch decision
+itself driven both ways. Two things the suite does **not** cover, said here rather than left to be assumed: that a
+real launch reaches the recovery call (one line in `OpenSuperWhisperApp.applicationDidFinishLaunching`, verified
+by reading it), and anything about the machine's shared clipboard, which is why the clipboard cases use
+pasteboards of their own. That the text *arrives* is verified for a native macOS target, through a real
+`NSTextView` driven by AppKit's own key bindings. It is **not** verified for a Citrix session: there
+is no session in the test suite and nothing about a session is observable from the host — whether the session
+reads key codes rather than the event's text field, and whether the paste lands at all (that one needs clipboard
+redirection enabled in the session), are both open. Which bundle is in front during a real delivery *is* answered
+by the log line's `target=` and `match=` fields on the next real dictation; the rest needs a probe inside the
+session.
 
 **Installing it.** Nothing above reaches the running app until it is built and installed: `Scripts/dev-run.sh`
 builds, signs with the local dev identity and runs `build/Build/Products/Debug/OpenSuperWhisper.app`;

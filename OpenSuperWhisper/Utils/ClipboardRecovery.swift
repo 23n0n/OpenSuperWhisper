@@ -158,6 +158,29 @@ enum ClipboardRecovery {
         return digest(of: current) == record.writtenTextDigest
     }
 
+    /// What a launch does about a pending record.
+    ///
+    /// `OpenSuperWhisperApp.applicationDidFinishLaunching` calls this and nothing
+    /// else. The test-mode guard is a parameter here rather than a `guard` at the
+    /// call site so that both branches are driven by a test — but what that test
+    /// covers is this decision, not the wiring: that a real launch reaches this
+    /// line is verified by reading the one-line call site, and both the test and
+    /// the Readme say so rather than implying the launch itself is under test.
+    ///
+    /// - Returns: The outcome, or `nil` when the caller is a test host and
+    ///   nothing was looked at.
+    @discardableResult
+    static func launchStep(isRunningTests: Bool,
+                           from url: URL = recordURL,
+                           on pasteboard: NSPasteboard = .general) -> Outcome? {
+        guard !isRunningTests else { return nil }
+        let outcome = recoverIfNeeded(from: url, on: pasteboard)
+        if outcome != .nothingPending {
+            log.notice("launch: clipboard recovery \(outcome.description, privacy: .public)")
+        }
+        return outcome
+    }
+
     /// Puts a displaced clipboard back when a previous run died before restoring
     /// it, and deletes the record either way.
     ///

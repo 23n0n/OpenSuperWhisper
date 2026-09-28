@@ -185,6 +185,49 @@ final class ClipboardRecoveryTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: ClipboardRecovery.recordURL.path))
     }
 
+    // MARK: - The launch step itself
+
+    /// The decision a launch makes, both ways.
+    ///
+    /// What this covers: that the production branch recovers a pending record and
+    /// that the test branch touches nothing. What it does NOT cover: that a real
+    /// launch reaches the call, which is one line in
+    /// `OpenSuperWhisperApp.applicationDidFinishLaunching` and is verified by
+    /// reading it — a test cannot observe a launch of the app under test, and
+    /// pretending otherwise is what this case exists to avoid claiming.
+    func testTheLaunchStepRecoversInProductionAndDoesNothingUnderTest() throws {
+        let boardName = NSPasteboard.Name("osw-launch-step-\(UUID().uuidString)")
+        let pasteboard = NSPasteboard(name: boardName)
+        defer { pasteboard.releaseGlobally() }
+
+        // Production branch: a record is pending and the pasteboard still holds
+        // this app's text, so the displaced contents come back.
+        let payload = "a dictation that was never restored \(UUID().uuidString)"
+        pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString("what the user had", forType: .string)
+        let record = try XCTUnwrap(ClipboardRecovery.record(for: pasteboard, writtenText: payload))
+        XCTAssertTrue(ClipboardRecovery.write(record, to: ClipboardRecovery.recordURL))
+        pasteboard.clearContents()
+        pasteboard.setString(payload, forType: .string)
+
+        let outcome = ClipboardRecovery.launchStep(isRunningTests: false, on: pasteboard)
+        XCTAssertEqual(outcome, .restored(types: record.types.count),
+                       "a launch has to put back every type the record captured")
+        XCTAssertEqual(pasteboard.string(forType: .string), "what the user had")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: ClipboardRecovery.recordURL.path))
+
+        // Test branch: nothing is read, nothing is restored, the record stays.
+        pasteboard.clearContents()
+        pasteboard.setString(payload, forType: .string)
+        XCTAssertTrue(ClipboardRecovery.write(record, to: ClipboardRecovery.recordURL))
+
+        XCTAssertNil(ClipboardRecovery.launchStep(isRunningTests: true, on: pasteboard),
+                     "a test host does not recover, so a suite can never rewrite a clipboard")
+        XCTAssertEqual(pasteboard.string(forType: .string), payload, "the board was left alone")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: ClipboardRecovery.recordURL.path),
+                      "and the record is still there for the next real launch")
+    }
+
     // MARK: - The child
 
     /// Compiles the child from the app's two clipboard files plus a few lines of

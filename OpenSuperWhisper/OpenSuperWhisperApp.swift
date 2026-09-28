@@ -113,21 +113,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        guard !OpenSuperWhisperApp.isRunningTests else {
-            disableWindowFrameAutosave()
-            return
-        }
-
         // A paste delivery writes the transcript over the clipboard and puts the
         // previous contents back 1.5 s later, from a block inside this process. If
         // the process died inside that window, the contents are still on disk
         // (`ClipboardRecovery`) and this is where they come back — before anything
         // else in the app has a chance to put something else on the clipboard.
         // Nothing is pending in the ordinary case, so this is a file-existence
-        // check on a normal launch.
-        let recovered = ClipboardRecovery.recoverIfNeeded()
-        if recovered != .nothingPending {
-            NSLog("OpenSuperWhisper: clipboard recovery %@", recovered.description)
+        // check on a normal launch; under test it is a no-op by construction (the
+        // decision lives in `launchStep`, which a test drives for both branches —
+        // this one line is verified by reading it, and the Readme says so).
+        ClipboardRecovery.launchStep(isRunningTests: OpenSuperWhisperApp.isRunningTests)
+
+        guard !OpenSuperWhisperApp.isRunningTests else {
+            disableWindowFrameAutosave()
+            return
         }
 
         setupStatusBarItem()

@@ -22,17 +22,40 @@ final class DeliveryMeasurementTests: XCTestCase {
 
     private var savedRecordURL: URL!
 
+    /// A pasteboard this case owns, named with a fresh UUID.
+    ///
+    /// These measurements used the machine's general clipboard, and that made one
+    /// of them fail for a reason that had nothing to do with the change: another
+    /// process wrote to the clipboard inside the 1.5 s window, the changeCount
+    /// guard correctly declined to restore, and the case asserted byte equality of
+    /// a resource it did not own. It is the same server-side kind of object as the
+    /// general one, so the transport under test is unchanged; what is gone is the
+    /// race, and with it any effect these cases have on the clipboard the captain
+    /// is using.
+    private var pasteboard: NSPasteboard!
+    private var boardName: NSPasteboard.Name!
+
     override func setUp() {
         super.setUp()
         savedRecordURL = ClipboardRecovery.recordURL
         ClipboardRecovery.recordURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("osw-measurement-record-\(UUID().uuidString).plist")
+        boardName = NSPasteboard.Name("osw-measurement-pasteboard-\(UUID().uuidString)")
+        pasteboard = NSPasteboard(name: boardName)
     }
 
     override func tearDown() {
+        pasteboard.releaseGlobally()
+        pasteboard = nil
         ClipboardRecovery.clear()
         ClipboardRecovery.recordURL = savedRecordURL
         super.tearDown()
+    }
+
+    /// Puts `text` on the case's own pasteboard, as "what the user had copied".
+    private func seedOwnPasteboard(_ text: String) {
+        pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString(text, forType: .string)
     }
 
     /// Waits until the pasteboard stops holding what was written to it, or the
@@ -44,60 +67,61 @@ final class DeliveryMeasurementTests: XCTestCase {
         }
     }
 
-    // MARK: - Measurement 1: the round trip on the real pasteboard
+    // MARK: - Measurement 1: the round trip, on a pasteboard the case owns
 
-    /// Does save-and-restore actually put the machine's clipboard back?
+    /// Does save-and-restore put the clipboard back, byte for byte?
     ///
-    /// Captures the real clipboard (types, bytes, changeCount), writes a
-    /// controlled payload through the app's own paste step, waits out the restore
-    /// delay, and compares. Reports both states hashed.
-    func testTheRealClipboardComesBackByteIdenticalAfterAPasteRoundTrip() {
-        TestFixtures.withTheRealClipboardPreserved { pasteboard, before in
-            TestFixtures.report("[clipboard] BEFORE          \(before.description)")
+    /// Writes a controlled payload through the app's own paste step onto a
+    /// pasteboard of this case's own, waits out the restore delay, and compares
+    /// the before and after states (types, bytes, changeCount) as digests.
+    func testAPasteRoundTripOnAPasteboardOfItsOwnComesBackByteIdentical() {
+        seedOwnPasteboard("what the user had copied before the dictation \(UUID().uuidString)")
+        let before = TestFixtures.snapshotClipboard(pasteboard)
+        TestFixtures.report("[clipboard] BEFORE          \(before.description)")
 
-            // A controlled payload: nothing the user copied is involved.
-            let payload = "OpenSuperWhisper paste measurement \(UUID().uuidString)"
-            var posted: [CGEvent] = []
-            ClipboardUtil.insertText(payload, postEvent: { posted.append($0) }, pasteboard: pasteboard)
+        let payload = "OpenSuperWhisper paste measurement \(UUID().uuidString)"
+        var posted: [CGEvent] = []
+        ClipboardUtil.insertText(payload, postEvent: { posted.append($0) }, pasteboard: pasteboard)
 
-            let during = TestFixtures.snapshotClipboard(pasteboard)
-            TestFixtures.report("[clipboard] DURING THE PASTE \(during.description)")
-            XCTAssertEqual(posted.map(\.type), [.keyDown, .keyUp], "the paste step posts a key pair")
-            XCTAssertEqual(during.text, payload, "the payload is on the clipboard while the paste is being made")
+        let during = TestFixtures.snapshotClipboard(pasteboard)
+        TestFixtures.report("[clipboard] DURING THE PASTE \(during.description)")
+        XCTAssertEqual(posted.map(\.type), [.keyDown, .keyUp], "the paste step posts a key pair")
+        XCTAssertTrue(posted.allSatisfy { $0.flags.contains(.maskCommand) }, "and it is the Cmd-V pair")
+        XCTAssertEqual(during.text, payload, "the payload is on the clipboard while the paste is being made")
 
-            waitForThePasteboardToMove(on: pasteboard.changeCount,
-                                       pasteboard,
-                                       timeout: ClipboardUtil.clipboardRestoreDelay + 5)
+        waitForThePasteboardToMove(on: pasteboard.changeCount,
+                                   pasteboard,
+                                   timeout: ClipboardUtil.clipboardRestoreDelay + 5)
 
-            let after = TestFixtures.snapshotClipboard(pasteboard)
-            TestFixtures.report("[clipboard] AFTER RESTORE   \(after.description)")
-            XCTAssertEqual(after.items.map(\.type), before.items.map(\.type),
-                           "the restore has to bring back the same types")
-            XCTAssertEqual(after.items.map(\.data), before.items.map(\.data),
-                           "the restore has to bring back the same bytes")
-        }
+        let after = TestFixtures.snapshotClipboard(pasteboard)
+        TestFixtures.report("[clipboard] AFTER RESTORE   \(after.description)")
+        XCTAssertEqual(after.items.map(\.type), before.items.map(\.type),
+                       "the restore has to bring back the same types")
+        XCTAssertEqual(after.items.map(\.data), before.items.map(\.data),
+                       "the restore has to bring back the same bytes")
     }
 
-    /// Does a third party's clipboard write survive the restore? (The guard the
-    /// restore is documented to have.)
+    /// The guard, driven deterministically: the case itself writes to the
+    /// pasteboard inside the window, standing in for the other process that made
+    /// the byte-identity assertion above fail when it ran on the real clipboard.
     func testAClipboardTakenDuringThePasteIsNotOverwrittenByTheRestore() {
-        TestFixtures.withTheRealClipboardPreserved { pasteboard, _ in
-            let payload = "OpenSuperWhisper interference measurement \(UUID().uuidString)"
-            ClipboardUtil.insertText(payload, postEvent: { _ in }, pasteboard: pasteboard)
+        seedOwnPasteboard("what the user had copied before the dictation \(UUID().uuidString)")
+        let payload = "OpenSuperWhisper interference measurement \(UUID().uuidString)"
+        ClipboardUtil.insertText(payload, postEvent: { _ in }, pasteboard: pasteboard)
 
-            // Somebody else copies while the paste is in flight.
-            let theirs = "taken by somebody else while the paste was in flight \(UUID().uuidString)"
-            pasteboard.clearContents()
-            pasteboard.setString(theirs, forType: .string)
-            let theirChangeCount = pasteboard.changeCount
+        // Somebody else copies while the paste is in flight.
+        let theirs = "taken by somebody else while the paste was in flight \(UUID().uuidString)"
+        pasteboard.clearContents()
+        pasteboard.setString(theirs, forType: .string)
+        let theirChangeCount = pasteboard.changeCount
 
-            RunLoop.current.run(until: Date().addingTimeInterval(ClipboardUtil.clipboardRestoreDelay + 0.5))
+        RunLoop.current.run(until: Date().addingTimeInterval(ClipboardUtil.clipboardRestoreDelay + 0.5))
 
-            TestFixtures.report("[clipboard] after a third party's write: changeCount=\(pasteboard.changeCount) "
-                                + "(theirs was \(theirChangeCount)), holds theirs: \(pasteboard.string(forType: .string) == theirs)")
-            XCTAssertEqual(pasteboard.string(forType: .string), theirs,
-                           "a clipboard write by somebody else must never be overwritten")
-        }
+        TestFixtures.report("[clipboard] after a third party's write: changeCount=\(pasteboard.changeCount) "
+                            + "(theirs was \(theirChangeCount)), holds theirs: \(pasteboard.string(forType: .string) == theirs)")
+        XCTAssertEqual(pasteboard.changeCount, theirChangeCount, "nothing wrote after them")
+        XCTAssertEqual(pasteboard.string(forType: .string), theirs,
+                       "a clipboard write by somebody else must never be overwritten")
     }
 
     // MARK: - Measurement 2: what the process dying between copy and restore leaves
@@ -113,11 +137,13 @@ final class DeliveryMeasurementTests: XCTestCase {
     func testAProcessThatDiesBetweenCopyAndRestoreLeavesTheTranscriptionOnTheClipboard() throws {
         let helper = try Self.buildDeathHelper()
 
-        TestFixtures.withTheRealClipboardPreserved { pasteboard, before in
+        seedOwnPasteboard("what the user had copied before the crash \(UUID().uuidString)")
+        let before = TestFixtures.snapshotClipboard(pasteboard)
+        do {
             let payload = "OpenSuperWhisper death measurement \(UUID().uuidString)"
             let child = Process()
             child.executableURL = helper
-            child.arguments = [payload]
+            child.arguments = [payload, boardName.rawValue]
             let pipe = Pipe()
             child.standardOutput = pipe
             try? child.run()
@@ -142,15 +168,23 @@ final class DeliveryMeasurementTests: XCTestCase {
     /// Compiles the death helper from the app's own `ClipboardUtil.swift` plus a
     /// three-line main, into the test's temporary directory.
     ///
-    /// - Throws: `XCTSkip` when the Swift compiler is not reachable, because a
-    ///   missing toolchain is not a measurement of the clipboard.
+    /// - Throws: `MeasurementError` when the sources or the build are not there.
+    ///   Never `XCTSkip`: a skipped measurement that the change's own
+    ///   documentation cites is worse than a failing one, because it is counted
+    ///   as an environment exclusion and nobody looks.
     private static func buildDeathHelper() throws -> URL {
         let repo = URL(fileURLWithPath: #filePath)          // …/OpenSuperWhisperTests/DeliveryMeasurementTests.swift
             .deletingLastPathComponent()                    // …/OpenSuperWhisperTests
             .deletingLastPathComponent()                    // repo root
-        let source = repo.appendingPathComponent("OpenSuperWhisper/Utils/ClipboardUtil.swift")
-        guard FileManager.default.fileExists(atPath: source.path) else {
-            throw XCTSkip("ClipboardUtil.swift not found at \(source.path)")
+        // Both files: ClipboardUtil calls ClipboardRecovery, so a helper built
+        // from ClipboardUtil alone no longer compiles — which is exactly how this
+        // case spent a commit being silently skipped while the change's own
+        // documentation cited it as proof.
+        let sources = ["OpenSuperWhisper/Utils/ClipboardUtil.swift",
+                       "OpenSuperWhisper/Utils/ClipboardRecovery.swift"]
+            .map { repo.appendingPathComponent($0) }
+        for source in sources where !FileManager.default.fileExists(atPath: source.path) {
+            throw MeasurementError.missingSource(source.path)
         }
 
         let directory = FileManager.default.temporaryDirectory
@@ -160,12 +194,14 @@ final class DeliveryMeasurementTests: XCTestCase {
         let main = """
         import Cocoa
 
-        // The app's own ClipboardUtil is compiled in beside this file: the child
-        // copies exactly what the app copies, and then dies before the restore
-        // its own code scheduled can run.
+        // The app's own ClipboardUtil and ClipboardRecovery are compiled in beside
+        // this file: the child copies exactly what the app copies, and then dies
+        // before the restore its own code scheduled can run. It works on the
+        // pasteboard the case named, so nothing else on the machine can interfere
+        // and the machine's own clipboard is not used at all.
         let text = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "probe"
-        ClipboardUtil.insertText(text, postEvent: { _ in })
-        let pasteboard = NSPasteboard.general
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(CommandLine.arguments[2]))
+        ClipboardUtil.insertText(text, postEvent: { _ in }, pasteboard: pasteboard)
         print("child wrote the clipboard, holds the text: \\(pasteboard.string(forType: .string) == text), "
               + "changeCount=\\(pasteboard.changeCount)")
         fflush(stdout)
@@ -177,17 +213,36 @@ final class DeliveryMeasurementTests: XCTestCase {
 
         let compiler = Process()
         compiler.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        compiler.arguments = ["swiftc", "-O", source.path, mainURL.path, "-o", binary.path]
+        compiler.arguments = ["swiftc", "-O"] + sources.map(\.path) + [mainURL.path, "-o", binary.path]
         let errors = Pipe()
         compiler.standardError = errors
         try compiler.run()
         let errorOutput = errors.fileHandleForReading.readDataToEndOfFile()
         compiler.waitUntilExit()
         guard compiler.terminationStatus == 0 else {
-            throw XCTSkip("could not build the death helper: "
-                          + String(decoding: errorOutput, as: UTF8.self).suffix(400))
+            // NOT a skip: this case measures something the documentation cites, and
+            // a skip here was counted among the layout-gated ones, i.e. as an
+            // environment exclusion rather than as a broken measurement. A case
+            // that cannot run is a failure of this file, not of the machine.
+            throw MeasurementError.helperDidNotBuild(String(String(decoding: errorOutput, as: UTF8.self).suffix(400)))
         }
         return binary
+    }
+
+    /// Why a measurement could not be taken. Deliberately not `XCTSkip`: see
+    /// `buildDeathHelper`.
+    enum MeasurementError: Error, CustomStringConvertible {
+        case missingSource(String)
+        case helperDidNotBuild(String)
+
+        var description: String {
+            switch self {
+            case .missingSource(let path):
+                return "the source this measurement compiles is not at \(path)"
+            case .helperDidNotBuild(let output):
+                return "the child could not be built from the app's own sources: \(output)"
+            }
+        }
     }
 
     // MARK: - Measurement 3: what is readable about the application being typed into
@@ -240,12 +295,40 @@ final class DeliveryMeasurementTests: XCTestCase {
         }
         TestFixtures.report("[target] identifiers a naive filter could confuse with a client: \(confusable)")
 
-        // The reading a delivery would act on is only useful if it is not nil and
-        // not this test process itself.
+        // What is asserted, rather than only that a reading is not nil:
+        //
+        // 1. the frontmost application is readable, and the delivery's own reader
+        //    agrees with the direct one — a disagreement would mean a delivery
+        //    acts on a different application than the one measured here;
+        // 2. every identifier the measured tier names is classified as such, on
+        //    the spot (a rule check, not an environment check);
+        // 3. every measured identifier that happens to be running is matched by
+        //    the tier and would paste without the user switching anything on —
+        //    conditional on it running, because a machine without Citrix or
+        //    Parallels installed is a different machine, not a broken rule.
         XCTAssertNotNil(frontmost, "the frontmost application has to be readable at delivery time")
-        XCTAssertFalse(
-            identifiers.isEmpty,
-            "no running application reported a bundle identifier, so no target-class rule could work here"
+        XCTAssertEqual(
+            TextDelivery.currentFrontmostBundleIdentifier(), frontmost?.bundleIdentifier,
+            "the reader the delivery uses has to agree with the direct reading of the frontmost application"
         )
+        for identifier in TextDelivery.verifiedRemoteClientBundleIdentifiers.sorted() {
+            XCTAssertEqual(TextDelivery.targetMatch(identifier), .verifiedClient,
+                           "\(identifier) is in the measured tier and has to be classified as such")
+        }
+        let runningVerified = identifiers.filter { TextDelivery.verifiedRemoteClientBundleIdentifiers.contains($0) }
+        XCTAssertFalse(
+            runningVerified.isEmpty,
+            "none of the measured client bundles is running, so this run cannot show the tier matching a live application"
+        )
+        for identifier in runningVerified {
+            XCTAssertEqual(TextDelivery.targetMatch(identifier), .verifiedClient)
+            XCTAssertEqual(
+                TextDelivery.mechanism(preference: .automatic,
+                                       frontmostBundleIdentifier: identifier,
+                                       pasteIntoRecognisedVendors: false),
+                .clipboardPaste,
+                "a measured client gets the clipboard without the user having to switch anything on"
+            )
+        }
     }
 }

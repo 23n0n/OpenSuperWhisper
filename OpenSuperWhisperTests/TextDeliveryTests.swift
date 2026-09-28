@@ -71,6 +71,12 @@ final class TextDeliveryTests: XCTestCase {
     /// delivered through the clipboard, because nothing about what such a target
     /// does with forwarded events can be observed from here, while the clipboard
     /// carries the text itself.
+    ///
+    /// What it asserts is that the transcript reaches a reader that pastes from
+    /// the board the delivery wrote — a real `NSTextView` reading the pasteboard —
+    /// rather than only counting characters the delivery computed from its own
+    /// input. The character count is reported, not asserted: it is a counter of
+    /// what was handed over, not evidence of arrival.
     func testAVirtualMachineTargetIsDeliveredThroughTheClipboard() {
         seedClipboard(Self.usersClipboard)
         var posted: [CGEvent] = []
@@ -86,7 +92,6 @@ final class TextDeliveryTests: XCTestCase {
 
         XCTAssertEqual(result.mechanism, .clipboardPaste)
         XCTAssertTrue(result.injected)
-        XCTAssertEqual(result.deliveredCharacters, Self.transcript.count)
         // The ⌘V pair, and nothing else: the text is not spelled out in key
         // codes, so there is nothing for a guest to rebuild wrong.
         XCTAssertEqual(posted.map(\.type), [.keyDown, .keyUp])
@@ -95,6 +100,18 @@ final class TextDeliveryTests: XCTestCase {
         }
         XCTAssertEqual(clipboardContents(), Self.transcript,
                        "the transcript has to be on the clipboard for the paste to carry it")
+
+        // Arrival, through a reader that pastes from that board.
+        let editor = NSTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
+        editor.isRichText = false
+        XCTAssertTrue(editor.readSelection(from: pasteboard), "the paste has to be serviceable")
+        XCTAssertEqual(editor.string, Self.transcript,
+                       "a target that services the paste receives the transcript, character for character")
+        TestFixtures.report("[delivery] paste outcome: mechanism=\(result.mechanism) "
+                            + "deliveredCharacters=\(result.deliveredCharacters) "
+                            + "(a counter of what was handed over, not evidence of arrival), "
+                            + "arrived in a text view: \(editor.string == Self.transcript)")
+
         // Drained so the scheduled restore has run before the pasteboard is
         // released; the restore itself is asserted by the case below.
         XCTAssertEqual(waitForClipboard(Self.usersClipboard), Self.usersClipboard)
