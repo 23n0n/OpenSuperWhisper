@@ -40,6 +40,17 @@ final class AppPreferences {
     /// one process: the name carries the pid, so two processes can never meet,
     /// and the suite is emptied first, so a reused pid cannot inherit values
     /// from an earlier run.
+    ///
+    /// The seam covers `AppPreferences` values and nothing else. Two writers
+    /// still reach the standard domain under test, neither an `AppPreferences`
+    /// value nor routable through here: the `KeyboardShortcuts` library reads
+    /// and writes its own `KeyboardShortcuts_*` keys through
+    /// `UserDefaults.standard` whatever this says, and AppKit autosaves
+    /// `NSWindow Frame …` for any window a process shows, tests included. The
+    /// primary checkout keeps the shipped bundle id (see `Scripts/dev-run.sh`),
+    /// so under test those keys are the developer's own; `ShortcutRecorderTests`
+    /// plants and restores the one shortcut key it drives, and the second
+    /// writer has no guard at all.
     static let defaults: UserDefaults = makeDefaults()
 
     private static func makeDefaults() -> UserDefaults {
