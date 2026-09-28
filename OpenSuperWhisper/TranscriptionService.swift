@@ -23,11 +23,12 @@ class TranscriptionService: ObservableObject {
     @MainActor
     private func speechLanguageConflict(
         engine: TranscriptionEngine,
-        transcript: String
+        transcript: String,
+        modelPath: String?
     ) -> SpeechLanguageConflict? {
         guard let whisper = engine as? WhisperEngine else { return nil }
         return SpeechModelLanguageGate.conflict(
-            modelPath: selectedSpeechModelPath,
+            modelPath: modelPath,
             isMultilingual: whisper.isModelMultilingual,
             transcript: transcript
         )
@@ -39,6 +40,9 @@ class TranscriptionService: ObservableObject {
     /// The engine's own selection is the model that produced the transcript, so
     /// it wins; before one has been applied — a service built around an engine,
     /// as the tests build one — the preferences are the only answer there is.
+    /// Read once, as an operation starts (`transcribeAudio`), and carried into
+    /// that operation's refusals: the selection can change while a decode is in
+    /// flight, and the refusal must blame the model the text came from.
     private var selectedSpeechModelPath: String? {
         engineSelection?.modelPath
             ?? AppPreferences.shared.selectedWhisperModelPath
@@ -47,11 +51,35 @@ class TranscriptionService: ObservableObject {
 
     /// The no-speech refusal for one transcript, or `nil` when the audio held
     /// speech — or when nothing measured it.
-    private func noSpeechRefusal(presence: SpeechPresence?, threshold: Double) -> SpeechPresenceConflict? {
+    private func noSpeechRefusal(
+        presence: SpeechPresence?,
+        threshold: Double,
+        modelPath: String?
+    ) -> SpeechPresenceConflict? {
         SpeechModelLanguageGate.noSpeechConflict(
             presence: presence,
             noSpeechThreshold: threshold,
-            modelPath: selectedSpeechModelPath
+            modelPath: modelPath
+        )
+    }
+
+    /// The comparative refusal for one transcript, or `nil` when the second
+    /// reading of the same audio contains it — and when there is no second
+    /// reading at all, which refuses nothing.
+    ///
+    /// The reading is the engine's: the same audio, the same model, decoded once
+    /// more with the decoder prompt decision flipped (`WhisperEngine`). What
+    /// this decides, and the two readings it was measured against, are in
+    /// `SpeechModelLanguageGate.corroborationConflict`.
+    private func corroborationConflict(
+        secondReading: String?,
+        transcript: String,
+        modelPath: String?
+    ) -> SpeechCorroborationConflict? {
+        SpeechModelLanguageGate.corroborationConflict(
+            transcript: transcript,
+            secondReading: secondReading,
+            modelPath: modelPath
         )
     }
 
@@ -71,6 +99,11 @@ class TranscriptionService: ObservableObject {
         /// measured it. `nil` when the engine measures nothing — which refuses
         /// nothing.
         var speechPresence: SpeechPresence? = nil
+        /// The same audio read a second time by the same engine, or `nil` when
+        /// there is no second reading. The third thing a transcript can be
+        /// refused for, and the only one that is a comparison — see
+        /// `SpeechCorroborationConflict`.
+        var secondReading: String? = nil
     }
 
     private final class TranscriptionTaskBox {
@@ -378,6 +411,11 @@ class TranscriptionService: ObservableObject {
         let preparation = recordingPreparation
         recordingPreparation = nil
 
+        // The model this operation runs, read once as the operation starts: a
+        // remedy that switches models while the decode is in flight must not
+        // rename the model a refusal blames. The transcript came from this one.
+        let modelPath = selectedSpeechModelPath
+
         // Setup progress callback for engines
         if let whisperEngine = engine as? WhisperEngine {
             whisperEngine.onProgressUpdate = { [weak self] newProgress in
@@ -429,7 +467,8 @@ class TranscriptionService: ObservableObject {
                     output = TranscriptionOutput(
                         text: detailed.text,
                         language: detailed.language,
-                        speechPresence: detailed.speechPresence
+                        speechPresence: detailed.speechPresence,
+                        secondReading: detailed.secondReading
                     )
                 } else {
                     output = TranscriptionOutput(
@@ -463,7 +502,8 @@ class TranscriptionService: ObservableObject {
             if let refusal = await MainActor.run(body: {
                 self?.noSpeechRefusal(
                     presence: output.speechPresence,
-                    threshold: settings.noSpeechThreshold
+                    threshold: settings.noSpeechThreshold,
+                    modelPath: modelPath
                 )
             }) {
                 throw TranscriptionError.noSpeechDetected(refusal)
@@ -475,9 +515,27 @@ class TranscriptionService: ObservableObject {
             // saved as the record of what the user said. The transcript is the
             // evidence — see `SpeechModelLanguageGate`.
             if let conflict = await MainActor.run(body: {
-                self?.speechLanguageConflict(engine: engine, transcript: output.text)
+                self?.speechLanguageConflict(engine: engine, transcript: output.text, modelPath: modelPath)
             }) {
                 throw TranscriptionError.speechLanguageConflict(conflict)
+            }
+
+            // And the one a comparison can see that neither of the two above
+            // can: text the same audio, read a second time, does not contain.
+            // The reading travels with the text the same way the measurement
+            // does (see `SpeechCorroborationConflict`); the refusal is
+            // non-destructive exactly like the other two — nothing is published,
+            // nothing is pasted, and the audio is kept. With no second reading
+            // there is nothing to refuse on, and the dictation goes on as it did
+            // before this layer existed.
+            if let conflict = await MainActor.run(body: {
+                self?.corroborationConflict(
+                    secondReading: output.secondReading,
+                    transcript: output.text,
+                    modelPath: modelPath
+                )
+            }) {
+                throw TranscriptionError.uncorroboratedTranscript(conflict)
             }
 
             try Task.checkCancellation()
@@ -550,6 +608,11 @@ enum TranscriptionError: Error {
     /// the user to act on: the recording, not the model — see
     /// `SpeechPresenceConflict` for why the text cannot tell them this.
     case noSpeechDetected(SpeechPresenceConflict)
+    /// A transcript the same audio, read a second time, does not contain. The
+    /// same non-destructive refusal again, and the third thing for the user to
+    /// act on: the recording was read twice and the readings disagree — see
+    /// `SpeechCorroborationConflict`.
+    case uncorroboratedTranscript(SpeechCorroborationConflict)
 }
 
 extension TranscriptionError: LocalizedError {
@@ -557,6 +620,7 @@ extension TranscriptionError: LocalizedError {
         switch self {
         case .speechLanguageConflict(let conflict): return conflict.message
         case .noSpeechDetected(let refusal): return refusal.message
+        case .uncorroboratedTranscript(let conflict): return conflict.message
         default: return nil
         }
     }

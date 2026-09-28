@@ -113,7 +113,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        guard !OpenSuperWhisperApp.isRunningTests else { return }
+        guard !OpenSuperWhisperApp.isRunningTests else {
+            disableWindowFrameAutosave()
+            return
+        }
 
         setupStatusBarItem()
 
@@ -478,6 +481,43 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
             window.orderOut(nil)
             NSApplication.shared.setActivationPolicy(.accessory)
         }
+    }
+
+    /// No window of a test process may autosave its frame.
+    ///
+    /// AppKit writes `NSWindow Frame <name>` into `UserDefaults.standard` — the
+    /// domain the developer's own app reads, since the test bundle runs under the
+    /// app's bundle id — for a window that carries a frame autosave name, on its
+    /// own and with no test able to put the key back. The name SwiftUI gives the
+    /// WindowGroup window is exactly the one production remembers the user's
+    /// position under, and SwiftUI sets it after this method returns, so every
+    /// window AppKit announces is cleared of it. Production keeps its name: the
+    /// position he left his window in still persists.
+    private func disableWindowFrameAutosave() {
+        for window in NSApplication.shared.windows {
+            window.setFrameAutosaveName("")
+        }
+
+        for name in [
+            NSWindow.didBecomeKeyNotification,
+            NSWindow.didBecomeMainNotification,
+            NSWindow.didUpdateNotification
+        ] {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(clearFrameAutosaveName(_:)),
+                name: name,
+                object: nil
+            )
+        }
+    }
+
+    @objc private func clearFrameAutosaveName(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow,
+              !window.frameAutosaveName.isEmpty
+        else { return }
+
+        window.setFrameAutosaveName("")
     }
 
     @objc private func anyWindowWillClose(_ notification: Notification) {

@@ -9,7 +9,18 @@ import SwiftUI
 
 extension KeyboardShortcuts.Name {
     static let toggleRecord = Self("toggleRecord", initial: .init(.backtick, modifiers: .option))
-    static let escape = Self("escape", initial: .init(.escape))
+
+    /// Escape cancels the dictation on screen: the indicator enables the name
+    /// while it is up and disables it again when it goes away.
+    ///
+    /// Declaring it is a write of its own — `Name.init` stores the initial
+    /// combination in `UserDefaults.standard` when that key holds nothing
+    /// (`KeyboardShortcuts.setInitialShortcutIfNeeded`) — and under test that
+    /// domain is the one the app the developer is using reads, with nothing to
+    /// put the key back. So a test process declares the name without a
+    /// combination; `enable`, `disable` and reading a missing shortcut then only
+    /// touch the library's in-memory state.
+    static let escape = Self("escape", initial: OpenSuperWhisperApp.isRunningTests ? nil : .init(.escape))
 }
 
 @MainActor

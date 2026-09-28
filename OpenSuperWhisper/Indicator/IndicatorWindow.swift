@@ -2,16 +2,34 @@ import Cocoa
 import Combine
 import SwiftUI
 
-enum RecordingState {
+enum RecordingState: Equatable {
     case idle
     case connecting
     case recording
     case decoding
     case busy
     case noMicrophone
-    /// The selected speech model cannot hear the selected language — refused
-    /// rather than transcribed into invented English.
-    case incompatibleModel
+    /// The selected speech model cannot hear the dictation's language — refused
+    /// rather than transcribed into invented English, and the recording kept for
+    /// the user. The notice is the line the panel shows; no alert accompanies it.
+    case incompatibleModel(KeptRecordingNotice)
+}
+
+/// The panel's line for a dictation that was refused because the model cannot
+/// hear its language, and kept.
+///
+/// A recording kept without a path the user can find is the same as a lost one,
+/// so the line carries all three things that matter: what went wrong, the one
+/// action, and where the recording is. The card is 200pt wide, so they are three
+/// short lines rather than one sentence.
+struct KeptRecordingNotice: Equatable {
+    /// What the model could not do, e.g. "Can't hear Polish".
+    let problem: String
+    /// The one action, e.g. "Install a multilingual model in Settings".
+    let action: String
+    /// Where the recording is, e.g. "Kept in the Transcriptions Directory" — or
+    /// the honest alternative when it could not be kept.
+    let location: String
 }
 
 @MainActor
@@ -354,24 +372,6 @@ class IndicatorViewModel: ObservableObject {
                     insertText(outcome.text)
                     print("Transcription result: \(rawText)")
                 }
-            } catch TranscriptionError.speechLanguageConflict(let conflict) {
-                // The refused combination, reported where the user is looking:
-                // the model and what the dictation looks like named, the
-                // installed multilingual model offered as a button, and the
-                // audio preserved so the dictation can be re-run once the fix is
-                // applied. Nothing was
-                // transcribed and nothing is pasted.
-                self.showAutoDismissingMessage(.incompatibleModel)
-                if let savedRecording {
-                    do { try await Task { try await recordingStore.deleteRecordingSync(savedRecording, cancelTranscription: false) }.value }
-                    catch { AppErrorCenter.shared.report("Cancelled recording could not be removed", error: error) }
-                } else {
-                    await self.recordingStore.preserveFailedDictation(
-                        RecordedAudio(url: tempURL, samples: audio.samples),
-                        error: TranscriptionError.speechLanguageConflict(conflict)
-                    )
-                }
-                self.reportSpeechLanguageConflict(conflict)
             } catch is CancellationError {
                 if let savedRecording {
                     do { try await Task { try await recordingStore.deleteRecordingSync(savedRecording, cancelTranscription: false) }.value }
@@ -390,13 +390,64 @@ class IndicatorViewModel: ObservableObject {
                     }
                     print("Transcription cancelled")
                 } else {
+                    // The one decision every surface shares: a failure that is
+                    // silence leaves no alert and no history row, and the audio
+                    // goes with it — or is kept, with a row that records it, when
+                    // the audio is the user's. A genuine failure keeps today's
+                    // report and its audio.
                     let source = (error as? PreservedAudioError)?.url ?? audio.url
-                    await self.recordingStore.preserveFailedDictation(RecordedAudio(url: source, samples: audio.samples), error: error)
+                    let outcome = DictationFailurePolicy.outcome(for: error)
+                    let keptURL = await DictationFailurePolicy.settle(
+                        RecordedAudio(url: source, samples: audio.samples),
+                        error: error,
+                        store: self.recordingStore
+                    )
+                    switch outcome {
+                    case .discard:
+                        print("Dictation discarded: the recording held no speech")
+                    case .keepAudio:
+                        print("Dictation refused for no speech; the recording was kept")
+                    case .keepAudioAndExplain:
+                        // Real speech this model cannot hear: the recording was
+                        // kept, and the panel says what happened, what to do and
+                        // where it is. No alert, nothing pasted, and the kept row
+                        // carries no transcript.
+                        if case TranscriptionError.speechLanguageConflict(let conflict) = error {
+                            self.showAutoDismissingMessage(
+                                .incompatibleModel(Self.refusalNotice(conflict, keptAt: keptURL))
+                            )
+                        }
+                    case .report:
+                        break
+                    }
                 }
             }
 
             self.finishDecoding(sessionID: sessionID)
         }
+    }
+
+    /// The panel's line for a language conflict: what the model cannot hear, the
+    /// one action, and where the kept recording is.
+    ///
+    /// The fix lives in Settings, where the model is chosen — the panel only says
+    /// so. The location names the Transcriptions Directory, the Settings section
+    /// that shows that folder's path and opens it: a recording kept without a
+    /// place the user can find is the same as a lost one. When it could not be
+    /// kept the line never claims it was, and the failure itself has already been
+    /// reported with the recording's path.
+    static func refusalNotice(
+        _ conflict: SpeechLanguageConflict,
+        keptAt: URL?
+    ) -> KeptRecordingNotice {
+        KeptRecordingNotice(
+            problem: "Can't hear \(conflict.detectedLanguageName)",
+            action: conflict.remedyModelName.map { "Select a multilingual model (\($0)) in Settings" }
+                ?? "Install a multilingual model in Settings",
+            location: keptAt == nil
+                ? "Could not be moved out of the temporary folder"
+                : "Kept in the Transcriptions Directory"
+        )
     }
 
     private func finishDecoding(sessionID: UUID) {
@@ -455,27 +506,6 @@ class IndicatorViewModel: ObservableObject {
             }
         }
         // If both are false, do nothing
-    }
-
-    /// The refusal, surfaced where the user can act on it.
-    ///
-    /// The message names the model file and what the transcript it produced
-    /// looks like, and says what whisper did instead of transcribing; when a
-    /// multilingual model is already installed, the alert carries the button
-    /// that selects it — the fix in place, applied only because the user pressed
-    /// it.
-    private func reportSpeechLanguageConflict(_ conflict: SpeechLanguageConflict) {
-        if let remedyTitle = conflict.remedyButtonTitle, let path = conflict.remedyModelPath {
-            AppErrorCenter.shared.report(
-                conflict.title,
-                message: conflict.message,
-                remedyTitle: remedyTitle
-            ) {
-                SpeechLanguageRemedy.useMultilingualModel(atPath: path)
-            }
-        } else {
-            AppErrorCenter.shared.report(conflict.title, message: conflict.message)
-        }
     }
 
     /// The delivery stopped itself to keep the transcript out of the wrong
@@ -723,20 +753,25 @@ struct IndicatorWindow: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            case .incompatibleModel:
-                HStack(spacing: 8) {
+            case .incompatibleModel(let notice):
+                HStack(alignment: .center, spacing: 8) {
                     Image(systemName: "waveform.slash")
                         .foregroundColor(.orange)
                         .frame(width: 24)
 
-                    // The card is 200pt wide, so the full story (the model,
-                    // what the dictation looks like, the fix) is in the alert
-                    // this state accompanies.
-                    Text("Needs a multilingual model")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.orange)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    // Three short lines rather than one: the card is 200pt wide
+                    // with 24pt of padding a side, so a single sentence would be
+                    // shrunk past reading. What the model cannot hear, the one
+                    // action, and where the kept recording is.
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(notice.problem)
+                        Text(notice.action)
+                        Text(notice.location)
+                    }
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.orange)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 

@@ -1,3 +1,5 @@
+import AppKit
+import KeyboardShortcuts
 import XCTest
 @testable import OpenSuperWhisper
 
@@ -31,6 +33,44 @@ final class PreferenceIsolationTests: XCTestCase {
         XCTAssertNil(
             UserDefaults.standard.object(forKey: key),
             "a preference written by the suite must never reach the app's own domain")
+    }
+
+    /// The two writers `AppPreferences.defaults` cannot cover are off under test.
+    ///
+    /// `AppPreferences` says *where* the app's own values live; these two are not
+    /// app values and hard-code `UserDefaults.standard` themselves. The
+    /// `KeyboardShortcuts` library stores a name's declared combination there the
+    /// first time the name is touched (`setInitialShortcutIfNeeded`), and AppKit
+    /// autosaves `NSWindow Frame …` for any window a process shows with an
+    /// autosave name. Under the app's bundle id — which is where the test bundle
+    /// runs — that is the domain the app the developer is using reads, and no test
+    /// puts either of them back. So neither may be written: the escape name
+    /// declares no combination under test, and no window of a test process keeps
+    /// the autosave name SwiftUI gives it.
+    @MainActor
+    func testTheAppWritesNeitherShortcutCombinationsNorWindowFramesIntoTheApplicationDomain() {
+        // What the app itself does to the escape name: declare it, and (from
+        // `ShortcutManager.setupKeyboardShortcuts` and the indicator) disable it.
+        let storedEscape = UserDefaults.standard.object(forKey: "KeyboardShortcuts_escape")
+        XCTAssertNil(
+            KeyboardShortcuts.Name.escape.initialShortcut,
+            "the escape name declares a combination under test; the library stores it in the app's own domain")
+        _ = KeyboardShortcuts.Name.escape
+        KeyboardShortcuts.disable(.escape)
+        XCTAssertEqual(
+            UserDefaults.standard.string(forKey: "KeyboardShortcuts_escape"),
+            storedEscape as? String,
+            "touching the escape shortcut wrote it into the app's own domain")
+
+        // The window the app puts on screen is the one SwiftUI gives an autosave
+        // name to, and the name is what lets AppKit write a frame into the same
+        // domain when that window moves, closes, or the process quits.
+        let autosaved = NSApplication.shared.windows
+            .map(\.frameAutosaveName)
+            .filter { !$0.isEmpty }
+        XCTAssertTrue(
+            autosaved.isEmpty,
+            "a window of this process still autosaves its frame: \(autosaved.joined(separator: ", "))")
     }
 
     /// The model a test transcribes with is an argument, never a preference.

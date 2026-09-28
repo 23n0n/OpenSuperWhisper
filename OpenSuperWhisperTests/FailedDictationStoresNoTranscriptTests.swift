@@ -63,19 +63,11 @@ final class FailedDictationStoresNoTranscriptTests: XCTestCase {
                       "a failed dictation must carry no transcript at all, got: \(saved.transcription)")
         XCTAssertFalse(saved.transcription.contains(failureText),
                        "the failure message was stored as the transcript")
-        // Every fragment must exist in the failure text, or the absence checks below
-        // are inert. "error 1" used to be in this list and no longer appears in the
-        // bridged message (the code follows the case count), so it could pass with
-        // the defect present; the list is kept anchored to the text it probes.
-        let failureFragments = ["operation couldn", "be completed", "OpenSuperWhisper", "TranscriptionError"]
-        for fragment in failureFragments {
-            XCTAssertTrue(failureText.localizedCaseInsensitiveContains(fragment),
-                          "stale fragment in the probe list, fix the list: \(fragment)")
-        }
-        for fragment in failureFragments {
-            XCTAssertFalse(saved.transcription.localizedCaseInsensitiveContains(fragment),
-                           "the transcript carries part of the failure text: \(fragment)")
-        }
+        // No fragment list: those two checks are the whole contract — nothing at
+        // all, and never the failure's own description. A hand-picked list of
+        // fragments goes stale as the bridged text changes (it did: "error 1"
+        // had already stopped appearing in it while the defect it probed was
+        // still possible), and a stale list passes with the defect present.
         XCTAssertEqual(saved.status, .failed)
         XCTAssertTrue(FileManager.default.fileExists(atPath: saved.url.path),
                       "a failed dictation must keep its audio")

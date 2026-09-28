@@ -12,6 +12,7 @@ final class StubLanguageWhisperEngine: WhisperEngine {
     private let cannedLanguage: String?
     private let declaresMultilingual: Bool?
     private let cannedSpeechPresence: SpeechPresence?
+    private let cannedSecondReading: String?
 
     /// `multilingual` is what a loaded context would report. A test that hands
     /// this engine a transcript the *engine* could really have heard stands for
@@ -25,16 +26,24 @@ final class StubLanguageWhisperEngine: WhisperEngine {
     /// to `nil` — nothing measured — because that is the field's own default and
     /// the answer an engine with no measurement gives; no test that predates it
     /// is refused by it. The tests of the no-speech refusal set it.
+    ///
+    /// `secondReading` is what the engine's second decode of the same audio
+    /// produced, the evidence the corroboration refusal rests on
+    /// (`SpeechCorroborationConflict`). It defaults to `nil` for the same
+    /// reason: no second reading refuses nothing, and every test that predates
+    /// it goes on exactly as it did.
     init(
         text: String,
         language: String?,
         multilingual: Bool? = nil,
-        speechPresence: SpeechPresence? = nil
+        speechPresence: SpeechPresence? = nil,
+        secondReading: String? = nil
     ) {
         self.cannedText = text
         self.cannedLanguage = language
         self.declaresMultilingual = multilingual
         self.cannedSpeechPresence = speechPresence
+        self.cannedSecondReading = secondReading
         super.init(modelPath: "/stub-model-not-on-disk")
     }
 
@@ -47,7 +56,8 @@ final class StubLanguageWhisperEngine: WhisperEngine {
             text: cannedText,
             segments: [],
             language: cannedLanguage,
-            speechPresence: cannedSpeechPresence
+            speechPresence: cannedSpeechPresence,
+            secondReading: cannedSecondReading
         )
     }
 
@@ -56,7 +66,8 @@ final class StubLanguageWhisperEngine: WhisperEngine {
             text: cannedText,
             segments: [],
             language: cannedLanguage,
-            speechPresence: cannedSpeechPresence
+            speechPresence: cannedSpeechPresence,
+            secondReading: cannedSecondReading
         )
     }
 }
@@ -301,6 +312,98 @@ final class SpeechModelLanguageGateTests: XCTestCase {
                 transcript: transcript,
                 modelsDirectory: modelsDirectory
             ), transcript ?? "nil")
+        }
+    }
+
+    /// The floor on this gate: **one, two and three words are never refused**,
+    /// however the heuristic reads them.
+    ///
+    /// Each of these is English and each is read as Polish by the heuristic —
+    /// the verdicts are asserted, not assumed, because that is what makes the
+    /// floor the thing doing the work here. Refusing on that verdict is the
+    /// defect this pins: an English dictation told it is Polish, and blocked
+    /// behind a model the user does not need. The three one-word cases are the
+    /// traps the measurement named; the two- and three-word ones are the same
+    /// coin flip one word longer. Above the floor the same reading is a
+    /// refusal — see the next test.
+    func testAShortEnglishTranscriptThatReadsAsPolishIsNeverRefused() throws {
+        for transcript in [
+            "Miami",                 // 1 word
+            "nowadays",              // 1 word
+            "brownie",               // 1 word
+            "nowadays Miami",        // 2 words
+            "good brownie",          // 2 words
+            "nowadays Miami brownie",// 3 words
+        ] {
+            XCTAssertEqual(
+                SpeechModelLanguageGate.contentWords(of: transcript).count,
+                transcript.split(separator: " ").count,
+                "the word counts below are the app's own: \(transcript)"
+            )
+            XCTAssertEqual(
+                LanguageDetector.detect(transcript).languageCode,
+                "pl",
+                "this case only means something while the heuristic really does read it as Polish: \(transcript)"
+            )
+            XCTAssertNil(
+                SpeechModelLanguageGate.conflict(
+                    modelPath: "/models/ggml-tiny.en.bin",
+                    isMultilingual: false,
+                    transcript: transcript,
+                    modelsDirectory: modelsDirectory
+                ),
+                "under four words the heuristic's verdict is not evidence: \(transcript)"
+            )
+        }
+    }
+
+    /// The same reading one word longer **is** a refusal: at four words the
+    /// heuristic agrees with the truth 92.9% of the time and stops being a coin
+    /// flip, so the gate decides on it — and the floor is exactly where the
+    /// captain's own Polish dictation sits (`Cześć, jak się masz?`, four words,
+    /// refused as it always was).
+    func testAFourWordTranscriptThatReadsAsPolishIsRefused() throws {
+        XCTAssertEqual(SpeechModelLanguageGate.languageConflictMinimumWords, 4)
+
+        let fourWordEnglish = "nowadays Miami brownie and"
+        XCTAssertEqual(LanguageDetector.detect(fourWordEnglish).languageCode, "pl")
+        XCTAssertEqual(SpeechModelLanguageGate.contentWords(of: fourWordEnglish).count, 4)
+
+        let conflict = try XCTUnwrap(
+            SpeechModelLanguageGate.conflict(
+                modelPath: "/models/ggml-tiny.en.bin",
+                isMultilingual: false,
+                transcript: fourWordEnglish,
+                modelsDirectory: modelsDirectory
+            ),
+            "four words is where the heuristic's verdict becomes evidence"
+        )
+        XCTAssertEqual(conflict.detectedLanguageCode, "pl")
+        XCTAssertEqual(conflict.detectedLanguageName, "Polish")
+    }
+
+    /// And from there it behaves as it always did: the transcript that is
+    /// exactly at the floor is refused, and so is the longer one — both the
+    /// Polish of his own dictation.
+    func testTranscriptsFromTheFloorUpBehaveAsBefore() throws {
+        for transcript in [
+            "Cześć, jak się masz?",                                     // 4 words, at the floor
+            "Cześć, jak się masz? Chciałbym wysłać raport do klienta.", // 11 words
+        ] {
+            XCTAssertGreaterThanOrEqual(
+                SpeechModelLanguageGate.contentWords(of: transcript).count,
+                SpeechModelLanguageGate.languageConflictMinimumWords,
+                transcript
+            )
+            XCTAssertNotNil(
+                SpeechModelLanguageGate.conflict(
+                    modelPath: "/models/ggml-tiny.en.bin",
+                    isMultilingual: false,
+                    transcript: transcript,
+                    modelsDirectory: modelsDirectory
+                ),
+                transcript
+            )
         }
     }
 

@@ -43,8 +43,11 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
   no second model call, so it cannot invent anything itself
 - 🧭 **Auto-detected language, always** — the engine measures the language of every utterance (no language
   picker); a transcript nothing can place is pasted raw, untouched
-- 🛡️ **English-only model guard** — an `.en` model cannot detect anything, so when the transcript it produced is
-  not English the app says so and offers the multilingual model instead of keeping the invented text
+- 🛡️ **English-only model guard, and a second reading of the same audio** — an `.en` model cannot detect
+  anything, so when the transcript it produced is not English the app says so and offers the multilingual model
+  instead of keeping the invented text; and because fluent English over Polish speech *is* English, the same
+  recording is decoded a second time with the decoder prompt flipped, and a transcript the second reading does
+  not contain is refused the same non-destructive way (numbers in §3)
 - 🧹 **Dictation clean-up** — filler words, `hmm`, `aaa` and stutters are scrubbed, punctuation, articles and word
   order repaired, all in the language that was spoken, through the same single transform call
 - 📚 **Reference / glossary field** — names and terms fed into the transform prompt
@@ -130,7 +133,61 @@ to compare against — so the evidence is the text the model produced. `Utils/Sp
 the transcript with the same `LanguageDetector` heuristic the transform uses, and when an English-only model's
 transcript is not English (the captain's own case: `ggml-tiny.en.bin` writing confident English over Polish
 speech) the dictation is refused with a notice naming the model *and* what the dictation looks like, plus the
-multilingual model already on the machine as a one-click remedy. English dictation can never be caught by it.
+multilingual model already on the machine as a one-click remedy. English dictation can never be caught by it — and
+that verdict is evidence only from **four words** up: measured on his recordings plus the repository's labelled
+fixtures (122 labelled items), the heuristic agrees with the truth 36.4% of the time at one word, 54.2% at two,
+79.2% at three, 92.9% at four to five and 100% at six to ten (one miss in the fourteen four-to-five-word items),
+so below four words the gate refuses nothing — an English *Miami*, *nowadays* or *brownie*, every one of them read
+as Polish, is dictated rather than refused.
+
+**The half that heuristic cannot see is a comparison.** The two failures the app actually stored for him on
+2026-09-25 — `I'll see you later. Bye!` and `I'm not going to be able to say that.…`, read out of his own
+`recordings.sqlite`, over recordings of Polish speech — are English text, so the heuristic sees nothing wrong, and
+the audio carried speech, so the no-speech refusal sees nothing wrong either. The same recording is therefore
+decoded a **second time** and the reading itself is the evidence: same model, same audio, same settings, with
+exactly one thing flipped — the decoder prompt decision (`WhisperEngine.secondReadingPrompt`: a transcription
+that sent a prompt is read again with none, and one that sent none is read again with the default its language
+has; an English-only model is English by construction). A transcript that only exists while the decoder has been
+*handed text* is text the model wrote, not words it heard.
+
+`SpeechModelLanguageGate.corroborationConflict` refuses when the second reading holds **under 70% of the
+transcript's words and at least three of them are missing** (the floor is what keeps a three-word dictation from
+being refused over one word; a script that writes without spaces is one word and is never judged). The floor and
+the short-text guard are **chosen from the two measurements below** — the middle of the gap they leave, with the
+upper margin against the worst reading the app's own path produced and the lower margin against the closest
+invention the probe produced — not derived from anything.
+
+**Through the app's own code path** (`SecondReadingOnRealAudioTests`, opt-in, the test host running the shipped
+`WhisperEngine` and `SpeechModelLanguageGate` over the captain's recordings in
+`~/Library/Application Support/ru.starmel.OpenSuperWhisper/recordings/`, read-only, with the multilingual model
+installed on that machine, 2026-09-28): of the 27 files there, 9 carry audio and 8 produced a transcript long
+enough to judge. Six corroborate **every** word; the two that do not are his English dictations at **96.1%**
+(51 words) and **82.6%** (23 words, 4 words lost). **82.6%** is the worst legitimate reading measured on the
+shipped path, and what the floor's upper margin is against.
+
+**With `whisper-cli`** — the vendored whisper.cpp built as its own binary, a separate tool run outside the app,
+so everything in this paragraph is a probe of the **model's** behaviour and not of the app's path — on the same
+recordings and on the repo's fixtures: his Polish is word-for-word identical under seven configurations of the
+same audio (greedy, sampling at temperature 0.4, beam search, no temperature fallback, the un-trimmed VAD path, a
+prompt in the wrong language, the app's own prompt) — 35 pairs, no word lost; the long English fixture sits at
+98.6% (280 words); and `ggml-tiny.en.bin` writing English over that same Polish speech shares **0%** of its words
+with the second reading on four of the five recordings and **50%** on the fifth (the 2.4 s one, where it writes
+"This is today." twice in a row). The two transcripts the app stored share **0%** with what `whisper-cli` reads
+the same audio as today. **50%** is the closest an invention came to being corroborated, and what the floor's
+lower margin is against.
+
+**The probe is deterministic**: repeating one `whisper-cli` invocation twice gave byte-identical output in all
+three invocations compared that way — the greedy decode of one recording, the temperature-0.4 decode of one
+recording, and the English-only model with a prompt on one recording — so a disagreement is the model's, not the
+sampling's.
+
+So the floor leaves **12.6 points** above the worst legitimate reading (0.826, shipped path) and **20 points**
+below the closest invention (0.500, probe). The false-refusal rate measured is **0 of the 8 judged readings
+through the shipped path**, and separately **0 of the 35 legitimate configuration pairs** through the probe —
+two populations, two rates, both zero. No second reading — no prompt to flip to, a decode that failed, a
+transcript too short to judge — refuses nothing, and the refusal is the same non-destructive one as the two
+above: no transcript row and nothing pasted, while the recording itself is kept as a failed row so it stays findable, and a message about the two readings that does not read like
+either of the other refusals.
 
 ### 4. Dictation clean-up and the reference field
 
@@ -339,6 +396,43 @@ capture scrolled to the bottom); that harness is repaired and was verified green
 paragraph's. The rest of the skips are environmental: 50 gated on this machine's input sources or on Accessibility
 automation, 2 behind `OSW_TEST_TURBO_MODEL` and 1 behind a microphone opt-in. That 50 is why the daily delivery path
 is the least covered part of the suite.
+
+### 12. A dictation that produced no text
+
+**No text means nothing to see.** An outcome that yields no text is silent: nothing appears anywhere the user
+looks — no alert, no history row, no copy left behind, nothing inserted. Two cases produce it, and in both the
+audio goes with the row that was never written: the voice-activity detector found no speech segment in the
+recording at all, or the capture itself never wrote a frame. The decision is taken once, in
+`Utils/DictationFailurePolicy.swift` (`DictationFailurePolicy.outcome(for:)`), and every surface that can end a
+dictation settles its failure through it — the indicator, the main window's record button, the transcription
+queue, and the recorder's own capture failures — so one path cannot refuse in silence while another reports. That
+rule is only for absence: a *real* failure, an engine or a converter that failed over audio which really was
+recorded, is untouched and keeps what the app has always done — alert, failed row, audio kept.
+
+**The exception, and why it leaves a row.** A refusal whose evidence is a *measured* no-speech probability at or
+above the user's own `noSpeechThreshold` keeps the recording instead. That threshold is whisper's own
+`no_speech_thold`, **0.6** by default — whisper.cpp's default, surfaced as **No Speech Threshold** in
+**Settings → Advanced → Model Parameters**, adjustable there, and the same line the decoder itself is handed, so
+nothing about it was invented for this fork. A probability is a guess about audio that really was recorded, and a
+guess must not destroy what he said; and because the recording is kept the user has to be able to find it, since
+a kept recording nobody can locate is a lost one. The audio is moved into the recordings directory and a row
+records it (`RecordingStore.saveFailedDictation`), so it appears in **History as a failed row with no
+transcript**, playable like any other recording, and ages with everything else under the same retention sweep.
+Nothing is pasted and no alert fires: this row is a record, not a delivery.
+
+**A file the user queued is not ours to touch.** A file queued from disk (drag & drop) is treated differently on
+purpose. Refused for having no speech — the detector's verdict or the measured probability alike — its row stays
+and names the file it stands for (`sourceFileURL`, which History shows), so he can tell which file it was, while
+**the file itself is never moved, copied or deleted** (`TranscriptionQueue.isOurOwnRecording`); silence there
+would leave him unable to tell whether the transcription had worked. Transcribed successfully it behaves as
+before: the audio is copied into the recordings directory so the row can play it, and the file he queued stays
+exactly where it is.
+
+**An empty failed row says so, and nothing else.** The transcript column carries what the user dictated, never a
+failure's own description, so a failed row whose transcript is empty reads **"No transcript"** in plain secondary
+text: the app did not break, and the row must not read as if it had. Rows written before the column stopped
+carrying failure text can still hold one, and those keep the red "Transcription failed" marker and the stored text
+under it.
 
 ### What is unchanged
 

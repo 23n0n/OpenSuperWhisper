@@ -4,9 +4,20 @@ import CoreAudioTypes
 
 private class ProgressContext {
     var onProgress: ((Float) -> Void)?
+    /// The share of the bar this decode owns, e.g. 0.10–0.55 for the first
+    /// decode and 0.55–0.95 for the second reading. whisper reports 0–100% of
+    /// its own work; the callback maps that into this range, so a decode that is
+    /// still running keeps the bar moving instead of leaving it parked.
+    let progressStart: Float
+    let progressEnd: Float
     private var _lastReportedProgress: Float = 0.0
     private let lock = NSLock()
-    
+
+    init(start: Float, end: Float) {
+        progressStart = start
+        progressEnd = end
+    }
+
     var lastReportedProgress: Float {
         get {
             lock.lock()
@@ -17,6 +28,30 @@ private class ProgressContext {
             lock.lock()
             defer { lock.unlock() }
             _lastReportedProgress = newValue
+        }
+    }
+}
+
+/// The progress callback whisper calls during a decode.
+///
+/// It has no captures — a C function pointer cannot have any — so the range it
+/// maps into comes from the `ProgressContext` the params carry, and the same
+/// callback serves every decode the engine runs.
+private let decodeProgressCallback: @convention(c) (
+    OpaquePointer?,
+    OpaquePointer?,
+    Int32,
+    UnsafeMutableRawPointer?
+) -> Void = { _, _, progressPercent, userData in
+    guard let userData = userData else { return }
+    let ctx = Unmanaged<ProgressContext>.fromOpaque(userData).takeUnretainedValue()
+    let normalizedProgress = ctx.progressStart
+        + (Float(progressPercent) / 100.0) * (ctx.progressEnd - ctx.progressStart)
+    // Report every progress update for smooth animation
+    if normalizedProgress > ctx.lastReportedProgress {
+        ctx.lastReportedProgress = normalizedProgress
+        DispatchQueue.main.async {
+            ctx.onProgress?(normalizedProgress)
         }
     }
 }
@@ -134,6 +169,14 @@ class WhisperEngine: TranscriptionEngine {
         /// it produced. `nil` is "not measured" — the gate fails open on it, so
         /// a caller that does not populate this refuses nothing.
         var speechPresence: SpeechPresence? = nil
+        /// The same audio read a second time, with the decoder prompt decision
+        /// flipped (`secondReadingPrompt`). This is the only evidence in the app
+        /// that can tell a transcript apart from text the decoder wrote over the
+        /// audio — see `SpeechModelLanguageGate.corroborationConflict` for the
+        /// comparison and the numbers. `nil` is "not read twice": no prompt to
+        /// flip to, a transcript too short to judge, a failed second decode — and
+        /// no evidence never refuses.
+        var secondReading: String? = nil
     }
 
     var engineName: String { "Whisper" }
@@ -277,8 +320,11 @@ class WhisperEngine: TranscriptionEngine {
         abortFlag.isSet = false
         try Task.checkCancellation()
         
-        // Setup progress context for callback
-        progressContext = ProgressContext()
+        // Setup progress context for the first decode's share of the bar. The
+        // second reading owns the rest (0.55–0.95) and reports it itself, so a
+        // dictation that pays for two decodes shows two stretches of work
+        // instead of one and a stall.
+        progressContext = ProgressContext(start: 0.10, end: 0.55)
         progressContext?.onProgress = onProgressUpdate
         
         defer {
@@ -375,25 +421,10 @@ class WhisperEngine: TranscriptionEngine {
             return Unmanaged<AbortFlag>.fromOpaque(userData).takeUnretainedValue().isSet
         }
         
-        // Progress callback: whisper reports 0-100%, we map to 10-95%
-        // Note: callback is called from C code, we need to bridge to Swift safely
-        typealias WhisperProgressCallback = @convention(c) (OpaquePointer?, OpaquePointer?, Int32, UnsafeMutableRawPointer?) -> Void
-        let progressCallback: WhisperProgressCallback = { _, _, progressPercent, userData in
-            guard let userData = userData else { return }
-            let ctx = Unmanaged<ProgressContext>.fromOpaque(userData).takeUnretainedValue()
-            // Map whisper progress (0-100) to our range (10-95%)
-            let normalizedProgress = 0.10 + (Float(progressPercent) / 100.0) * 0.85
-            // Report every progress update for smooth animation
-            if normalizedProgress > ctx.lastReportedProgress {
-                ctx.lastReportedProgress = normalizedProgress
-                DispatchQueue.main.async {
-                    ctx.onProgress?(normalizedProgress)
-                }
-            }
-        }
-        
+        // whisper reports 0-100% of its own decode, and the context carries the
+        // share of the bar this one owns: see `decodeProgressCallback`.
         let progressContextPtr = Unmanaged.passUnretained(progressContext!).toOpaque()
-        params.progressCallback = progressCallback
+        params.progressCallback = decodeProgressCallback
         params.progressCallbackUserData = progressContextPtr
         
         if settings.useBeamSearch {
@@ -489,6 +520,27 @@ class WhisperEngine: TranscriptionEngine {
             processedText = AutocorrectWrapper.format(cleanedText)
         }
         
+        // The comparative layer: the same audio, the same model, read once more
+        // with the decoder prompt decision flipped. Everything the first decode
+        // measured has been read out of its state by now, so the second reading
+        // starts from a state of its own — see `takeSecondReading` for why this
+        // costs a decode on every dictation and what it is evidence of.
+        let secondReading = try takeSecondReading(
+            of: samples,
+            transcript: processedText,
+            language: language,
+            settings: settings,
+            primaryPrompt: effectiveSettings.initialPrompt,
+            nThreads: nThreads,
+            abortCallback: abortCallback
+        )
+        if secondReading == nil {
+            // No second reading runs (or it did and produced nothing usable): the
+            // decoding is over, so the bar goes to the end of the range the
+            // decodes own instead of resting at the first decode's share.
+            onProgressUpdate?(0.95)
+        }
+        
         return DetailedTranscription(
             text: processedText,
             segments: decodedSegments,
@@ -500,8 +552,136 @@ class WhisperEngine: TranscriptionEngine {
             // evidence never refuses.
             speechPresence: nSegments > 0
                 ? .measured(meanNoSpeechProbability: Double(noSpeechProbabilitySum) / Double(nSegments))
-                : nil
+                : nil,
+            secondReading: secondReading
         )
+    }
+
+    /// The same audio read a second time with the decoder prompt decision
+    /// flipped, or `nil` when there is no second reading to take.
+    ///
+    /// This is the one thing in the app that can tell a transcript from text the
+    /// decoder *wrote* over the audio: the first two refusals read the text and
+    /// the decoder's own speech measurement, and fluent English over Polish
+    /// speech that really was there passes both. A reading is reproducible when
+    /// it came from the audio and not from the text the decoder was handed, so
+    /// the second reading changes exactly the prompt and nothing else — same
+    /// model, same settings, the same audio the first decode heard, the state it
+    /// left behind left behind entirely (`prompt_past` and all).
+    ///
+    /// `nil` — and the dictation goes on exactly as it did before this layer
+    /// existed — when the transcript is too short to judge
+    /// (`SpeechModelLanguageGate.canBeCorroborated`), when the flip lands on the
+    /// same empty prompt (`secondReadingPrompt`), when the model is gone, and
+    /// when the second decode itself fails. Cancellation is not one of those:
+    /// it still cancels the dictation, the same way the first decode does.
+    private func takeSecondReading(
+        of samples: [Float],
+        transcript: String,
+        language: String?,
+        settings: Settings,
+        primaryPrompt: String,
+        nThreads: Int,
+        abortCallback: @escaping @convention(c) (UnsafeMutableRawPointer?) -> Bool
+    ) throws -> String? {
+        guard SpeechModelLanguageGate.canBeCorroborated(transcript) else { return nil }
+        guard let context else { return nil }
+        guard let prompt = Self.secondReadingPrompt(
+            primaryPrompt: primaryPrompt,
+            spokenLanguage: language,
+            isMultilingual: context.isMultilingual
+        ) else { return nil }
+
+        var secondSettings = settings
+        secondSettings.initialPrompt = prompt
+        let promptTokenCount = prompt.isEmpty ? 0 : context.tokenCount(text: prompt)
+        var params = Self.makeFullParams(
+            settings: secondSettings,
+            nThreads: nThreads,
+            modelTextContext: context.nTextCtx,
+            initialPromptTokenCount: promptTokenCount
+        )
+        // The second reading is a decode of its own, so it reports progress in
+        // its own share of the bar (0.55–0.95). Without it the bar rested at the
+        // first decode's end through a whole second pass, and nothing showed
+        // that work was still going. The context is held by the engine, so the
+        // pointer whisper keeps cannot dangle.
+        let secondProgress = ProgressContext(start: 0.55, end: 0.95)
+        secondProgress.onProgress = onProgressUpdate
+        progressContext = secondProgress
+        params.progressCallback = decodeProgressCallback
+        params.progressCallbackUserData = Unmanaged.passUnretained(secondProgress).toOpaque()
+        var cParams = params.toC()
+        cParams.abort_callback = abortCallback
+        cParams.abort_callback_user_data = Unmanaged.passUnretained(abortFlag).toOpaque()
+
+        try Task.checkCancellation()
+
+        // A state of its own: the first decode's carries its `prompt_past`, and a
+        // second reading that inherited it would not be a second reading.
+        context.freeState()
+        guard context.initState() else { return nil }
+
+        guard context.full(samples: samples, params: &cParams) else {
+            if abortFlag.isSet || Task.isCancelled {
+                throw CancellationError()
+            }
+            return nil
+        }
+        try Task.checkCancellation()
+
+        var segmentTexts: [String] = []
+        segmentTexts.reserveCapacity(context.fullNSegments)
+        for i in 0..<context.fullNSegments {
+            guard let segmentText = context.fullGetSegmentText(iSegment: i) else { continue }
+            segmentTexts.append(segmentText)
+        }
+        context.freeState()
+
+        // Assembled the way the transcript is, minus the pause terminators: the
+        // comparison is about words, and the punctuation a boundary adds is not
+        // one. Timestamp mode's `[t0->t1] ` prefixes are not added here either,
+        // and `SpeechModelLanguageGate.contentWords` drops them from the
+        // transcript's side so the two readings are read the same way.
+        return Self.assembleSegmentTexts(segmentTexts, showTimestamps: false, sentenceBoundaries: .none)
+            .replacingOccurrences(of: "[MUSIC]", with: "")
+            .replacingOccurrences(of: "[BLANK_AUDIO]", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The decoder prompt the second reading is sent: the flip the comparison
+    /// rests on, or `nil` when there is nothing to flip to.
+    ///
+    /// A decoder prompt is text the model was *given*, and this app has exactly
+    /// two prompt decisions: the one the user's settings ask for, and the
+    /// default `decoderPrompt` chooses by the language that was spoken. The
+    /// second reading takes the other one:
+    ///
+    /// * the transcription sent a prompt — the user's own, or the language's
+    ///   default — so the second reading sends **none**: upstream's audio, byte
+    ///   for byte;
+    /// * the transcription sent none, so the second reading sends the default
+    ///   **for the language the decoder heard**. A model that cannot hear a
+    ///   language is English by construction (the same inference
+    ///   `SpeechModelLanguageGate` makes), and that branch is the one that
+    ///   catches the failure this layer exists for: an English-only model writes
+    ///   fluent English with no prompt at all, and reading the same audio with
+    ///   the default prompt its own language has is what shows the text was not
+    ///   in the recording.
+    ///
+    /// `nil` when the flip lands on the same empty prompt (a language the table
+    /// has no default for): there is no second reading, and no reading the app
+    /// does not have ever refuses.
+    static func secondReadingPrompt(
+        primaryPrompt: String,
+        spokenLanguage: String?,
+        isMultilingual: Bool
+    ) -> String? {
+        guard primaryPrompt.isEmpty else { return "" }
+        let language = spokenLanguage ?? (isMultilingual ? nil : "en")
+        guard let language else { return nil }
+        let prompt = defaultDecoderPrompt(forLanguage: language)
+        return prompt.isEmpty ? nil : prompt
     }
 
     /// The language of the audio, measured **before** the decoder is given

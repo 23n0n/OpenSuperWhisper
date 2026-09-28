@@ -107,6 +107,44 @@ struct SpeechPresenceConflict: Equatable {
     }
 }
 
+/// A transcript the same audio, read a second time, does not contain.
+///
+/// This is the third way text appears that the user never said, and the only
+/// one with a comparison behind it. The other two gates read one thing — the
+/// transcript, and the decoder's own verdict on whether there was speech at
+/// all — and a model that writes fluent English over Polish speech it never
+/// understood passes both of them, because the text is exactly what an
+/// English-only model produces and the audio really did hold speech.
+///
+/// What is evidence here is the reading itself: the same audio, the same model,
+/// the same settings, decoded once more with the decoder prompt flipped. A
+/// transcript that only exists while the decoder has been *handed text* is text
+/// the model wrote, not words it heard — the second reading, which was given
+/// different text, does not contain it. The refusal is the same shape as the
+/// other two: nothing is published, nothing is pasted, the audio is kept.
+struct SpeechCorroborationConflict: Equatable {
+    /// The speech model that produced the first reading, e.g. `ggml-tiny.en.bin`.
+    let modelName: String
+    /// How many words the transcript is made of.
+    let transcriptWordCount: Int
+    /// How many of those words the second reading of the same audio contains.
+    let corroboratedWordCount: Int
+
+    var title: String { "This transcript is not in the recording" }
+
+    /// The whole story in the user's terms: the recording was read twice, the
+    /// two readings disagree, and what happened to the audio — never the
+    /// language conflict above (that is a model that cannot hear the language)
+    /// and never the no-speech refusal (that is a recording without a voice).
+    var message: String {
+        "\(modelName) was given this recording twice. Its first reading produced \(transcriptWordCount) "
+            + "words, and a second reading of the same audio contains only \(corroboratedWordCount) of "
+            + "them — text that only one reading of a recording has is text the decoder wrote, not words "
+            + "it heard. Nothing was transcribed and nothing was typed. The audio is kept, so the "
+            + "recording is not lost."
+    }
+}
+
 /// The rule that refuses to keep a transcript only an English-only model could
 /// have invented.
 ///
@@ -122,6 +160,11 @@ struct SpeechPresenceConflict: Equatable {
 /// that looks Polish under a `.en` model is refused and named, and English
 /// dictation can never be caught by this guard.
 ///
+/// The verdict is only evidence from `languageConflictMinimumWords` words up —
+/// the heuristic is a coin flip on one and two words, and refusing a dictation
+/// on a coin flip tells an English one it is Polish. See the constant for the
+/// measurement.
+///
 /// Nothing here changes a preference. The remedy is offered, and applied only
 /// when the user takes it.
 enum SpeechModelLanguageGate {
@@ -129,6 +172,28 @@ enum SpeechModelLanguageGate {
     /// The multilingual model the app prefers to offer, because it is the one
     /// the machine and the download list both know.
     static let preferredMultilingualModelName = "ggml-large-v3-turbo.bin"
+
+    /// The shortest transcript this gate may refuse: **four words**.
+    ///
+    /// The heuristic answers Polish or English and nothing else, and on one or
+    /// two words it is a coin flip — `LanguageDetector`'s own documentation says
+    /// the same thing from its own measurement ("the rule is a coin flip on
+    /// two-word input, so it must never be the only signal available"). Left
+    /// unbounded, that coin flip is a refusal: an English dictation of *Miami*,
+    /// *nowadays* or *brownie* — every one of them read as Polish — was refused
+    /// and told it was Polish.
+    ///
+    /// Measured on the captain's own recordings plus the repository's labelled
+    /// fixtures, pooled over 122 labelled items, the heuristic agrees with the
+    /// truth **36.4%** of the time at one word, **54.2%** at two, **79.2%** at
+    /// three, **92.9%** at four to five and **100%** at six to ten — the one
+    /// miss above the floor is inside the fourteen four-to-five-word items. Four
+    /// is where agreement stops being a coin flip, and below it this gate
+    /// refuses nothing: the transcript goes on exactly as it did before the gate
+    /// existed. The words are counted with `contentWords`, the same rule the
+    /// rest of the app counts them by, so the floor and the measurement cannot
+    /// drift apart.
+    static let languageConflictMinimumWords = 4
 
     /// The conflict for this model and this transcript, or `nil` when there is
     /// nothing to refuse.
@@ -142,8 +207,12 @@ enum SpeechModelLanguageGate {
         guard isEnglishOnlyModel(modelPath: modelPath, isMultilingual: isMultilingual) else { return nil }
 
         // The transcript is the whole of the evidence, so no text — or text the
-        // heuristic cannot place — is not a conflict.
+        // heuristic cannot place — is not a conflict. Neither is a transcript of
+        // fewer than `languageConflictMinimumWords` words: at one and two words
+        // the heuristic is wrong about as often as it is right, and a refusal it
+        // gets wrong is an English dictation being told it is Polish.
         guard let transcript, !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              contentWords(of: transcript).count >= languageConflictMinimumWords,
               let detected = LanguageDetector.detect(transcript).languageCode,
               detected != "en" else {
             return nil
@@ -197,6 +266,170 @@ enum SpeechModelLanguageGate {
             noSpeechThreshold: noSpeechThreshold
         )
     }
+
+    /// The refusal for a transcript a second reading of the same audio does not
+    /// contain, or `nil` when it does — and, just as important, when there is no
+    /// second reading, when either side is too short to judge, or when the text
+    /// is not made of whitespace-separated words at all.
+    ///
+    /// **The comparison, and the numbers behind it.** Two populations had to be
+    /// told apart, and both were measured, on the captain's own recordings
+    /// (`~/Library/Application Support/ru.starmel.OpenSuperWhisper/recordings/`,
+    /// read-only) and on the repo's own fixtures, through the vendored
+    /// whisper.cpp the app links, on 2026-09-28:
+    ///
+    /// * **Two legitimate readings agree.** Through the app's own decode path,
+    ///   with the multilingual model on that machine, the second reading of his
+    ///   speech contains **100%** of the first reading's words on six of eight
+    ///   judged recordings, **96.1%** on the 51-word English one and **82.6%**
+    ///   on the 23-word English one — the worst legitimate reading measured, 4
+    ///   words missing. Under seven configurations of the same audio (greedy,
+    ///   sampling, beam search, no temperature fallback, the un-trimmed VAD
+    ///   path, a prompt in the wrong language, the app's own prompt) his Polish
+    ///   agrees word for word: 35 pairs, no word lost. The long English fixture
+    ///   (280 words) lands between them at 98.6%.
+    /// * **An invented reading is not reproducible.** `ggml-tiny.en.bin` writing
+    ///   English over that same Polish speech shares **0%** of its words with the
+    ///   second reading on four of the five recordings and **50%** on the fifth
+    ///   (the 2.4 s one, where it writes "This is today." twice in a row). The
+    ///   two hallucinations the app actually stored for him — "I'll see you
+    ///   later. Bye!" and "I'm not going to say that…" — share 0% with what the
+    ///   same audio reads as today.
+    ///
+    /// So the floor is **0.7**, the middle of the measured gap: a refusal needs
+    /// the second reading to hold fewer than 70% of the transcript's words,
+    /// which leaves **12.6 points** of room above the worst legitimate reading
+    /// measured and **20 points** below the closest invention. On his own
+    /// recordings the measured false-refusal rate is **0 of 8 judged readings**
+    /// (and 0 of the 35 legitimate pairs), so his dictation is not refused by
+    /// this rule; every invention measured is refused by it.
+    ///
+    /// **The second condition is the short-text guard.** A ratio alone would
+    /// refuse a three-word dictation that lost one word to a comma, so a
+    /// refusal also needs at least `corroborationMissingWords` words to be
+    /// missing: a short reading is not judged on a ratio it cannot support. And
+    /// a transcript whose words cannot be split at all — Chinese, Japanese and
+    /// Korean write without spaces, so one line is one word — never reaches the
+    /// missing-word floor and is never refused by this rule.
+    static func corroborationConflict(
+        transcript: String?,
+        secondReading: String?,
+        modelPath: String? = nil
+    ) -> SpeechCorroborationConflict? {
+        guard let measurement = corroboration(of: transcript, in: secondReading),
+              measurement.missing >= corroborationMissingWords,
+              measurement.ratio < corroborationFloor else { return nil }
+
+        let modelName = modelPath
+            .map { URL(fileURLWithPath: $0).lastPathComponent }
+            .flatMap { $0.isEmpty ? nil : $0 } ?? "The selected speech model"
+
+        return SpeechCorroborationConflict(
+            modelName: modelName,
+            transcriptWordCount: measurement.words,
+            corroboratedWordCount: measurement.corroborated
+        )
+    }
+
+    /// What a second reading contains of a transcript: how many of the
+    /// transcript's words it has, out of how many the transcript is made of.
+    /// The refusal is decided on this and nothing else, and it is what a
+    /// measurement of the layer reports, so one run says both what happened and
+    /// why.
+    ///
+    /// `nil` is "nothing to measure": no transcript, no second reading, a
+    /// transcript below `corroborationMinimumWords`, or a reading with no words
+    /// in it at all.
+    struct Corroboration: Equatable {
+        /// How many words the transcript is made of.
+        let words: Int
+        /// How many of those words the second reading contains.
+        let corroborated: Int
+
+        var missing: Int { words - corroborated }
+        var ratio: Double { words > 0 ? Double(corroborated) / Double(words) : 0 }
+    }
+
+    /// The measurement `corroborationConflict` decides on: the words of the
+    /// transcript counted against the words of the second reading, as
+    /// multisets, so a word read twice has to be in the second reading twice.
+    static func corroboration(of transcript: String?, in secondReading: String?) -> Corroboration? {
+        guard let transcript, let secondReading, !secondReading.isEmpty else { return nil }
+
+        let words = contentWords(of: transcript)
+        var pool: [String: Int] = [:]
+        for word in contentWords(of: secondReading) {
+            pool[word, default: 0] += 1
+        }
+        guard words.count >= corroborationMinimumWords, !pool.isEmpty else { return nil }
+
+        var corroborated = 0
+        for word in words where pool[word, default: 0] > 0 {
+            pool[word, default: 0] -= 1
+            corroborated += 1
+        }
+        return Corroboration(words: words.count, corroborated: corroborated)
+    }
+
+    /// Whether a transcript is long enough for a second reading to be evidence
+    /// about it at all.
+    ///
+    /// The engine reads this *before* spending a second decode: under
+    /// `corroborationMinimumWords` no refusal is possible, so the reading would
+    /// cost the user a decode and change nothing.
+    static func canBeCorroborated(_ transcript: String?) -> Bool {
+        guard let transcript else { return false }
+        return contentWords(of: transcript).count >= corroborationMinimumWords
+    }
+
+    /// The words a transcript is made of: case-folded, with punctuation as a
+    /// separator and an apostrophe kept inside a word, so "don't" is one word
+    /// rather than two — and with the `[1.2->3.4] ` prefix *Show Timestamps* puts
+    /// in front of every line dropped, because those numbers are not words
+    /// anyone spoke.
+    ///
+    /// This is the app's one answer to "how many words is this text", so the two
+    /// rules built on it cannot disagree: the language conflict's
+    /// `languageConflictMinimumWords` and the second reading's
+    /// `corroborationFloor` both count with it.
+    static func contentWords(of text: String) -> [String] {
+        var words: [String] = []
+        for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            var content = Substring(line)
+            if content.hasPrefix("["), let close = content.firstIndex(of: "]") {
+                content = content[content.index(after: close)...]
+            }
+            var current = ""
+            for character in content.lowercased() {
+                if character.isLetter || character.isNumber {
+                    current.append(character)
+                } else if character == "'" || character == "’" {
+                    current.append("'")
+                } else if !current.isEmpty {
+                    words.append(current)
+                    current = ""
+                }
+            }
+            if !current.isEmpty { words.append(current) }
+        }
+        return words
+    }
+
+    /// The share of the transcript's words the second reading has to contain,
+    /// set in the measured gap between the two readings it has to tell apart:
+    /// 82.6% for the worst legitimate reading measured (his own 23-word English
+    /// dictation) and 50% for the closest invention, on the captain's own
+    /// recordings — see `corroborationConflict`.
+    static let corroborationFloor = 0.7
+
+    /// How many words may be missing before the ratio is even considered, so a
+    /// short dictation is not refused over one word.
+    static let corroborationMissingWords = 3
+
+    /// The shortest transcript this rule judges. Below it there is too little
+    /// text for a missing word to be evidence of anything, and the engine takes
+    /// no second reading.
+    static let corroborationMinimumWords = 3
 
     /// Whether this model can only speak English.
     ///

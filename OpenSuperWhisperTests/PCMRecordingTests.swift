@@ -99,9 +99,12 @@ final class PCMRecordingTests: XCTestCase {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["OSW_TEST_MICROPHONE"] == "1")
         try XCTSkipUnless(AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
                           "Microphone permission is required")
+        // The session is always given the device to capture from; this test takes
+        // the system's default input, read and never written, as the microphone.
+        let deviceID = try XCTUnwrap(MicrophoneService.shared.getCurrentSystemDefaultInputDevice())
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("pcm-microphone-\(UUID()).wav")
         defer { try? FileManager.default.removeItem(at: url) }
-        let session = try PCMRecordingSession(url: url)
+        let session = try PCMRecordingSession(url: url, deviceID: deviceID, deviceName: "the system default input")
         try session.start()
         try await Task.sleep(nanoseconds: 1_500_000_000)
         let recording = try session.finish()

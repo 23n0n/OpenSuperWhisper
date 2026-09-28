@@ -177,197 +177,6 @@ multilingual_test_model() {
     return 1
 }
 
-# The suite is app-hosted: XCTest injects the test bundle into the app this
-# script builds, so a test process runs under the bundle id the developer's own
-# build uses, and the domain behind it is the one place a test run could reach -
-# `$PREFS_PATH`. The suite has to see an empty store (its new-install cases read
-# exactly that state), and no test run may leave that domain changed, so the real
-# store is put aside for the length of the run and put back: by the run itself
-# when it ends, and by the EXIT trap for a failed suite, a Ctrl-C or any other
-# exit. A run that is killed outright (SIGKILL, a power cut) runs no trap at all,
-# and that is what `recover_stranded_store` picks up on the next start.
-#
-# Two fixed paths hold the store while a run has it, both directly in the home
-# directory and both named after this script:
-#
-#   $HOME/.dev-run-preference-stash       the store itself, while a run holds it
-#   $HOME/.dev-run-preference-stash.lock  the run that holds it
-#
-# They are NOT app data and must never be treated as such: an uninstaller, a
-# packaging script or a developer tidying the app's folders would delete the only
-# copy of the preferences if the stash lived under ~/Library next to the app's
-# own data, which is why it does not. A temp directory is no good either - a run
-# killed after the store was moved has to be findable again, and $TMPDIR is a
-# different directory by then.
-PREFS_PATH="$HOME/Library/Preferences/$BUNDLE_ID.plist"
-STASH_DIR="$HOME/.dev-run-preference-stash"
-LOCK_DIR="$STASH_DIR.lock"
-# The stash file is named after a digest of the domain, so neither the app's name
-# nor the bundle id is spelled out in a path something could mistake for app data.
-if command -v md5 >/dev/null 2>&1; then
-    STASH_KEY="$(printf '%s' "$BUNDLE_ID" | md5 -q)"
-else
-    STASH_KEY="$(printf '%s' "$BUNDLE_ID" | cksum | cut -d' ' -f1)"
-fi
-STASH_PATH="$STASH_DIR/$STASH_KEY.plist"
-PRESERVED_STORE=""
-PRESERVED_STORE_STASHED=false
-PRESERVED_STORE_WAS_ABSENT=false
-LOCK_HELD=false
-
-# One run at a time. A second run must not read, recover or overwrite a stash a
-# first run is holding, so the lock goes up before anything looks at either path
-# and is released by the trap on the way out. A lock whose owner is gone is the
-# aftermath of a killed run rather than a run in progress: taking that one over
-# is what makes the recovery below reachable at all.
-acquire_run_lock() {
-    trap on_exit_restore_and_unlock EXIT
-    local holder
-    if mkdir "$LOCK_DIR" 2>/dev/null; then
-        LOCK_HELD=true
-        printf '%s\n' "$$" > "$LOCK_DIR/pid"
-        return 0
-    fi
-    holder="$(cat "$LOCK_DIR/pid" 2>/dev/null || true)"
-    if [[ -n "$holder" ]] && kill -0 "$holder" 2>/dev/null; then
-        echo "dev-run.sh: another run (pid $holder) is holding the preference store:" >&2
-        echo "  lock:  $LOCK_DIR" >&2
-        echo "  stash: $STASH_PATH" >&2
-        echo "  Neither is touched. Wait for that run to end; if it is not one of" >&2
-        echo "  yours, remove $LOCK_DIR and try again." >&2
-        exit 75
-    fi
-    echo "dev-run.sh: taking over the lock of run ${holder:-an unnamed process}, which is gone" >&2
-    rm -f "$LOCK_DIR/pid"
-    rmdir "$LOCK_DIR" 2>/dev/null || true
-    if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-        echo "dev-run.sh: cannot take the lock at $LOCK_DIR; remove it and try again" >&2
-        exit 75
-    fi
-    LOCK_HELD=true
-    printf '%s\n' "$$" > "$LOCK_DIR/pid"
-}
-
-release_run_lock() {
-    [[ "$LOCK_HELD" == true ]] || return 0
-    LOCK_HELD=false
-    rm -f "$LOCK_DIR/pid"
-    rmdir "$LOCK_DIR" 2>/dev/null || true
-}
-
-# Copies $1 to $2 and unlinks $1 only once the copy has been verified byte for
-# byte. The store and the stash sit on the same volume here by construction, but
-# a cross-volume `mv` is a copy and an unlink by another name, so the ordering is
-# spelled out rather than trusted: a death in the middle of it leaves at least
-# one good copy, and a copy that does not match is an error, never a success.
-move_verified() {
-    cp -p "$1" "$2" || return 1
-    cmp -s "$1" "$2" || return 1
-    rm -f "$1" || return 1
-}
-
-# Run before anything is stashed. A stash that is still there belongs to a run
-# that died: with the real store gone it is the only copy left and goes back
-# where it belongs; with a store there as well nothing on this machine can tell
-# which of the two the developer wants, so both stay exactly as they are and the
-# run stops instead of choosing one.
-recover_stranded_store() {
-    [[ -e "$STASH_PATH" ]] || return 0
-    if [[ -e "$PREFS_PATH" ]]; then
-        echo "dev-run.sh: a preference store left aside by an earlier run was not put back:" >&2
-        echo "  stashed: $STASH_PATH" >&2
-        echo "  in use:  $PREFS_PATH" >&2
-        echo "  Neither is touched. Keep one of them first, for instance:" >&2
-        echo "    mv -f \"$STASH_PATH\" \"$PREFS_PATH\"   # the stashed one wins" >&2
-        echo "    rm -f \"$STASH_PATH\"                   # the one in use wins" >&2
-        exit 1
-    fi
-    move_verified "$STASH_PATH" "$PREFS_PATH" || {
-        echo "dev-run.sh: could not put $PREFS_PATH back; the store kept aside is $STASH_PATH" >&2
-        exit 1
-    }
-    echo "dev-run.sh: put back the preferences a run that was killed left stashed:"
-    echo "  $PREFS_PATH"
-    rmdir "$STASH_DIR" 2>/dev/null || true
-}
-
-# The trap went up with the lock, before anything was read or moved; this records
-# which of the two states the run is in - stashed (the trap puts it back) or
-# absent (the trap removes what the run leaves, because the absence recorded here
-# is the state worth restoring) - and refuses to run if the store cannot be set
-# aside safely.
-stash_real_store() {
-    PRESERVED_STORE="$PREFS_PATH"
-    PRESERVED_STORE_STASHED=false
-    PRESERVED_STORE_WAS_ABSENT=false
-    if [[ ! -e "$PRESERVED_STORE" ]]; then
-        # Nothing to stash. Recorded now, before the run: the trap may remove a
-        # store later only because this absence was established here.
-        PRESERVED_STORE_WAS_ABSENT=true
-        return 0
-    fi
-    # Explicitly checked, not left to errexit: the call site is
-    # `run_unit_tests || TEST_STATUS=$?`, which switches errexit off for this
-    # whole function, and a half-done stash must stop the run rather than let it
-    # loose on the store still sitting in place.
-    if [[ -e "$STASH_PATH" ]]; then
-        echo "dev-run.sh: $STASH_PATH is there although no run holds it; it is not overwritten and the suite will not run" >&2
-        return 1
-    fi
-    mkdir -p "$STASH_DIR" || {
-        echo "dev-run.sh: cannot create $STASH_DIR; the suite will not run with the developer's own preferences in place" >&2
-        return 1
-    }
-    # Copied, verified, and only then removed from where the app reads it: a
-    # copy that fails or does not match leaves the store exactly where it is.
-    cp -p "$PRESERVED_STORE" "$STASH_PATH" || {
-        echo "dev-run.sh: cannot copy $PRESERVED_STORE to $STASH_PATH; it is left where it is and the suite will not run" >&2
-        rm -f "$STASH_PATH"
-        return 1
-    }
-    if ! cmp -s "$PRESERVED_STORE" "$STASH_PATH"; then
-        echo "dev-run.sh: the copy of $PRESERVED_STORE at $STASH_PATH does not match it; the store is left where it is and the suite will not run" >&2
-        rm -f "$STASH_PATH"
-        return 1
-    fi
-    rm -f "$PRESERVED_STORE" || {
-        echo "dev-run.sh: $PRESERVED_STORE could not be removed after its verified copy; the suite will not run with it in place" >&2
-        rm -f "$STASH_PATH"
-        return 1
-    }
-    PRESERVED_STORE_STASHED=true
-}
-
-restore_preserved_store() {
-    [[ -n "$PRESERVED_STORE" ]] || return 0
-    if [[ "$PRESERVED_STORE_STASHED" == true ]]; then
-        # The file that was there before the run, byte for byte; whatever the
-        # run wrote into the domain goes away with it.
-        if move_verified "$STASH_PATH" "$PRESERVED_STORE"; then
-            rmdir "$STASH_DIR" 2>/dev/null || true
-        else
-            # Nothing verified reached the real path and the stash is still the
-            # only good copy, so a partial file is not left where the app reads it.
-            rm -f "$PRESERVED_STORE"
-            echo "dev-run.sh: could not put $PRESERVED_STORE back; the store kept aside is $STASH_PATH" >&2
-        fi
-    elif [[ "$PRESERVED_STORE_WAS_ABSENT" == true && -e "$PRESERVED_STORE" ]]; then
-        # There was no store before the run, so the state to restore is the
-        # absence of one: the run's file does not survive it either.
-        rm -f "$PRESERVED_STORE"
-    fi
-    PRESERVED_STORE=""
-    PRESERVED_STORE_STASHED=false
-    PRESERVED_STORE_WAS_ABSENT=false
-}
-
-on_exit_restore_and_unlock() {
-    local status=$?
-    restore_preserved_store || true
-    release_run_lock || true
-    exit "$status"
-}
-
 run_unit_tests() {
     # `xcodebuild test` launches the app-hosted test bundle with a stripped
     # environment: a plain `OSW_TEST_MULTILINGUAL_MODEL=... xcodebuild test` is
@@ -411,13 +220,6 @@ run_unit_tests() {
         echo "No multilingual model on this machine; those cases will skip."
     fi
 
-    # The store the tests see has to be empty, and the developer's own store has
-    # to come back exactly as it was, so the real one is moved aside - only the
-    # file is touched, nothing here writes into it - and the trap that
-    # stash_real_store arms before it moves anything guarantees the move back
-    # even if the run fails or is interrupted.
-    stash_real_store || return 1
-
     local status=0
     xcodebuild test -project OpenSuperWhisper.xcodeproj -scheme OpenSuperWhisper \
         -destination 'platform=macOS,arch=arm64' \
@@ -429,18 +231,8 @@ run_unit_tests() {
         ${selection[@]+"${selection[@]}"} \
         ${TEST_ARGS[@]+"${TEST_ARGS[@]}"} || status=$?
 
-    # The run is over, so the store goes back before the signing steps that
-    # follow; the trap repeats this if the run never reached here.
-    restore_preserved_store
     return "$status"
 }
-
-# One run at a time, and the stranded store first: the lock goes up before either
-# path is read, and a store left stashed by a run that was killed is put back -
-# or, when a store is there as well, reported without touching either - before
-# anything is built, signed or launched.
-acquire_run_lock
-recover_stranded_store
 
 # The engines come first, in the one order that works: build-native.sh configures
 # and builds libllama (which owns the single ggml), installs that ggml package and
@@ -603,6 +395,4 @@ if $RUN_TESTS; then
 fi
 
 echo "Starting the app..."
-# `exec` runs no trap, and the app must not keep a test run locked out.
-release_run_lock
 exec "$APP_BINARY"

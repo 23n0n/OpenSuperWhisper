@@ -1,3 +1,4 @@
+import AVFoundation
 import XCTest
 @testable import OpenSuperWhisper
 
@@ -87,6 +88,25 @@ enum TestFixtures {
             file: file,
             line: line
         )
+    }
+
+    /// A real capture: one second of 16 kHz mono PCM written by the same writer
+    /// `AudioRecorder` uses, with the samples that came out of it.
+    ///
+    /// Fixtures for a dictation the app must report are built with this rather
+    /// than a stub file: the app reports a failure over audio that was recorded
+    /// and stays silent over a capture that carried nothing, so a fixture of a
+    /// few bytes with no samples stands for the silenced case and cannot stand
+    /// for the reported one.
+    static func recordedAudio(at url: URL, seconds: Double = 1) throws -> RecordedAudio {
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1))
+        let writer = try PCMRecordingWriter(url: url, inputFormat: format)
+        let frames = AVAudioFrameCount(16000 * seconds)
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames))
+        buffer.frameLength = frames
+        buffer.floatChannelData![0].initialize(repeating: 0.25, count: Int(frames))
+        try writer.append(buffer)
+        return try writer.finish()
     }
 
     /// Prints a measurement line, and — when `OSW_TEST_EVIDENCE` names a file —

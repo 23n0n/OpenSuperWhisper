@@ -192,7 +192,16 @@ class RecordingStore: ObservableObject {
         let name = alreadySaved ? audio.url.lastPathComponent : Recording.fileName(for: id)
         let destination = Recording.recordingsDirectory.appendingPathComponent(name)
         if !alreadySaved {
-            try AudioRecorder.shared.moveTemporaryRecording(from: audio.url, to: destination)
+            do {
+                try AudioRecorder.shared.moveTemporaryRecording(from: audio.url, to: destination)
+            } catch {
+                // A move can fail where a copy succeeds (a lock, a race with the
+                // temp cleanup). Copy and remove rather than leaving the audio in
+                // the directory whose age sweeper deletes it: a dictation kept
+                // and reported to the user must not be swept away afterwards.
+                try FileManager.default.copyItem(at: audio.url, to: destination)
+                try? FileManager.default.removeItem(at: audio.url)
+            }
         }
         let row = Recording(id: id, timestamp: Date(), fileName: name,
                             transcription: "", duration: audio.duration,

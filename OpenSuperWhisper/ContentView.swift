@@ -248,8 +248,15 @@ class ContentViewModel: ObservableObject {
                         print("Transcription result: \(text)")
                     }
                 } catch {
+                    // The same decision the indicator takes, so a dictation
+                    // refused for no speech is silent whichever record button
+                    // started it.
                     let source = (error as? PreservedAudioError)?.url ?? audio.url
-                    await self.recordingStore.preserveFailedDictation(RecordedAudio(url: source, samples: audio.samples), error: error)
+                    await DictationFailurePolicy.settle(
+                        RecordedAudio(url: source, samples: audio.samples),
+                        error: error,
+                        store: self.recordingStore
+                    )
                 }
 
                 await MainActor.run {
@@ -971,16 +978,26 @@ struct RecordingRow: View {
             
             if recording.status == .failed {
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
+                    if recording.transcription.isEmpty {
+                        // A row with no transcript is not a failure to report: the
+                        // audio held nothing transcribable, or the recording was
+                        // kept for the user to find. Plain secondary text, no
+                        // alarm — the app did not break, and it must not read as
+                        // if it had.
+                        Text("No transcript")
                             .font(.caption)
-                            .foregroundColor(.red)
-                        Text("Transcription failed")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                    }
-                    
-                    if !recording.transcription.isEmpty {
+                            .foregroundColor(.secondary)
+                    } else {
+                        // Only rows written before the transcript column stopped
+                        // carrying failure text can still have text here.
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                            Text("Transcription failed")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
                         Text(recording.transcription)
                             .font(.caption)
                             .foregroundColor(.secondary)

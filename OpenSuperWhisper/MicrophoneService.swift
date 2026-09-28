@@ -369,34 +369,13 @@ class MicrophoneService: ObservableObject {
         return bufferListRawPointer.assumingMemoryBound(to: UInt32.self).pointee > 0
     }
     
-    func setAsSystemDefaultInput(_ device: AudioDevice) -> Bool {
-        guard let deviceID = getCoreAudioDeviceID(for: device),
-              isValidInputDeviceID(deviceID) else {
-            return false
-        }
-        return setSystemDefaultInputDevice(deviceID)
-    }
-    
-    func setSystemDefaultInputDevice(_ deviceID: AudioDeviceID) -> Bool {
-        var propertyAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultInputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        
-        var mutableDeviceID = deviceID
-        let status = AudioObjectSetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject),
-            &propertyAddress,
-            0,
-            nil,
-            UInt32(MemoryLayout<AudioDeviceID>.size),
-            &mutableDeviceID
-        )
-        
-        return status == noErr
-    }
-    
+    /// The system's default input device, read and never written.
+    ///
+    /// This is the app's only reach of `kAudioHardwarePropertyDefaultInputDevice`:
+    /// it is what the picker falls back to, and what recording is measured
+    /// against. Nothing here — or anywhere else in the app — writes it, so a
+    /// capture that dies mid-recording cannot leave the user's own setting
+    /// pointing somewhere he did not choose.
     func getCurrentSystemDefaultInputDevice() -> AudioDeviceID? {
         var deviceID = AudioDeviceID()
         var propertySize = UInt32(MemoryLayout<AudioDeviceID>.size)
@@ -510,44 +489,6 @@ class MicrophoneService: ObservableObject {
             return false
         }
         return setInputVolume(volume, for: deviceID)
-    }
-    
-    /// The device's input channel count, or nil when there is none to report: a
-    /// device that is not really there, or that has no input streams, must not come
-    /// back as a channel count the recorder would trust. Reporting nil keeps the
-    /// caller on its own fallback instead of inventing a count.
-    func getInputChannelCount(for device: AudioDevice) -> Int? {
-        guard let deviceID = getCoreAudioDeviceID(for: device),
-              isValidInputDeviceID(deviceID) else { return nil }
-        
-        var propertyAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyStreamConfiguration,
-            mScope: kAudioDevicePropertyScopeInput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        
-        var propertySize: UInt32 = 0
-        let sizeStatus = AudioObjectGetPropertyDataSize(deviceID, &propertyAddress, 0, nil, &propertySize)
-        guard sizeStatus == noErr, propertySize >= UInt32(MemoryLayout<AudioBufferList>.size) else { return nil }
-        
-        let bufferListRawPointer = UnsafeMutableRawPointer.allocate(byteCount: Int(propertySize), alignment: MemoryLayout<AudioBufferList>.alignment)
-        defer { bufferListRawPointer.deallocate() }
-        
-        let status = AudioObjectGetPropertyData(deviceID, &propertyAddress, 0, nil, &propertySize, bufferListRawPointer)
-        guard status == noErr else { return nil }
-        
-        let bufferList = bufferListRawPointer.assumingMemoryBound(to: AudioBufferList.self)
-        let bufferCount = Int(bufferList.pointee.mNumberBuffers)
-        
-        var totalChannels = 0
-        withUnsafeMutablePointer(to: &bufferList.pointee.mBuffers) { firstBufferPtr in
-            let buffers = UnsafeMutableBufferPointer<AudioBuffer>(start: firstBufferPtr, count: bufferCount)
-            for buffer in buffers {
-                totalChannels += Int(buffer.mNumberChannels)
-            }
-        }
-        
-        return totalChannels > 0 ? totalChannels : nil
     }
     #endif
 }

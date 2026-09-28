@@ -30,8 +30,6 @@ class AudioRecorder: NSObject, ObservableObject {
     private var notificationObserver: Any?
     private var microphoneChangeObserver: Any?
     private var connectionCheckTimer: DispatchSourceTimer?
-    private var recordingDeviceID: AudioDeviceID?
-    private var previousDefaultInputDeviceID: AudioDeviceID?
 
     // MARK: - Singleton Instance
 
@@ -168,7 +166,7 @@ class AudioRecorder: NSObject, ObservableObject {
         }
     }
     
-    private func performStart(activeMic: MicrophoneService.AudioDevice?, monitorConnection: Bool, sessionID: UUID) {
+    private func performStart(activeMic: MicrophoneService.AudioDevice, monitorConnection: Bool, sessionID: UUID) {
         guard recordingSession == nil else { return }
         
         let fileURL = temporaryDirectory.appendingPathComponent("\(UUID().uuidString).wav")
@@ -176,19 +174,16 @@ class AudioRecorder: NSObject, ObservableObject {
         
         print("start record file to \(fileURL)")
         
-        var channelCount = 1
-        #if os(macOS)
-        if let activeMic = activeMic {
-            switchSystemDefaultInput(to: activeMic)
-            // A microphone with no readable input channels reports nil: keep the
-            // mono default rather than record a channel count nobody measured.
-            channelCount = MicrophoneService.shared.getInputChannelCount(for: activeMic) ?? channelCount
-            print("Recording with \(channelCount) input channel(s) from \(activeMic.displayName)")
-        }
-        #endif
-        
         do {
-            let session = try PCMRecordingSession(url: fileURL) { [weak self] error in
+            // The chosen microphone is opened on the capture unit's own input
+            // side. The system's default input device is never written, so there
+            // is no setting of the user's to put back afterwards — and nothing
+            // for a crash mid-recording to leave repointed.
+            let session = try PCMRecordingSession(
+                url: fileURL,
+                deviceID: try Self.captureDeviceID(for: activeMic),
+                deviceName: activeMic.displayName
+            ) { [weak self] error in
                 self?.workQueue.async {
                     guard let self, self.currentRecordingURL == fileURL else { return }
                     _ = self.performStop(discard: false)
@@ -197,6 +192,7 @@ class AudioRecorder: NSObject, ObservableObject {
             }
             recordingSession = session
             try session.start()
+            print("Recording from \(activeMic.displayName)")
             Task { @MainActor in
                 TranscriptionService.shared.prepareForRecording()
                 // Same moment, same reason: get the transform weights warm while
@@ -213,23 +209,37 @@ class AudioRecorder: NSObject, ObservableObject {
             print("Failed to start recording: \(error)")
             recordingSession = nil
             currentRecordingURL = nil
-            restoreSystemDefaultInputIfNeeded()
             failStart(sessionID: sessionID, message: Self.startFailureMessage(for: error, activeMic: activeMic))
         }
+    }
+    
+    /// The `AudioDeviceID` of the microphone to capture from.
+    ///
+    /// A chosen microphone whose UID resolves to nothing, or to an id the HAL
+    /// does not know as an input device, cannot be recorded from, and there is
+    /// no silent fallback to the system default: recording from a microphone the
+    /// user did not choose would be the wrong recording without saying so. The
+    /// failure is reported exactly like a device that will not open.
+    private static func captureDeviceID(for device: MicrophoneService.AudioDevice) throws -> AudioDeviceID {
+        guard let deviceID = MicrophoneService.shared.getCoreAudioDeviceID(for: device),
+              MicrophoneService.shared.isValidInputDeviceID(deviceID) else {
+            throw MicrophoneCaptureError(deviceName: device.displayName, stage: "resolve device", status: 0)
+        }
+        return deviceID
     }
     
     /// `'!dev'` (560227702, `kAudioHardwareBadDeviceError`) is the HAL saying the
     /// device it was handed is not usable. Its raw description names a number and
     /// nothing else, so say which microphone failed and how to get out of it.
-    private static func startFailureMessage(for error: Error, activeMic: MicrophoneService.AudioDevice?) -> String {
+    /// A microphone this app could not open itself says the same thing, because
+    /// for the user it is the same situation.
+    private static func startFailureMessage(for error: Error, activeMic: MicrophoneService.AudioDevice) -> String {
         let nsError = error as NSError
-        guard nsError.domain == "com.apple.coreaudio.avfaudio",
-              nsError.code == Int(kAudioHardwareBadDeviceError) else {
-            return error.localizedDescription
-        }
+        let deviceIsUnusable = error is MicrophoneCaptureError
+            || (nsError.domain == "com.apple.coreaudio.avfaudio" && nsError.code == Int(kAudioHardwareBadDeviceError))
+        guard deviceIsUnusable else { return error.localizedDescription }
         
-        let deviceName = activeMic?.displayName ?? "The selected microphone"
-        return "\(deviceName) could not be used for recording. Choose a different microphone in Settings."
+        return "\(activeMic.displayName) could not be used for recording. Choose a different microphone in Settings."
     }
 
     private func failStart(sessionID: UUID, message: String) {
@@ -261,14 +271,8 @@ class AudioRecorder: NSObject, ObservableObject {
                     do { recording = try recorder.finish() }
                     catch {
                         self.preserveCaptureFailure(error)
-                        self.restoreSystemDefaultInputIfNeeded()
                         continuation.resume(returning: nil)
                         return
-                    }
-                    // A new recording may have started during the tail window;
-                    // it will restore the system input itself when it stops.
-                    if self.recordingSession == nil {
-                        self.restoreSystemDefaultInputIfNeeded()
                     }
                     
                     if let recording, recording.duration >= Self.minimumRecordingDuration {
@@ -304,7 +308,6 @@ class AudioRecorder: NSObject, ObservableObject {
         }
         recordingSession = nil
         stopConnectionMonitoring()
-        restoreSystemDefaultInputIfNeeded()
         updateRecordingState(isRecording: false, isConnecting: false)
         
         guard let url = currentRecordingURL else { return nil }
@@ -321,49 +324,16 @@ class AudioRecorder: NSObject, ObservableObject {
     private func preserveCaptureFailure(_ error: Error) {
         Task { @MainActor in
             if let failure = error as? RecordingCaptureError {
-                await RecordingStore.shared.preserveFailedDictation(failure.audio, error: failure.underlying)
+                // The same decision the dictation surfaces take: a capture that
+                // never carried audio is silent, while a real recording whose
+                // capture died is reported and keeps its audio.
+                await DictationFailurePolicy.settle(failure.audio, error: failure, store: .shared)
             } else {
                 AppErrorCenter.shared.report("Recording failed", error: error)
             }
         }
     }
 
-    #if os(macOS)
-    private func switchSystemDefaultInput(to device: MicrophoneService.AudioDevice) {
-        guard let targetID = MicrophoneService.shared.getCoreAudioDeviceID(for: device) else { return }
-        recordingDeviceID = targetID
-        
-        let currentDefault = MicrophoneService.shared.getCurrentSystemDefaultInputDevice()
-        guard currentDefault != targetID else { return }
-        
-        // Record the previous default before the write: if the write fails, the
-        // restore must still know which device the system was on.
-        previousDefaultInputDeviceID = currentDefault
-        
-        if MicrophoneService.shared.setSystemDefaultInputDevice(targetID) {
-            print("Set system default input to: \(device.displayName)")
-        } else {
-            // Nothing was switched, so leave no target behind for the restore
-            // equality check to match and undo the device we never left.
-            recordingDeviceID = nil
-        }
-    }
-    
-    private func restoreSystemDefaultInputIfNeeded() {
-        guard let previous = previousDefaultInputDeviceID else { return }
-        previousDefaultInputDeviceID = nil
-        
-        // Restore only if the default is still the device we set,
-        // so a manual change made by the user during recording is kept.
-        if MicrophoneService.shared.getCurrentSystemDefaultInputDevice() == recordingDeviceID {
-            _ = MicrophoneService.shared.setSystemDefaultInputDevice(previous)
-        }
-    }
-    #else
-    private func switchSystemDefaultInput(to device: MicrophoneService.AudioDevice) {}
-    private func restoreSystemDefaultInputIfNeeded() {}
-    #endif
-    
     func moveTemporaryRecording(from tempURL: URL, to finalURL: URL) throws {
 
         let directory = finalURL.deletingLastPathComponent()
