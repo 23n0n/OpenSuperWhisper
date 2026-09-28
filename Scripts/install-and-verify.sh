@@ -330,7 +330,9 @@ echo "    kept: recordings, recordings database and settings unchanged."
 
 step 7 "install the new build from the package's own payload"
 
-mkdir -p "$EXPAND_DIR"
+# pkgutil --expand-full creates the destination itself and fails if it already
+# exists, so the destination is not created here (and a stale one is cleared).
+rm -rf "$EXPAND_DIR"
 pkgutil --expand-full "$PKG" "$EXPAND_DIR" > "$LOG_DIR/pkg-expand.log" 2>&1 \
     || die "step 7: pkgutil --expand-full failed; log: $LOG_DIR/pkg-expand.log"
 
