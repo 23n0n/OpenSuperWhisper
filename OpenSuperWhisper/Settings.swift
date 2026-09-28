@@ -70,6 +70,14 @@ class SettingsViewModel: ObservableObject {
         }
     }
     
+    /// "Speech-Only Filter (VAD)". Off by default; the measurement behind that
+    /// is in `AppPreferences.useVAD`.
+    @Published var useVAD: Bool {
+        didSet {
+            AppPreferences.shared.useVAD = useVAD
+        }
+    }
+    
     @Published var longPausesEndSentences: Bool {
         didSet {
             AppPreferences.shared.longPausesEndSentences = longPausesEndSentences
@@ -423,6 +431,7 @@ class SettingsViewModel: ObservableObject {
         self.fluidAudioModelVersion = prefs.fluidAudioModelVersion
         self.suppressBlankAudio = prefs.suppressBlankAudio
         self.showTimestamps = prefs.showTimestamps
+        self.useVAD = prefs.useVAD
         self.longPausesEndSentences = prefs.longPausesEndSentences
         self.temperature = prefs.temperature
         self.noSpeechThreshold = prefs.noSpeechThreshold
@@ -1075,6 +1084,9 @@ struct Settings {
     var debugMode: Bool
     var suppressBlankAudio: Bool
     var showTimestamps: Bool
+    /// Whether the silero speech-only pre-filter runs before the decoder. See
+    /// `AppPreferences.useVAD`: off by default, on measurement.
+    var useVAD: Bool
     /// See `PauseBoundaryPolicy`: on, a long pause is kept as a real pause and
     /// closes the sentence; off, upstream's 0.1 s of zeros everywhere.
     var longPausesEndSentences: Bool
@@ -1122,6 +1134,7 @@ struct Settings {
         let prefs = AppPreferences.shared
         self.suppressBlankAudio = prefs.suppressBlankAudio
         self.showTimestamps = prefs.showTimestamps
+        self.useVAD = prefs.useVAD
         self.longPausesEndSentences = prefs.longPausesEndSentences
         self.temperature = prefs.temperature
         self.noSpeechThreshold = prefs.noSpeechThreshold
@@ -1612,6 +1625,41 @@ struct SettingsView: View {
                                 .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
                                 .labelsHidden()
                         }
+                        
+                        // Off by default, and the numbers are why. The filter is
+                        // the reason quiet dictations came back missing words:
+                        // it keeps only the speech silero finds, and on a quiet
+                        // recording that is sometimes a fraction of what was
+                        // said. See `AppPreferences.useVAD` for the full
+                        // measurement and `WhisperEngine.vadParams` for why the
+                        // threshold is not a second control.
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Speech-Only Filter (VAD)")
+                                    .font(.subheadline)
+                                Text(
+                                    "Whisper: the silero voice-activity filter finds the speech and "
+                                        + "hands the decoder nothing else. Measured on his own "
+                                        + "recordings it drops speech too — one 8.69 s dictation kept "
+                                        + "0.86 s of it and came out \u{201C}See you later.\u{201D} where "
+                                        + "the same audio without the filter reads \u{201C}All right, I "
+                                        + "gotta go home. See you later and keep up.\u{201D} Across the "
+                                        + "four worst dictations, off recovered 35 words with 0 still "
+                                        + "missing, against 0 recovered and 35 still missing with it "
+                                        + "on; a lower detection threshold (0.15) recovered 29 of the "
+                                        + "35, so the filter's own settings stay internal and this "
+                                        + "switch is off/on only."
+                                )
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $viewModel.useVAD)
+                                .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
+                                .labelsHidden()
+                        }
+                        .padding(.top, 4)
                         
                         HStack {
                             Text("Suppress Blank Audio")
