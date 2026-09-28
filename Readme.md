@@ -232,13 +232,21 @@ that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
   Unicode field is *cleared* to length zero rather than left unset, because an unset field reads back as the
   character the key code makes. **This is a hazard removed, not a cause proven**: no capture of the failing
   target's event stream exists.
-* **The key code is no longer 0.** Key code 0 is the `A` key on ANSI layouts, so a target that reads key codes
-  typed `a` once per chunk — about as wrong as an answer can be. The key code now comes from the active layout,
-  for the chunk's first character (one event carries up to 20 characters, so the first is the honest choice), and
-  a chunk the layout has no key for — all nine of `ą ć ę ł ń ó ś ź ż` are Option combinations on the layout
-  active here, and CJK, Cyrillic and emoji have none — carries `0x7F`, a code the system defines no key for. The
-  layout's modifiers are deliberately not sent with it: they would turn the event into an Option-modified key for
-  every local application, and a redirected target re-reads them under its own layout anyway.
+* **The key code is no longer hardcoded to 0.** Key code 0 is the `A` key on ANSI layouts, and a target that
+  rebuilds characters from key codes used to type `a` once per chunk, because every chunk was posted on key 0. No
+  line in the delivery path passes key code 0 any more: the code now comes from the active layout, for the chunk's
+  first character (one event carries up to 20 characters, so the first is the honest choice), and a chunk the
+  layout has no key for — all nine of `ą ć ę ł ń ó ś ź ż` are Option combinations on the layout active here, and
+  CJK, Cyrillic and emoji have none — carries `0x7F`, a code the system defines no key for. The layout's modifiers
+  are deliberately not sent with it: they would turn the event into an Option-modified key for every local
+  application, and a redirected target re-reads them under its own layout anyway.
+  **What this does not claim, because an independent audit of this change measured it otherwise**: key code 0 can
+  still be *resolved*. On the layout active here (`com.apple.keylayout.PolishPro`) key 0 *is* the `A` key, so a
+  chunk whose first character is `a` or `A` legitimately carries key code 0 next to its text. That is correct for
+  a native macOS target — its text arrives in the event's Unicode field whatever the key code is — and it is a
+  residual `a` once for that chunk in a target reached by keystrokes that ignores the field. The measured clients
+  take the clipboard path instead, and **Delivery** in Settings overrides the whole rule; the key code choice
+  alone cannot remove that residual, because one event carries up to 20 characters and can have only one key code.
 * **The mechanism follows the target class** (`TextDelivery`): keystrokes into a native macOS application, and the
   clipboard paste for an application that redirects input elsewhere. The rule has two tiers and the difference
   between them is deliberate — one is measured here and one is not:
@@ -265,7 +273,10 @@ that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
   next launch puts it back if the record is still there — proven in `ClipboardRecoveryTests`, which kills a child
   process built from the app's own code and then runs the same recovery entry point the launch runs. The record
   is cleared as soon as the delivery restores the clipboard itself, and recovery refuses to put anything back
-  when the clipboard no longer holds this app's text.
+  when the clipboard no longer holds this app's text. That refusal is content-based, not identity-based: it
+  compares the digest of the text that is on the clipboard with the digest of the text the delivery wrote, so a
+  third party who wrote the *byte-identical* transcription after a crash would still be overwritten. An
+  independent audit measured that window and called it negligible; it is stated here rather than left implied.
 * **What remains unclosed, stated rather than hidden.** A target that services the paste *later* than the restore
   gets the **restored** clipboard contents — the user's own previous clipboard pasted into their document instead
   of the dictation (measured case: `TextDeliveryTests`); an app killed between the copy and the restore keeps the
