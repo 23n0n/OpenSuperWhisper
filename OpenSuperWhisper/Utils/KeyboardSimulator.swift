@@ -176,9 +176,22 @@ enum KeyboardSimulator {
     /// delivery case does; the default must be the one that cannot damage the
     /// machine it runs on.
     static let livePostSink: (CGEvent) -> Void = { event in
-        guard !OpenSuperWhisperApp.isRunningTests else { return }
+        guard !OpenSuperWhisperApp.isRunningTests else {
+            eventsDroppedUnderTest += 1
+            return
+        }
         event.post(tap: .cghidEventTap)
     }
+
+    /// How many events the default sink has refused to post because this process
+    /// is a test host.
+    ///
+    /// Not decoration: it is the witness that the suite's deliveries went nowhere.
+    /// The sink's only branch under test is the `return` above, and this count is
+    /// what a run can report to show how many events took it — a case that types
+    /// through the default sink under test leaves a number here rather than
+    /// keystrokes in whatever is frontmost.
+    static private(set) var eventsDroppedUnderTest = 0
 
     /// The delay between one character's event pair and the next one.
     ///

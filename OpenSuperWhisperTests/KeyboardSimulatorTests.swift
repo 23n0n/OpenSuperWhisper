@@ -307,6 +307,31 @@ final class KeyboardSimulatorTests: XCTestCase {
         XCTAssertTrue(events.isEmpty)
     }
 
+    /// The default sink posts nothing under test, and counts what it refused.
+    ///
+    /// This is the mechanism behind the suite's inertness: a case that reaches the
+    /// default sink — a view model built with its default arguments, say — hands
+    /// its events to a closure whose only branch here is `return`. What a run can
+    /// report afterwards is the number of events that took that branch.
+    func testTheDefaultSinkRefusesToPostUnderTestAndCountsWhatItRefused() {
+        let before = KeyboardSimulator.eventsDroppedUnderTest
+        let (post, _) = { () -> ((CGEvent) -> Void, () -> [CGEvent]) in
+            var events: [CGEvent] = []
+            return ({ events.append($0) }, { events })
+        }()
+        // The default sink itself, by calling it through the parameter default.
+        _ = KeyboardSimulator.typeText("ab")
+
+        XCTAssertEqual(KeyboardSimulator.eventsDroppedUnderTest, before + 4,
+                       "four events for two characters, all refused")
+        // And a case that wants to see them still can.
+        KeyboardSimulator.typeText("ab", post: post)
+        XCTAssertEqual(KeyboardSimulator.eventsDroppedUnderTest, before + 4,
+                       "an explicit sink is not the default one, so nothing more is refused")
+        TestFixtures.report("[keyboard] default sink has refused "
+                            + "\(KeyboardSimulator.eventsDroppedUnderTest) events under test so far")
+    }
+
     // MARK: - Clipboard isolation
 
     func testTypeTextDoesNotTouchPasteboard() {
