@@ -360,12 +360,15 @@ enum KeyboardSimulator {
 
     /// Builds the keyDown/keyUp pair that carries `chunk` as a Unicode string.
     ///
-    /// The chunk travels on the keyDown and on nothing else. Both events used to
-    /// carry it, and a target that inserts the text every event carries — the
-    /// forwards the guest of a virtual machine receives — therefore inserted
-    /// every chunk twice: whole phrases repeated, the second copy landing at
-    /// whatever caret the first one had already moved, which is the splicing the
-    /// captain dictated into.
+    /// The chunk travels on the keyDown and on nothing else.
+    ///
+    /// Putting it on both events was a divergence from what the platform expects
+    /// of a key pair, and it is a real duplication hazard: a target that inserts
+    /// the text every event carries, rather than acting on the press alone,
+    /// receives the chunk twice — the second copy landing at whatever caret the
+    /// first one had already moved. No capture of the failing target's events
+    /// exists, so this is fixed as a hazard rather than convicted as the cause:
+    /// the pair now carries the text once whatever the target does with it.
     ///
     /// The keyUp is kept, and keeps the keyDown's key code: the pair is what a
     /// host that forwards input to another machine tracks as a press and a

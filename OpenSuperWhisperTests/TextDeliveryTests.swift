@@ -2,13 +2,17 @@ import AppKit
 import XCTest
 @testable import OpenSuperWhisper
 
-/// The second half of the delivery defect: which mechanism carries the
-/// transcript, and what that costs.
+/// The delivery mechanism: which one carries the transcript, and what that costs.
 ///
 /// The captain dictates into a native macOS terminal, where the text arrives
 /// whole, and into his Parallels guest, where it did not. `TextDelivery` answers
-/// the two cases with two mechanisms; these cases pin the choice, the paste, and
-/// the promise the paste makes about the clipboard.
+/// the two with two mechanisms. A design judgment, not an observation, decides
+/// that split — what a guest received cannot be observed from this side at all —
+/// so these cases pin the choice and everything it does on this side of the
+/// boundary: the mechanism selected for a given application and preference, the
+/// ⌘V pair that goes out, the state of the pasteboard while the paste is made,
+/// and the previous contents coming back afterwards. Whether the guest then pastes
+/// the transcript is not claimed here and cannot be tested in this suite.
 ///
 /// Every case here uses a pasteboard of its own, named with a fresh UUID. The
 /// general pasteboard is one system-wide object shared with every other process
@@ -63,9 +67,10 @@ final class TextDeliveryTests: XCTestCase {
 
     // MARK: - The mechanism the target calls for
 
-    /// The captain's case: an application that forwards input to a guest gets
-    /// the transcript on the clipboard, because the Unicode text on the
-    /// keystrokes does not survive that hop.
+    /// The captain's case: an application that forwards input to a guest is
+    /// delivered through the clipboard, because nothing about what such a target
+    /// does with forwarded events can be observed from here, while the clipboard
+    /// carries the text itself.
     func testAVirtualMachineTargetIsDeliveredThroughTheClipboard() {
         seedClipboard(Self.usersClipboard)
         var posted: [CGEvent] = []

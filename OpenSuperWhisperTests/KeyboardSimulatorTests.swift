@@ -67,11 +67,12 @@ final class KeyboardSimulatorTests: XCTestCase {
     /// The chunk travels on the keyDown and on nothing else.
     ///
     /// This used to assert the opposite — that both events carried the chunk —
-    /// which is the defect itself: a target that inserts the text every event
-    /// carries received every chunk twice. What the keyUp must be is a release
-    /// of the same key that says "no text here", and the payload has to be
-    /// *cleared* to say that: an event whose Unicode string was never set reads
-    /// back as whatever its key code produces, and key code 0 is `a`.
+    /// which is the duplication hazard this pair was carrying: a target that
+    /// inserts the text every event carries receives the chunk twice. What the
+    /// keyUp must be is a release of the same key that says "no text here", and
+    /// the payload has to be *cleared* to say that: an event whose Unicode string
+    /// was never set reads back as whatever its key code produces, and key code 0
+    /// is `a`.
     func testShortStringPostsKeyDownCarryingUnicodeAndAPayloadFreeKeyUp() throws {
         var events: [CGEvent] = []
         KeyboardSimulator.typeText("Hé!") { events.append($0) }
@@ -328,24 +329,28 @@ final class TypingReceiverView: NSView {
     }
 }
 
-/// The second class of target: the one the captain's dictation into a virtual
-/// machine belongs to.
+/// A receiver for the class of target whose behaviour cannot be observed from
+/// this side — the virtual-machine guest the captain dictates into by way of a
+/// host application that forwards its input.
 ///
-/// This receiver is handed the events the delivery path posts, but it reads them
-/// the way a HID-forwarding host reads them — it takes the text the event itself
+/// It is a model, not a capture. It reads the events the delivery path posts the
+/// way a HID-forwarding host reads them: it takes the text the event itself
 /// carries (`kCGEventKeyboardUnicodeString`, the field `keyboardSetUnicodeString`
 /// fills) and inserts it for **every event that carries one, keyUp included**,
 /// because what a guest receives from such a host is a stream of insertions, not
-/// a stream of key transitions.
+/// a stream of key transitions. Nothing here says the captain's target behaves
+/// this way — nothing ever recorded what it received — and the case that drives
+/// this receiver is written as a guard on the event shape for exactly that
+/// reason.
 ///
 /// An event with no text on it is reconstructed from its key code, the way a
 /// guest with a keyboard layout of its own does; a keyUp with no text is a
 /// release and inserts nothing.
 ///
-/// That is the difference from `TypingReceiverView` above, which goes through
-/// AppKit's key bindings and therefore ignores keyUp exactly as the framework's
-/// own text system does — the empty `keyUp` override is what hid this defect from
-/// the suite.
+/// The difference from `TypingReceiverView` above is what makes this one worth
+/// having: that receiver goes through AppKit's key bindings and therefore ignores
+/// keyUp exactly as the framework's own text system does, so it could not see a
+/// chunk posted twice no matter how the events were built.
 final class HidForwardedReceiverView: NSView {
     /// Everything the target ended up with, in the order it inserted it.
     private(set) var inserted = ""
@@ -469,16 +474,18 @@ final class KeyboardSimulatorDeliveryTests: XCTestCase {
         )
     }
 
-    /// The defect the captain reported, pinned on the target class that showed
-    /// it: a target that inserts the text every event carries — the forwards the
-    /// guest of a virtual machine receives — must end up with the transcript
-    /// exactly once, not once per posted event.
+    /// The event shape, pinned against the hazard it carried: a target that
+    /// inserts the text every event carries must receive each chunk once, not
+    /// once per posted event.
     ///
-    /// Every chunk used to travel on the keyDown *and* on the keyUp, so a target
-    /// that reads both inserted every 20-unit window twice: whole phrases
-    /// repeated, and the second copy landing at whatever caret the first one
-    /// left, which is the spliced-mid-word shape he saw.
-    func testATargetThatInsertsOnBothEventsReceivesTheTranscriptExactlyOnce() {
+    /// This is a guard, not a reproduction. Nothing ever captured the events the
+    /// captain's failing target received, so no claim is made here that his
+    /// target inserts on both transitions — what the case pins is that the pair
+    /// this app posts does not hand the same text over twice, whatever the target
+    /// does with the events. It failed against the old shape, where the chunk
+    /// travelled on the keyUp as well as the keyDown: 80 characters received for
+    /// a 40-character payload.
+    func testATargetThatInsertsOnBothEventsReceivesTheChunkOnce() {
         let receiver = HidForwardedReceiverView()
 
         let result = KeyboardSimulator.typeText(Self.payload, trusted: true) { receiver.receive($0) }

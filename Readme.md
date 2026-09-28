@@ -218,16 +218,20 @@ Accessibility — not Input Monitoring — is the grant that matters; see the ne
 
 The keystroke path is not, however, the whole story, and the day the captain dictated into a Parallels guest and
 read back spliced, repeated text is why. A synthetic key event carries the text in an Apple-specific field, and a
-target that forwards input to *another* machine — a virtual machine, a remote desktop, a VNC viewer — never sees
-that field: the guest rebuilds characters from the key codes it receives, under a keyboard layout this app neither
-controls nor knows. Two fixes came out of that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
+target that forwards input to *another* machine — a virtual machine, a remote desktop, a VNC viewer — may never
+look at that field: it hands the guest key codes, and the guest rebuilds characters from them under a keyboard
+layout this app neither controls nor knows. Whether that is what happened to the captain is **not established** —
+no capture of the failing target's event stream exists, and what a guest received cannot be read back from the
+host at all — so the two changes below are made so that neither answer has to be known
+(`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
 
-* **A chunk travels once.** Both events of a chunk's keyDown/keyUp pair used to carry the text, so a target that
-  inserts what each event carries inserted every 20-unit window twice, the second copy landing at the caret the
-  first had moved: whole phrases repeated, fragments spliced mid-word. The text is now on the keyDown only. The
-  keyUp stays — and keeps the keyDown's key code — so a host tracking key state sees a release rather than a stuck
-  key, and its Unicode field is *cleared* to length zero rather than left unset, because an unset field reads back
-  as the character the key code makes (key code 0 is `a`).
+* **A chunk travels once.** Both events of a chunk's keyDown/keyUp pair used to carry the text. Carrying text on
+  the release diverges from what the platform expects of a key pair, and it is a duplication hazard in any target
+  that inserts what each event carries: every 20-unit window arrives twice, the second copy at the caret the first
+  had already moved. The text is now on the keyDown only. The keyUp stays — and keeps the keyDown's key code — so
+  a host tracking key state sees a release rather than a stuck key, and its Unicode field is *cleared* to length
+  zero rather than left unset, because an unset field reads back as the character the key code makes (key code 0
+  is `a`). This is a hazard removed, not a cause proven.
 * **The mechanism follows the target** (`TextDelivery`): keystrokes for a native macOS application, and the
   clipboard paste for an application that forwards input to a machine this one does not control
   (`TextDelivery.hidForwardingHostBundleIDs` — Parallels, VMware Fusion, VirtualBox, UTM, QEMU, Screen Sharing,
@@ -235,14 +239,22 @@ controls nor knows. Two fixes came out of that (`Utils/TextDelivery.swift`, `Uti
   NoMachine). **This is a deliberate change to the doctrine above**: "the clipboard is never used" is no longer
   unconditionally true — for those targets the transcript is put on the clipboard and pasted with ⌘V, and
   `ClipboardUtil` puts the previous contents back after 1.5 s if nothing else has taken the clipboard in the
-  meantime (proved in `TextDeliveryTests`). The alternatives were rejected on the record, not by silence: real
-  per-character key codes cannot reproduce `ą ć ę ł ń ó ś ź ż` on a guest whose layout is unknown (these are
-  Option combinations here, and Option-plus-key means something else there), and accessibility insertion cannot
-  reach a guest at all — the host side of a virtual machine window exposes no text element to write into. The
-  cost that remains: a guest with clipboard sharing switched off receives nothing from this path, and the app
-  cannot tell, because the only thing it can observe is its own pasteboard. `Settings → Transcription` offers
-  **Delivery** (Automatic, Keystrokes only, Clipboard paste) as the override, and every dictation's unified-log
-  line ends with `mechanism=keystrokes` or `mechanism=clipboard-paste`.
+  meantime (proved in `TextDeliveryTests`). Real per-character key codes were rejected on the record: all nine of
+  `ą ć ę ł ń ó ś ź ż` are Option combinations on this machine's active layout, and a guest re-reads Option-plus-key
+  under its own, so `å` arrives where `ą` was meant. Accessibility insertion was rejected too: the text lives in
+  the guest, and the host side of a virtual machine window exposes no text element to write into. The cost that
+  remains is stated rather than hidden: a guest with clipboard sharing switched off receives nothing from the
+  paste path and the app cannot tell, because the only thing it can observe is its own pasteboard.
+  `Settings → Transcription` offers **Delivery** (Automatic, Keystrokes only, Clipboard paste) as the override,
+  and every dictation's unified-log line ends with `mechanism=keystrokes` or `mechanism=clipboard-paste`.
+
+**Verified and not verified.** On this side: the events a delivery posts and the shape of the pair, what each
+event's Unicode field reads back as, which mechanism the ladder selects, that ⌘V is posted, and that the
+pasteboard holds the transcript and then gets its previous contents back. That the text *arrives* is verified for
+a native macOS target, through a real `NSTextView` driven by AppKit's own key bindings. It is **not** verified for
+a virtual machine: there is no guest in the suite and nothing about the guest is observable from the host.
+Closing that needs a capture inside the guest — a dictation into a guest text field with the guest's own text
+dumped before and after.
 
 
 ### 6. Permissions: Accessibility only, and nothing blocks on it

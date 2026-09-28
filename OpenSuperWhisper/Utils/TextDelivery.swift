@@ -66,13 +66,14 @@ enum DeliveryPreference: String, CaseIterable, Equatable {
 /// viewer — is not reached by the window server's text at all: the host
 /// application forwards what it receives on to a machine with its own input
 /// stack, and the guest types what *it* makes of it. The text field on a
-/// `CGEvent` is an Apple extension a guest never sees; a guest that gets only
-/// the key codes rebuilds the characters from them, in a keyboard layout this
-/// app does not control and cannot know, and the key code the keystroke path
-/// carries its text on is 0 — `a` on any layout. That is the mechanism behind
-/// the captain's report: dictating into a native macOS terminal is correct, and
-/// the same transcript injected into his Parallels guest came out spliced, with
-/// the text duplicated on top of it.
+/// `CGEvent` is an Apple extension that nothing obliges a guest to look at, and
+/// the key code the keystroke path carries its text on is 0 — `a` on any layout.
+///
+/// What a given host does with the events it captures has never been observed
+/// from this side: there is no trace of the failing target's event stream, and
+/// what a guest received cannot be read back from the host at all. This design
+/// therefore does not rest on which of those two things the guest does. It rests
+/// on the one mechanism whose transport *is* the text — see below.
 ///
 /// # What the alternatives cost, and why this is the ladder
 ///
@@ -95,20 +96,30 @@ enum DeliveryPreference: String, CaseIterable, Equatable {
 ///   range, and no insertion point — `FocusUtils` reads AX only to place the
 ///   indicator, and the writes it would need do not exist in this tree. It could
 ///   not reach the target that is broken, so it is not a fallback.
-/// - **The clipboard paste.** It works for that target, and it is the reason
-///   this file exists. A virtual machine shares the clipboard with the guest by
-///   default — clipboard sharing is on in both of the guest machines on the Mac
-///   this was fixed on (`ClipboardSync/Enabled = 1` in the `.pvm` configs) — the
-///   text travels as *text* (not as key codes), and ⌘V is the one command every
-///   guest understands. It costs the fork its stated doctrine —
-///   "the clipboard is never used" is no longer unconditionally true, and the
-///   `Readme` and the Settings copy say so — plus a write-and-restore of the
-///   user's clipboard. It also has a failure mode keystrokes do not: if the
+/// - **The clipboard paste.** It is the mechanism that does not depend on the
+///   unknown, and it is the reason this file exists. A virtual machine shares the
+///   clipboard with the guest by default — clipboard sharing is on in both of the
+///   guest machines on the Mac this was fixed on (`ClipboardSync/Enabled = 1` in
+///   the `.pvm` configs) — the text travels as *text* (not as key codes), and ⌘V
+///   is the one command every guest understands. It costs the fork its stated
+///   doctrine — "the clipboard is never used" is no longer unconditionally true,
+///   and the `Readme` and the Settings copy say so — plus a write-and-restore of
+///   the user's clipboard. It also has a failure mode keystrokes do not: if the
 ///   guest's clipboard sharing is off, the paste does nothing and this app
 ///   cannot tell, because the only thing it can observe is its own pasteboard,
 ///   not what the guest did with it. `ClipboardUtil` writes the previous
 ///   contents back after `ClipboardUtil.clipboardRestoreDelay`, and only if the
 ///   clipboard is still the transcript it wrote.
+///
+///   An independent judgment (Jev, on this same evidence) put the clipboard
+///   paste at 0.96 for the guest against 0.03 for a heuristic ladder, 0.01 for
+///   the fixed Unicode events and 0.00 for per-character key codes. The ladder
+///   below still exists because its guest branch *is* that paste: what the
+///   heuristic decides is when the clipboard gets written, and the alternative —
+///   pasting into every target, native ones included, whose keystrokes are
+///   already known to arrive — would spend the user's clipboard on every
+///   dictation to fix a case that only concerns some of them. A user who wants
+///   the paste everywhere can say so: `DeliveryPreference.clipboardPaste`.
 /// - **A ladder that prefers keystrokes and falls back at run time.** There is
 ///   nothing for a fallback to trigger on. Whether a target reconstructs from
 ///   key codes or takes the Unicode payload is a property of the target, and the
@@ -118,6 +129,25 @@ enum DeliveryPreference: String, CaseIterable, Equatable {
 ///   is, and `DeliveryPreference` is the user's override when the guess is
 ///   wrong.
 ///
+/// # What is verified, and what is not
+///
+/// Verified on this side: the events a delivery posts, the shape of the pair,
+/// what the Unicode field on each event reads back as, which mechanism the
+/// ladder selects for a given application and preference, that the ⌘V pair is
+/// posted, and that the pasteboard holds the transcript and gets its previous
+/// contents back. That the text then *arrives* is verified for a native macOS
+/// target, through a real `NSTextView` driven by AppKit's own key bindings.
+///
+/// Not verified, and not verifiable on this machine: what a virtual machine's
+/// guest received. There is no guest in the test suite and nothing about the
+/// guest is observable from the host — an independent judgment put "only
+/// host-side transport can be tested in-process" at 0.65 against 0.34 for the
+/// paste's transport being the one provable case, and both agree that guest
+/// arrival is out of reach here. Proving it needs a capture inside the guest: a
+/// dictation into a guest text field with the guest's own text dumped before and
+/// after, or a trace of the host-side forwarding showing what the guest was
+/// handed and what it typed back.
+///
 /// # The rule
 ///
 /// Keystrokes by default, because that is the path that reaches every native
@@ -125,25 +155,27 @@ enum DeliveryPreference: String, CaseIterable, Equatable {
 /// an application that forwards input to a machine this one does not control,
 /// which is what `hidForwardingHostBundleIDs` names. The list is a heuristic —
 /// a bundle identifier is the only thing the app can see about the application
-/// in front — and it fails safe in both directions: a host that is not on the
-/// list is typed into as before (its transcript still reaches the app, and the
-/// dictation record says which mechanism ran), and a host on the list that would
-/// have accepted keystrokes gets a paste instead, which delivers the same text
-/// with a clipboard write that is restored.
+/// in front — and both directions are cheap: a host that is not on the list is
+/// typed into exactly as before, which is right for every native application and
+/// wrong only for a forwarder the list has never heard of, and a host on the
+/// list that would have accepted keystrokes gets a paste instead, carrying the
+/// same text at the cost of one clipboard write that is restored.
 enum TextDelivery {
 
     /// Applications that pass the input they receive on to a machine this app
     /// cannot see.
     ///
-    /// They are here because the Unicode string on a synthetic event does not
-    /// survive that hop — the guest rebuilds characters from key codes — so the
-    /// clipboard is the only one of the two mechanisms that delivers the captain's
-    /// Polish text to them unchanged.
+    /// They are here because what a guest does with a forwarded event cannot be
+    /// observed from this side and cannot be relied on: the Unicode string on a
+    /// synthetic event is an Apple extension nothing obliges a guest to read,
+    /// and the key code travelling with it is 0. The clipboard is the only one of
+    /// the two mechanisms whose transport is the text itself, so those
+    /// applications get that one.
     ///
     /// A bundle identifier that is wrong here costs a momentary clipboard write
-    /// and a paste that lands the same text; it does not cost text. So the list
-    /// is allowed to be generous. The user's `DeliveryPreference` overrides it
-    /// either way.
+    /// and a paste that carries the same text; it does not cost text. So the
+    /// list is allowed to be generous. The user's `DeliveryPreference` overrides
+    /// it either way.
     static let hidForwardingHostBundleIDs: Set<String> = [
         // Virtual machines.
         "com.parallels.desktop.console",     // Parallels Desktop
