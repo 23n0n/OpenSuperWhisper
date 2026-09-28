@@ -681,6 +681,32 @@ final class MicrophoneServiceRequiresConnectionTests: XCTestCase {
 /// `testPasteWithActiveInputSource` and `testPasteAllAvailableLayouts` are the
 /// two that run everywhere, because they take the input source the machine
 /// actually has instead of naming one.
+/// The Paste command of the paste-integration case's own Edit menu.
+///
+/// It reads the pasteboard the case owns, because AppKit's own `paste:` reads
+/// the machine's general clipboard: keeping the general one out of the suite and
+/// keeping the key-equivalent assertion are both possible this way, and what the
+/// case gives up is the coverage of AppKit's own paste implementation (which the
+/// test it replaced was really only borrowing for the board).
+@MainActor
+private final class PasteCommand: NSObject {
+    private let pasteboard: NSPasteboard
+    private weak var editor: NSTextView?
+
+    static func targetting(_ pasteboard: NSPasteboard, editor: NSTextView) -> PasteCommand {
+        PasteCommand(pasteboard: pasteboard, editor: editor)
+    }
+
+    private init(pasteboard: NSPasteboard, editor: NSTextView) {
+        self.pasteboard = pasteboard
+        self.editor = editor
+    }
+
+    @objc func paste(_ sender: Any?) {
+        _ = editor?.readSelection(from: pasteboard)
+    }
+}
+
 @MainActor
 final class ClipboardUtilPasteIntegrationTests: XCTestCase {
     private func pasteText(_ text: String, layoutID: String) async throws {
@@ -711,24 +737,28 @@ final class ClipboardUtilPasteIntegrationTests: XCTestCase {
             }
         }
 
-        let pasteboard = NSPasteboard.general
-        let originalContents = ClipboardUtil.saveCurrentPasteboardContents(from: pasteboard)
+        // A pasteboard of this case's own. AppKit's own Paste command reads
+        // `NSPasteboard.general`, which is why this case used to write the
+        // machine's clipboard — and why a suite that wants to leave other
+        // applications' data alone cannot use that command: the case's point is
+        // that the ⌘V the delivery posts is the frontmost application's Paste key
+        // equivalent and that a paste from the board the pipeline wrote delivers
+        // the transcript, not that AppKit's paste implementation works. So the
+        // menu item's action is this case's own, and it reads the board the
+        // delivery wrote to.
+        let boardName = NSPasteboard.Name("osw-paste-integration-\(UUID().uuidString)")
+        let pasteboard = NSPasteboard(name: boardName)
+        defer { pasteboard.releaseGlobally() }
         let editor = NSTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
         editor.isRichText = false
+        let pasteTarget = PasteCommand.targetting(pasteboard, editor: editor)
         let editMenu = NSMenu(title: "Edit")
         let pasteItem = editMenu.addItem(
             withTitle: "Paste",
-            action: #selector(NSText.paste(_:)),
+            action: #selector(PasteCommand.paste(_:)),
             keyEquivalent: "v"
         )
-        pasteItem.target = editor
-        defer {
-            if let originalContents {
-                ClipboardUtil.restorePasteboardContents(originalContents, to: pasteboard)
-            } else {
-                pasteboard.clearContents()
-            }
-        }
+        pasteItem.target = pasteTarget
 
         var eventTypes: [CGEventType] = []
         ClipboardUtil.insertText(text, postEvent: { event in
@@ -740,7 +770,7 @@ final class ClipboardUtilPasteIntegrationTests: XCTestCase {
                 return
             }
             XCTAssertTrue(editMenu.performKeyEquivalent(with: keyEvent))
-        })
+        }, pasteboard: pasteboard)
         XCTAssertEqual(eventTypes, [.keyDown, .keyUp])
         let pasteDeadline = Date().addingTimeInterval(3)
         while editor.string != text && Date() < pasteDeadline {

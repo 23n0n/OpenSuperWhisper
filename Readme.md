@@ -303,8 +303,13 @@ wrote, that the clipboard is put back byte-identically on a pasteboard the test 
 the paste late receives, and that a killed process's clipboard record is recovered — with the launch decision
 itself driven both ways. Two things the suite does **not** cover, said here rather than left to be assumed: that a
 real launch reaches the recovery call (one line in `OpenSuperWhisperApp.applicationDidFinishLaunching`, verified
-by reading it), and anything about the machine's shared clipboard, which is why the clipboard cases use
-pasteboards of their own. That the text *arrives* is verified for a native macOS target, through a real
+by reading it), and anything about the machine's shared clipboard. Precisely what the suite does with the general
+clipboard, after this round: **nothing writes it** — every clipboard case uses a pasteboard of its own, named per
+case, including the paste-integration case, whose Edit-menu Paste command reads the board the delivery wrote rather
+than `NSPasteboard.general` (which is what AppKit's own `paste:` would read, and that implementation is therefore no
+longer borrowed by the suite) — and exactly one case **reads** it without writing: `KeyboardSimulatorTests`
+compares `NSPasteboard.general.changeCount` before and after typing, which is how "the keystroke path leaves the
+clipboard alone" is asserted. That the text *arrives* is verified for a native macOS target, through a real
 `NSTextView` driven by AppKit's own key bindings. It is **not** verified for a Citrix session: there
 is no session in the test suite and nothing about a session is observable from the host — whether the session
 reads key codes rather than the event's text field, and whether the paste lands at all (that one needs clipboard

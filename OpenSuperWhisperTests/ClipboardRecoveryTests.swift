@@ -90,11 +90,12 @@ final class ClipboardRecoveryTests: XCTestCase {
     /// the launch calls — has to put the displaced contents back.
     ///
     /// The child and this case share a **named** pasteboard: one server-side
-    /// object, so this is a real cross-process pasteboard and not a mock, while
-    /// the machine's general clipboard is left for the case that measures it.
-    /// (Two of these classes on the general clipboard at once is a race this
-    /// suite has already produced once: the child of this very case wrote over
-    /// the round-trip case's window, and the round-trip case caught it.)
+    /// object, so this is a real cross-process pasteboard and not a mock, and the
+    /// machine's general clipboard is not used by this case at all. (Two of these
+    /// classes on the general clipboard at once is a race this suite has already
+    /// produced once: the child of this very case wrote over the round-trip
+    /// case's window, and the round-trip case caught it. No case uses the general
+    /// clipboard now, except one that reads its changeCount without writing it.)
     func testARecordLeftByAProcessThatDiedIsRecoveredOnTheNextLaunch() throws {
         let helper = try Self.buildDeathHelper()
         let recordURL = temporaryRecordURL()
@@ -241,7 +242,7 @@ final class ClipboardRecoveryTests: XCTestCase {
                        "OpenSuperWhisper/Utils/ClipboardRecovery.swift"]
             .map { repo.appendingPathComponent($0) }
         for source in sources where !FileManager.default.fileExists(atPath: source.path) {
-            throw XCTSkip("missing \(source.path)")
+            throw HelperError.missingSource(source.path)
         }
 
         let directory = FileManager.default.temporaryDirectory
@@ -280,9 +281,27 @@ final class ClipboardRecoveryTests: XCTestCase {
         let errorOutput = errors.fileHandleForReading.readDataToEndOfFile()
         compiler.waitUntilExit()
         guard compiler.terminationStatus == 0 else {
-            throw XCTSkip("could not build the recovery child: "
-                          + String(decoding: errorOutput, as: UTF8.self).suffix(500))
+            // NOT a skip, for the reason the delivery-measurement helper states:
+            // a case that cannot run is a failure of this file, not an
+            // environment exclusion, and a skip here would be counted with the
+            // layout-gated ones and never looked at again.
+            throw HelperError.didNotBuild(String(String(decoding: errorOutput, as: UTF8.self).suffix(500)))
         }
         return binary
+    }
+
+    /// Why the child could not be built. Deliberately not `XCTSkip`.
+    enum HelperError: Error, CustomStringConvertible {
+        case missingSource(String)
+        case didNotBuild(String)
+
+        var description: String {
+            switch self {
+            case .missingSource(let path):
+                return "the source the child compiles is not at \(path)"
+            case .didNotBuild(let output):
+                return "the child could not be built from the app's own sources: \(output)"
+            }
+        }
     }
 }
