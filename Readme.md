@@ -846,6 +846,20 @@ recording starts — S1-mini while it is installed, the shipped floor otherwise 
 still speaking. (Every English policy resolves to the same model, which is why the warm-up follows the switches
 rather than a language.)
 
+**The licence, and the name it requires.** `S1-mini by Superwhisper` is Apache-2.0 with one
+additional term, which it inherits from Qwen3-0.6B and writes out in its own `LICENSE`. The term
+covers any use, distribution or integration of the model, "whether unmodified or as part of a
+derivative work or product", and it requires the model to keep its original name — “S1-mini” by
+“Superwhisper”, with that exact capitalization — "regardless of any other name under which the
+model or a product incorporating it is marketed or distributed." So the name this app shows for the
+model in Settings, `S1-mini by Superwhisper (Q4_K_M)`, is not a display choice: it is the licence's
+condition. The Apache-2.0 half brings its own obligations. The licence text and the model's
+`NOTICE` file are part of any redistribution of the weights, and a redistributor who ships a
+modified model has to say what was changed. This repository carries neither file, because it ships
+no weights: the app downloads `s1-mini-q4_k_m.gguf` from the publisher's own repository
+(`superwhisper/s1-mini-GGUF`), where `LICENSE` and `NOTICE` sit beside it, and verifies the file
+against the pinned digest before using it. Qwen2.5 1.5B and Qwen3 8B are Apache-2.0 alone.
+
 **And if the rewrite is not a rewrite.** The floor's prompt forbids answering, greeting, acknowledging or
 labelling the dictation, and its user turn is framed and delimited (`<<<TRANSCRIPT … TRANSCRIPT>>>`) so dictated
 instructions are rewritten rather than obeyed. Because a prompt alone did not survive the small model that used

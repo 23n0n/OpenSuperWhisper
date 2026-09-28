@@ -90,8 +90,9 @@ private final class LanguageLessEngine: TranscriptionEngine {
 }
 
 /// The wiring that carries the spoken language with the text: the language the
-/// engine measured is what the transform gate rewrites in, what decides the
-/// model, and — when the model cannot have heard it — what the guard refuses on.
+/// engine measured decides whether the transform runs at all — English is
+/// rewritten, everything else is delivered as it was transcribed — and, when the
+/// model cannot have heard it, it is also what the guard refuses on.
 @MainActor
 final class TranscriptionLanguageGateTests: XCTestCase {
 
@@ -138,9 +139,10 @@ final class TranscriptionLanguageGateTests: XCTestCase {
 
     // MARK: - The language drives the transform
 
-    /// The Polish and English dictations of the same engine: each is rewritten
-    /// in its own language, and neither prompt asks for the other one.
-    func testEachSpokenLanguageIsRewrittenInItsOwnLanguage() async throws {
+    /// The language drives the transform: the English dictation of the engine is
+    /// rewritten, and the Polish one is delivered exactly as it was transcribed —
+    /// no prompt, no call, and never an English frame around Polish words.
+    func testOnlyTheEnglishDictationIsRewrittenAndPolishIsDeliveredUntouched() async throws {
         final class Recorder {
             var prompts: [String] = []
             var texts: [String] = []
@@ -164,38 +166,38 @@ final class TranscriptionLanguageGateTests: XCTestCase {
             pcmSamples: [0.1, 0.2]
         )
 
-        _ = await service.transformIfEnabled(polish.text, sourceLanguage: polish.language)
-        _ = await service.transformIfEnabled(english.text, sourceLanguage: english.language)
+        let polishOutcome = await service.transformDetailed(polish.text, sourceLanguage: polish.language)
+        let englishOutcome = await service.transformDetailed(english.text, sourceLanguage: english.language)
 
-        // Part B frames the user turn, so the model is handed the transcript
-        // inside the `<<<TRANSCRIPT …>>>` delimiters rather than as a bare
-        // request it could obey. What has to hold is the frame and the language
-        // guarantee: each turn carries its own transcript, and each turn pins
-        // its own language and not the other one.
-        XCTAssertEqual(recorder.texts.count, 2)
-        XCTAssertTrue(
-            recorder.texts[0].contains("<<<TRANSCRIPT\n\(polishText)\nTRANSCRIPT>>>"),
-            "the Polish dictation is handed over inside the frame: \(recorder.texts[0])"
-        )
-        XCTAssertTrue(
-            recorder.texts[1].contains("<<<TRANSCRIPT\n\(englishText)\nTRANSCRIPT>>>"),
-            "the English dictation is handed over inside the frame: \(recorder.texts[1])"
-        )
-        XCTAssertTrue(recorder.texts[0].contains("(polski)"), recorder.texts[0])
-        XCTAssertFalse(recorder.texts[0].contains("(English)"),
-                       "a Polish dictation is never framed as English: \(recorder.texts[0])")
-        XCTAssertTrue(recorder.texts[1].contains("(English)"), recorder.texts[1])
-        XCTAssertFalse(recorder.texts[1].contains("(polski)"),
-                       "an English dictation is never framed as Polish: \(recorder.texts[1])")
-        XCTAssertEqual(recorder.prompts.count, 2, "both dictations are rewritten: tone is language-independent now")
-        XCTAssertTrue(recorder.prompts[0].contains("po polsku"), recorder.prompts[0])
-        XCTAssertFalse(recorder.prompts[0].contains("English text"),
-                       "the Polish turn is instructed in Polish: \(recorder.prompts[0])")
-        XCTAssertTrue(recorder.prompts[1].contains("English text"), recorder.prompts[1])
+        // The Polish dictation: the transform is English-only, so nothing is
+        // asked of a model for it, and what is handed on is the transcript.
+        XCTAssertEqual(polishOutcome.text, polish.text, "Polish is delivered as it was transcribed")
+        XCTAssertNil(polishOutcome.policy, "Polish has no policy: no prompt, no call, no frame")
+        XCTAssertFalse(polishOutcome.didRunModel)
+
+        // The English dictation is the only one that reaches a model, and it is
+        // handed over inside the frame with its own transcript — the Polish one
+        // never rides it.
+        XCTAssertEqual(recorder.prompts.count, 1, "only the English dictation is rewritten")
+        XCTAssertEqual(recorder.texts.count, 1)
+        let englishTurn = try XCTUnwrap(recorder.texts.first)
+        let englishPrompt = try XCTUnwrap(recorder.prompts.first)
+        XCTAssertTrue(englishTurn.contains("<<<TRANSCRIPT\n\(englishText)\nTRANSCRIPT>>>"),
+                      "the English dictation is handed over inside the frame: \(englishTurn)")
+        XCTAssertTrue(englishTurn.contains("(English)"), englishTurn)
+        XCTAssertFalse(englishTurn.contains("(polski)"), "an English turn is never framed as Polish: \(englishTurn)")
+        XCTAssertFalse(englishTurn.contains(polishText),
+                       "the Polish transcript never reaches a model: \(englishTurn)")
+        XCTAssertTrue(englishPrompt.contains("English text"), englishPrompt)
+        XCTAssertFalse(englishPrompt.contains("po polsku"),
+                       "no turn is instructed in Polish: \(englishPrompt)")
+        XCTAssertEqual(englishOutcome.text, english.text)
     }
 
     /// An engine that reports nothing leaves the transcript itself as the signal,
-    /// which is the Parakeet path.
+    /// which is the Parakeet path — and the heuristic's verdict decides exactly
+    /// what the engine's does: Polish text is delivered untouched, English text
+    /// is rewritten.
     func testEngineWithNoLanguageSignal_fallsBackToTheTranscriptText() async throws {
         final class Recorder {
             var prompts: [String] = []
@@ -211,16 +213,19 @@ final class TranscriptionLanguageGateTests: XCTestCase {
 
         let polish = try await transcribe(engine: LanguageLessEngine(text: polishText), pcmSamples: nil)
         XCTAssertNil(polish.language)
-        _ = await service.transformIfEnabled(polish.text, sourceLanguage: polish.language)
-
-        XCTAssertEqual(recorder.prompts.count, 1, "Polish text is placed by the heuristic and cleaned up")
-        XCTAssertTrue(recorder.prompts[0].contains("Polish text"), recorder.prompts[0])
+        let polishOutcome = await service.transformDetailed(polish.text, sourceLanguage: polish.language)
+        XCTAssertEqual(polishOutcome.text, polish.text, "the Polish text is placed, and then left alone")
+        XCTAssertNil(polishOutcome.policy)
+        XCTAssertFalse(polishOutcome.didRunModel)
+        XCTAssertEqual(recorder.prompts.count, 0,
+                       "Polish text the heuristic places is not cleaned up: the transform is English-only")
 
         let english = try await transcribe(engine: LanguageLessEngine(text: englishText), pcmSamples: nil)
-        _ = await service.transformIfEnabled(english.text, sourceLanguage: english.language)
-
-        XCTAssertEqual(recorder.prompts.count, 2)
-        XCTAssertTrue(recorder.prompts[1].contains("English text"), recorder.prompts[1])
+        let englishOutcome = await service.transformDetailed(english.text, sourceLanguage: english.language)
+        XCTAssertEqual(recorder.prompts.count, 1, "English text is placed by the heuristic and cleaned up")
+        let englishPrompt = try XCTUnwrap(recorder.prompts.first)
+        XCTAssertTrue(englishPrompt.contains("English text"), englishPrompt)
+        XCTAssertEqual(englishOutcome.text, english.text)
     }
 }
 
