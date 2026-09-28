@@ -26,13 +26,32 @@ class TranscriptionService: ObservableObject {
         transcript: String
     ) -> SpeechLanguageConflict? {
         guard let whisper = engine as? WhisperEngine else { return nil }
-        let selectedPath = engineSelection?.modelPath
-            ?? AppPreferences.shared.selectedWhisperModelPath
-            ?? AppPreferences.shared.selectedModelPath
         return SpeechModelLanguageGate.conflict(
-            modelPath: selectedPath,
+            modelPath: selectedSpeechModelPath,
             isMultilingual: whisper.isModelMultilingual,
             transcript: transcript
+        )
+    }
+
+    /// The model file the transcription path is running, for the refusals that
+    /// name it.
+    ///
+    /// The engine's own selection is the model that produced the transcript, so
+    /// it wins; before one has been applied — a service built around an engine,
+    /// as the tests build one — the preferences are the only answer there is.
+    private var selectedSpeechModelPath: String? {
+        engineSelection?.modelPath
+            ?? AppPreferences.shared.selectedWhisperModelPath
+            ?? AppPreferences.shared.selectedModelPath
+    }
+
+    /// The no-speech refusal for one transcript, or `nil` when the audio held
+    /// speech — or when nothing measured it.
+    private func noSpeechRefusal(presence: SpeechPresence?, threshold: Double) -> SpeechPresenceConflict? {
+        SpeechModelLanguageGate.noSpeechConflict(
+            presence: presence,
+            noSpeechThreshold: threshold,
+            modelPath: selectedSpeechModelPath
         )
     }
 
@@ -40,12 +59,18 @@ class TranscriptionService: ObservableObject {
     /// measured. The language decides whether the transform gate tones or
     /// cleans up the transcript or pastes it as-is, and which model does the
     /// work, so it travels with the text instead of living in ambient state
-    /// that concurrent operations could overwrite.
+    /// that concurrent operations could overwrite. What the engine measured
+    /// about speech in the audio travels the same way: it is the second thing a
+    /// transcript can be refused for, and the one the text cannot show.
     struct TranscriptionOutput {
         let text: String
         /// Engine-reported language, or `nil` when the engine has no signal
         /// (Parakeet/FluidAudio, or a whisper model that is not multilingual).
         let language: String?
+        /// Whether the audio this text came from held speech, as the engine
+        /// measured it. `nil` when the engine measures nothing — which refuses
+        /// nothing.
+        var speechPresence: SpeechPresence? = nil
     }
 
     private final class TranscriptionTaskBox {
@@ -162,12 +187,22 @@ class TranscriptionService: ObservableObject {
     /// nonisolated static that asks it).
     nonisolated static func resolvedWhisperModelPath() -> String? {
         let prefs = AppPreferences.shared
+        let resolved: String?
         if let stored = prefs.selectedWhisperModelPath ?? prefs.selectedModelPath,
            !stored.isEmpty,
            FileManager.default.fileExists(atPath: stored) {
-            return stored
+            resolved = stored
+        } else {
+            resolved = WhisperModelManager.bundledModelPath
         }
-        return WhisperModelManager.bundledModelPath
+        // An English-only model cannot detect language, so asked to transcribe
+        // Polish it answers with fluent English that was never spoken — and a
+        // gate that reads the transcript cannot tell that English is an
+        // invention. With a multilingual model already on this machine, the
+        // dictation runs on that one instead; with only English-only models it
+        // is the resolved model that runs, and the conflict gate still refuses
+        // the transcript and offers the remedy.
+        return SpeechModelLanguageGate.preferredDictationModelPath(over: resolved)
     }
 
     @Published private(set) var loadingError: String?
@@ -391,7 +426,11 @@ class TranscriptionService: ObservableObject {
                     } else {
                         detailed = try await whisper.transcribeAudioDetailed(url: url, settings: settings)
                     }
-                    output = TranscriptionOutput(text: detailed.text, language: detailed.language)
+                    output = TranscriptionOutput(
+                        text: detailed.text,
+                        language: detailed.language,
+                        speechPresence: detailed.speechPresence
+                    )
                 } else {
                     output = TranscriptionOutput(
                         text: try await engine.transcribeAudio(url: url, settings: settings),
@@ -411,6 +450,23 @@ class TranscriptionService: ObservableObject {
                     throw CancellationError()
                 }
                 throw error
+            }
+
+            // Nothing can be transcribed from audio that held no speech, and
+            // whisper will write a fluent phrase over silence anyway — a model
+            // that hears every language invents just as readily as an
+            // English-only one, and no language gate can see it, because the
+            // text is fluent. The measurement travels with the text (see
+            // `SpeechPresence`); the refusal is non-destructive exactly like the
+            // language conflict below — nothing is published, nothing is pasted,
+            // and the audio is kept.
+            if let refusal = await MainActor.run(body: {
+                self?.noSpeechRefusal(
+                    presence: output.speechPresence,
+                    threshold: settings.noSpeechThreshold
+                )
+            }) {
+                throw TranscriptionError.noSpeechDetected(refusal)
             }
 
             // The one combination that cannot work is refused before anything is
@@ -489,11 +545,19 @@ enum TranscriptionError: Error {
     /// story so every surface — the indicator, the queue, the history row —
     /// tells the same one.
     case speechLanguageConflict(SpeechLanguageConflict)
+    /// A transcript produced from audio that held no speech. The same
+    /// non-destructive refusal as the conflict above, and a different thing for
+    /// the user to act on: the recording, not the model — see
+    /// `SpeechPresenceConflict` for why the text cannot tell them this.
+    case noSpeechDetected(SpeechPresenceConflict)
 }
 
 extension TranscriptionError: LocalizedError {
     var errorDescription: String? {
-        guard case .speechLanguageConflict(let conflict) = self else { return nil }
-        return conflict.message
+        switch self {
+        case .speechLanguageConflict(let conflict): return conflict.message
+        case .noSpeechDetected(let refusal): return refusal.message
+        default: return nil
+        }
     }
 }

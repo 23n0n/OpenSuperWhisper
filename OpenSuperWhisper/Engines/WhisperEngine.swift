@@ -128,6 +128,12 @@ class WhisperEngine: TranscriptionEngine {
         /// The language of this utterance, as reported by the engine for this
         /// very `whisper_full` call. `nil` when the engine has no signal.
         let language: String?
+        /// Whether the audio this utterance came from held speech, as measured
+        /// by the pass that produced it (see `SpeechPresence`): the VAD's
+        /// verdict, or whisper's own `no_speech_prob` averaged over the segments
+        /// it produced. `nil` is "not measured" — the gate fails open on it, so
+        /// a caller that does not populate this refuses nothing.
+        var speechPresence: SpeechPresence? = nil
     }
 
     var engineName: String { "Whisper" }
@@ -311,7 +317,16 @@ class WhisperEngine: TranscriptionEngine {
         try Task.checkCancellation()
         if abortFlag.isSet { throw CancellationError() }
         if speechSegments.isEmpty {
-            return DetailedTranscription(text: "", segments: [], language: nil)
+            // The VAD found nothing to decode, so the decoder never runs. This
+            // empty utterance still carries the one fact the gate refuses on —
+            // there was no speech in the recording — instead of leaving a
+            // transcript nobody said.
+            return DetailedTranscription(
+                text: "",
+                segments: [],
+                language: nil,
+                speechPresence: .noSpeechSegment
+            )
         }
         // Timestamps of the trimmed audio would not match the original file,
         // so trimming is applied only when timestamps are not requested. The
@@ -411,6 +426,7 @@ class WhisperEngine: TranscriptionEngine {
         
         var segmentTexts: [String] = []
         var decodedSegments: [DecodedSegment] = []
+        var noSpeechProbabilitySum: Float = 0
         let nSegments = context.fullNSegments
         segmentTexts.reserveCapacity(nSegments)
         decodedSegments.reserveCapacity(nSegments)
@@ -419,6 +435,13 @@ class WhisperEngine: TranscriptionEngine {
             if i % 5 == 0 {
                 try Task.checkCancellation()
             }
+            
+            // Whisper's own answer to "was this segment speech at all", summed
+            // as the segments are walked: the quantity lives in the decoding
+            // state, which `defer` frees when this function returns. Every
+            // segment the decoder produced counts, including one whose text did
+            // not survive.
+            noSpeechProbabilitySum += context.fullGetSegmentNoSpeechProb(iSegment: i)
             
             guard let segmentText = context.fullGetSegmentText(iSegment: i) else { continue }
             let segmentStart = context.fullGetSegmentT0(iSegment: i)
@@ -469,7 +492,15 @@ class WhisperEngine: TranscriptionEngine {
         return DetailedTranscription(
             text: processedText,
             segments: decodedSegments,
-            language: language
+            language: language,
+            // The mean over the segments the decoder produced is the one number
+            // the user's `noSpeechThreshold` can be held against — at or above
+            // it, the transcript is the decoder writing over noise it mistook
+            // for a voice. No segment at all means nothing was measured, and no
+            // evidence never refuses.
+            speechPresence: nSegments > 0
+                ? .measured(meanNoSpeechProbability: Double(noSpeechProbabilitySum) / Double(nSegments))
+                : nil
         )
     }
 

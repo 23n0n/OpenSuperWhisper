@@ -11,6 +11,7 @@ final class StubLanguageWhisperEngine: WhisperEngine {
     private let cannedText: String
     private let cannedLanguage: String?
     private let declaresMultilingual: Bool?
+    private let cannedSpeechPresence: SpeechPresence?
 
     /// `multilingual` is what a loaded context would report. A test that hands
     /// this engine a transcript the *engine* could really have heard stands for
@@ -19,10 +20,21 @@ final class StubLanguageWhisperEngine: WhisperEngine {
     /// conflict, and a leftover selection in the preference domain would refuse
     /// the dictation as an invention. The tests that pin the refusal leave it
     /// `nil`, so the model path they hand the service stays the whole evidence.
-    init(text: String, language: String?, multilingual: Bool? = nil) {
+    ///
+    /// `speechPresence` is what the engine measured about the audio. It defaults
+    /// to `nil` — nothing measured — because that is the field's own default and
+    /// the answer an engine with no measurement gives; no test that predates it
+    /// is refused by it. The tests of the no-speech refusal set it.
+    init(
+        text: String,
+        language: String?,
+        multilingual: Bool? = nil,
+        speechPresence: SpeechPresence? = nil
+    ) {
         self.cannedText = text
         self.cannedLanguage = language
         self.declaresMultilingual = multilingual
+        self.cannedSpeechPresence = speechPresence
         super.init(modelPath: "/stub-model-not-on-disk")
     }
 
@@ -31,11 +43,21 @@ final class StubLanguageWhisperEngine: WhisperEngine {
     }
 
     override func transcribeAudioDetailed(url: URL, settings: Settings) async throws -> DetailedTranscription {
-        DetailedTranscription(text: cannedText, segments: [], language: cannedLanguage)
+        DetailedTranscription(
+            text: cannedText,
+            segments: [],
+            language: cannedLanguage,
+            speechPresence: cannedSpeechPresence
+        )
     }
 
     override func transcribeSamplesDetailed(_ samples: [Float], settings: Settings) async throws -> DetailedTranscription {
-        DetailedTranscription(text: cannedText, segments: [], language: cannedLanguage)
+        DetailedTranscription(
+            text: cannedText,
+            segments: [],
+            language: cannedLanguage,
+            speechPresence: cannedSpeechPresence
+        )
     }
 }
 
@@ -373,13 +395,25 @@ final class SpeechModelLanguageGateTests: XCTestCase {
         )
     }
 
-    private func transcribe(_ service: TranscriptionService) async throws -> TranscriptionService.TranscriptionOutput {
+    private func transcribe(
+        _ service: TranscriptionService,
+        settings: Settings = Settings()
+    ) async throws -> TranscriptionService.TranscriptionOutput {
         try await service.transcribeAudio(
             url: URL(fileURLWithPath: "/unused-dictation.wav"),
-            settings: Settings(),
+            settings: settings,
             operationID: UUID(),
             pcmSamples: nil
         )
+    }
+
+    /// `Settings()` reads the user's `noSpeechThreshold` from the preference
+    /// domain, which other tests write to; the no-speech rule is a comparison
+    /// against that number, so the tests that exercise it state it.
+    private func settings(noSpeechThreshold: Double = 0.6) -> Settings {
+        var settings = Settings()
+        settings.noSpeechThreshold = noSpeechThreshold
+        return settings
     }
 
     /// The captain's case, refused by the service rather than kept: the model
@@ -433,5 +467,202 @@ final class SpeechModelLanguageGateTests: XCTestCase {
 
         XCTAssertEqual(output.text, "Cześć, jak się masz?")
         XCTAssertEqual(output.language, "pl")
+    }
+
+    // MARK: - Which model the dictation runs on
+
+    /// With a multilingual model on the machine, dictation does not run on the
+    /// English-only one. A `.en` model measures no language at all, so Polish
+    /// speech comes back as fluent English nobody spoke, and no gate reading
+    /// the transcript can see it: the text is English.
+    func testAnInstalledMultilingualModelIsPreferredOverAnEnglishOnlyOne() throws {
+        let actual = SpeechModelLanguageGate.preferredDictationModelPath(
+            over: modelsDirectory.appendingPathComponent("ggml-tiny.en.bin").path,
+            modelsDirectory: modelsDirectory
+        )
+        // Compare resolved paths: the temporary directory is reached through /var,
+        // which is a symlink to /private/var, so the raw strings differ while the
+        // file is the same one. What the gate returns is what it found, and finding
+        // the multilingual model is the behaviour under test.
+        let resolvedActual = actual.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }
+        let expected = URL(fileURLWithPath: modelsDirectory.appendingPathComponent("ggml-large-v3-turbo.bin").path)
+            .resolvingSymlinksInPath().path
+        if resolvedActual != expected {
+            let listing = (try? FileManager.default.contentsOfDirectory(atPath: modelsDirectory.path).sorted().joined(separator: ",")) ?? "unreadable"
+            XCTFail("GATE ACTUAL=[\(resolvedActual ?? "nil")] EXPECTED=[\(expected)] DIR=[\(listing)]")
+        }
+    }
+
+    /// With nothing but English-only models installed, the resolved model runs
+    /// as it always did — the preference cannot invent a model that is not
+    /// there, and the conflict gate still refuses the transcript and names the
+    /// fix.
+    func testNothingMultilingualLeavesTheResolvedModelAlone() throws {
+        let bare = temporaryDirectory.appendingPathComponent("bare")
+        try FileManager.default.createDirectory(at: bare, withIntermediateDirectories: true)
+        let englishOnly = bare.appendingPathComponent("ggml-tiny.en.bin")
+        try Data([0]).write(to: englishOnly)
+
+        XCTAssertEqual(
+            SpeechModelLanguageGate.preferredDictationModelPath(over: englishOnly.path, modelsDirectory: bare),
+            englishOnly.path
+        )
+        XCTAssertNil(SpeechModelLanguageGate.preferredDictationModelPath(over: nil, modelsDirectory: bare))
+    }
+
+    /// A model that can already hear every language is never swapped: this is a
+    /// preference about a model that cannot hear, not a rewrite of the choice.
+    func testAMultilingualSelectionIsLeftAsItIs() throws {
+        let selected = modelsDirectory.appendingPathComponent("ggml-medium.bin")
+        try Data([0]).write(to: selected)
+
+        XCTAssertEqual(
+            SpeechModelLanguageGate.preferredDictationModelPath(
+                over: selected.path,
+                modelsDirectory: modelsDirectory
+            ),
+            selected.path
+        )
+    }
+
+    // MARK: - No speech in the recording
+
+    /// Only evidence refuses: the VAD's verdict, or a measured no-speech
+    /// probability at or above the user's own threshold. No measurement is not
+    /// evidence, which is what keeps every engine that does not measure working
+    /// exactly as before.
+    func testOnlyMeasuredNoSpeechRefuses() throws {
+        XCTAssertNil(
+            SpeechModelLanguageGate.noSpeechConflict(presence: nil, noSpeechThreshold: 0.6),
+            "nothing measured is not evidence"
+        )
+        XCTAssertNil(
+            SpeechModelLanguageGate.noSpeechConflict(
+                presence: .measured(meanNoSpeechProbability: 0.59),
+                noSpeechThreshold: 0.6
+            ),
+            "under the threshold is speech"
+        )
+        XCTAssertNotNil(
+            SpeechModelLanguageGate.noSpeechConflict(
+                presence: .measured(meanNoSpeechProbability: 0.6),
+                noSpeechThreshold: 0.6
+            ),
+            "at the threshold is over the line, the same line whisper is given"
+        )
+        XCTAssertNotNil(
+            SpeechModelLanguageGate.noSpeechConflict(presence: .noSpeechSegment, noSpeechThreshold: 0.6),
+            "the VAD finding no speech segment is evidence on its own"
+        )
+    }
+
+    /// The refusal says what to act on — there was no speech — and names the
+    /// model that wrote over it, rather than reading like a language error.
+    func testTheNoSpeechMessageNamesTheModelAndTheSilence() throws {
+        let refusal = try XCTUnwrap(
+            SpeechModelLanguageGate.noSpeechConflict(
+                presence: .measured(meanNoSpeechProbability: 0.9),
+                noSpeechThreshold: 0.6,
+                modelPath: "/models/ggml-tiny.en.bin"
+            )
+        )
+
+        XCTAssertEqual(refusal.title, "No speech was detected")
+        XCTAssertTrue(refusal.message.contains("No speech was detected"), refusal.message)
+        XCTAssertTrue(refusal.message.contains("ggml-tiny.en.bin"), refusal.message)
+        XCTAssertTrue(refusal.message.contains("no-speech probability 0.90"), refusal.message)
+        XCTAssertFalse(refusal.message.contains("understands English only"), refusal.message)
+    }
+
+    /// A multilingual model does not save an invention over silence: the text
+    /// is refused before anything is published, and the measurement travels
+    /// with it.
+    func testAMeasuredNonSpeechTranscriptIsRefusedInsteadOfKept() async throws {
+        let service = TranscriptionService(
+            selection: TranscriptionService.EngineSelection(
+                engine: "whisper",
+                modelPath: "/models/ggml-large-v3-turbo.bin",
+                modelVersion: ""
+            ),
+            engineLoader: { _ in
+                StubLanguageWhisperEngine(
+                    text: "Thank you for watching!",
+                    language: "en",
+                    multilingual: true,
+                    speechPresence: .measured(meanNoSpeechProbability: 0.92)
+                )
+            }
+        )
+
+        do {
+            let output = try await transcribe(service, settings: settings())
+            XCTFail("a transcript whose segments are not speech must not publish; got \(output.text)")
+        } catch let error as TranscriptionError {
+            guard case .noSpeechDetected(let refusal) = error else {
+                return XCTFail("expected noSpeechDetected, got \(error)")
+            }
+            XCTAssertEqual(refusal.presence, .measured(meanNoSpeechProbability: 0.92))
+            XCTAssertEqual(refusal.modelName, "ggml-large-v3-turbo.bin")
+        }
+
+        XCTAssertFalse(service.isTranscribing, "a refused dictation must not look like one in progress")
+        XCTAssertEqual(service.transcribedText, "", "nothing was published")
+    }
+
+    /// The VAD's verdict travels the same path: a recording with no speech
+    /// segment is refused rather than published as the empty transcript the
+    /// engine returns, and the threshold does not enter into it.
+    func testARecordingWithNoSpeechSegmentIsRefused() async throws {
+        let service = TranscriptionService(
+            selection: TranscriptionService.EngineSelection(
+                engine: "whisper",
+                modelPath: "/models/ggml-large-v3-turbo.bin",
+                modelVersion: ""
+            ),
+            engineLoader: { _ in
+                StubLanguageWhisperEngine(
+                    text: "",
+                    language: nil,
+                    multilingual: true,
+                    speechPresence: .noSpeechSegment
+                )
+            }
+        )
+
+        do {
+            _ = try await transcribe(service, settings: settings())
+            XCTFail("a recording with no speech segment must not publish")
+        } catch let error as TranscriptionError {
+            guard case .noSpeechDetected(let refusal) = error else {
+                return XCTFail("expected noSpeechDetected, got \(error)")
+            }
+            XCTAssertEqual(refusal.presence, .noSpeechSegment)
+        }
+    }
+
+    /// Speech that was really there goes on through the language gate as it did
+    /// before, measurement and all.
+    func testMeasuredSpeechIsStillPublished() async throws {
+        let service = TranscriptionService(
+            selection: TranscriptionService.EngineSelection(
+                engine: "whisper",
+                modelPath: "/models/ggml-large-v3-turbo.bin",
+                modelVersion: ""
+            ),
+            engineLoader: { _ in
+                StubLanguageWhisperEngine(
+                    text: "Cześć, jak się masz?",
+                    language: "pl",
+                    multilingual: true,
+                    speechPresence: .measured(meanNoSpeechProbability: 0.02)
+                )
+            }
+        )
+
+        let output = try await transcribe(service, settings: settings())
+
+        XCTAssertEqual(output.text, "Cześć, jak się masz?")
+        XCTAssertEqual(output.language, "pl")
+        XCTAssertEqual(output.speechPresence, .measured(meanNoSpeechProbability: 0.02))
     }
 }

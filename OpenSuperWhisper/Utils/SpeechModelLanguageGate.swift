@@ -46,6 +46,67 @@ struct SpeechLanguageConflict: Equatable {
     }
 }
 
+/// What the decoder measured about the speech in the audio it was given.
+///
+/// The transcript cannot answer this. Whisper writes its most likely phrase
+/// over anything it is handed — silence comes back as "Thank you for watching"
+/// in text that reads exactly like speech — so the text is no evidence at all
+/// that a voice was there. What is evidence is the VAD in front of the decoder
+/// and the decoder's own `no_speech_prob` for the segments it produced, which
+/// is why the engine puts its measurement here and the gate below refuses on
+/// it. `nil` — no measurement — is not evidence and never refuses.
+enum SpeechPresence: Equatable {
+    /// The VAD found no speech segment at all: what the decoder was given could
+    /// not have been words.
+    case noSpeechSegment
+    /// Speech was there, and this is what the segments the decoder produced look
+    /// like to it: whisper's own `no_speech_prob`, averaged over them. It is the
+    /// quantity the user's `noSpeechThreshold` is compared against inside
+    /// whisper, so the same line decides here.
+    case measured(meanNoSpeechProbability: Double)
+}
+
+/// A transcript produced from audio that held no speech.
+///
+/// This is the second way text appears out of nothing: the language conflict
+/// above needs a model that cannot hear the language, but whisper invents a
+/// fluent phrase over a room with no voice in it just as readily — and with a
+/// multilingual model there is no language conflict to catch it. The refusal is
+/// the same shape as the other one: nothing is published, nothing is pasted,
+/// the audio is kept so nothing the user said is lost, and the message says
+/// what the user has to act on — that no speech was detected.
+struct SpeechPresenceConflict: Equatable {
+    /// The speech model that produced the text, e.g. `ggml-tiny.en.bin`.
+    let modelName: String
+    /// What refused the transcript.
+    let presence: SpeechPresence
+    /// The user's `noSpeechThreshold`, the line the measurement was over.
+    let noSpeechThreshold: Double
+
+    var title: String { "No speech was detected" }
+
+    /// The whole story, in the user's terms: no speech, not a language error,
+    /// and what happened to the recording.
+    var message: String {
+        var text = "No speech was detected in this recording, so nothing was transcribed and nothing "
+            + "was typed. \(modelName) wrote text over audio it heard no speech in — silence is where "
+            + "whisper invents phrases nobody said — so the transcript was discarded instead of "
+            + "pasted."
+        switch presence {
+        case .noSpeechSegment:
+            text += " The voice activity detector found no speech in this recording at all."
+        case .measured(let meanNoSpeechProbability):
+            text += String(
+                format: " The segments it produced look like non-speech (no-speech probability "
+                    + "%.2f, and your threshold is %.2f).",
+                meanNoSpeechProbability,
+                noSpeechThreshold
+            )
+        }
+        return text + " The audio is kept, so the recording is not lost."
+    }
+}
+
 /// The rule that refuses to keep a transcript only an English-only model could
 /// have invented.
 ///
@@ -102,6 +163,41 @@ enum SpeechModelLanguageGate {
         )
     }
 
+    /// The refusal for a transcript produced from audio with no speech in it, or
+    /// `nil` when the audio held speech — and, just as important, when nothing
+    /// measured either way.
+    ///
+    /// Only evidence refuses. The VAD finding no speech segment is evidence on
+    /// its own; a measured no-speech probability is evidence against the user's
+    /// own `noSpeechThreshold`, the same line whisper is handed
+    /// (`params.no_speech_thold`). `nil` — an engine that measures nothing, a
+    /// call site that does not populate it — is not evidence, so the transcript
+    /// goes on to the language gate exactly as it did before.
+    static func noSpeechConflict(
+        presence: SpeechPresence?,
+        noSpeechThreshold: Double,
+        modelPath: String? = nil
+    ) -> SpeechPresenceConflict? {
+        guard let presence else { return nil }
+
+        // Speech was there and the measurement is under the user's own line:
+        // whatever produced this text, it was not silence.
+        if case .measured(let meanNoSpeechProbability) = presence,
+           meanNoSpeechProbability < noSpeechThreshold {
+            return nil
+        }
+
+        let modelName = modelPath
+            .map { URL(fileURLWithPath: $0).lastPathComponent }
+            .flatMap { $0.isEmpty ? nil : $0 } ?? "The selected speech model"
+
+        return SpeechPresenceConflict(
+            modelName: modelName,
+            presence: presence,
+            noSpeechThreshold: noSpeechThreshold
+        )
+    }
+
     /// Whether this model can only speak English.
     ///
     /// The loaded context is authoritative when there is one; the file name is
@@ -144,6 +240,32 @@ enum SpeechModelLanguageGate {
             return preferred
         }
         return candidates.sorted { $0.lastPathComponent < $1.lastPathComponent }.first
+    }
+
+    /// The model the dictation runs on: the resolved one, unless it can only
+    /// speak English and a multilingual model is installed next to it.
+    ///
+    /// An English-only model is not merely worse at other languages — it cannot
+    /// hear them at all. It has nothing to detect (its language is `en` by
+    /// construction), so Polish speech comes back as fluent English that was
+    /// never said, and no gate can catch that: the text *is* English. Where a
+    /// multilingual model is already on this machine, running the dictation
+    /// through it is the only way the speech can come back as what was said.
+    /// Where only English-only models exist, the resolved path stands — and the
+    /// conflict gate above still refuses the transcript and names the remedy.
+    ///
+    /// Nothing is written down: this answers which file a model is loaded from,
+    /// and the user's own selection is used unchanged the moment it can hear
+    /// the language.
+    static func preferredDictationModelPath(
+        over resolvedPath: String?,
+        modelsDirectory: URL = WhisperModelManager.modelsDirectory,
+        fileManager: FileManager = .default
+    ) -> String? {
+        guard isEnglishOnlyModel(modelPath: resolvedPath, isMultilingual: nil),
+              let multilingual = installedMultilingualModel(in: modelsDirectory, fileManager: fileManager)
+        else { return resolvedPath }
+        return multilingual.path
     }
 }
 
