@@ -19,13 +19,15 @@ import AppKit
 @MainActor
 final class KeyboardSimulatorInterferenceTests: XCTestCase {
 
-    /// Five chunks of twenty UTF-16 units. The first three chunks are the part a
-    /// stopped delivery has typed; the last two are the tail that must never
-    /// reach another application or be spliced into the user's typing.
+    /// Five blocks of twenty characters. The first sixty characters are the part
+    /// a stopped delivery has typed; the rest is the tail that must never reach
+    /// another application or be spliced into the user's typing.
     ///
-    /// Every chunk is a letter no other chunk uses, so "the tail is absent" is
-    /// a real assertion rather than an accident of a repetitive payload in which
-    /// the tail happens to sit inside the typed prefix.
+    /// Every block is a letter no other block uses, so "the tail is absent" is a
+    /// real assertion rather than an accident of a repetitive payload in which
+    /// the tail happens to sit inside the typed prefix. The delivery is one
+    /// character per key pair now, so the interference point is counted in
+    /// characters: sixty of them, which is one hundred and twenty events.
     private static let payload = ["A", "B", "C", "D", "E"]
         .map { String(repeating: $0, count: 20) }
         .joined()
@@ -57,8 +59,8 @@ final class KeyboardSimulatorInterferenceTests: XCTestCase {
     // MARK: - The frontmost application changes mid-delivery
 
     /// The user switches applications while the transcript is being typed: the
-    /// delivery was aimed at `intended`, and after the third chunk the user is
-    /// in `otherApplication`. What the live watch reads as a different frontmost
+    /// delivery was aimed at `intended`, and after the sixtieth character the user
+    /// is in `otherApplication`. What the live watch reads as a different frontmost
     /// process id is what this closure reports.
     func testDeliveryStopsWhenTheFrontmostApplicationChanges() {
         let intended = Self.receiver()
@@ -66,7 +68,7 @@ final class KeyboardSimulatorInterferenceTests: XCTestCase {
         var frontmost = intended
 
         let watch = KeyboardSimulator.DeliveryWatch { keyDownsPosted in
-            if keyDownsPosted >= 3 { frontmost = otherApplication }
+            if keyDownsPosted >= 60 { frontmost = otherApplication }
             return frontmost === intended ? nil : .focusChanged
         }
 
@@ -74,7 +76,7 @@ final class KeyboardSimulatorInterferenceTests: XCTestCase {
 
         XCTAssertEqual(result.interruptedBy, .focusChanged, "the result must name the interference")
         XCTAssertEqual(result.deliveredCharacters, Self.typedBeforeInterference.count)
-        XCTAssertEqual(result.eventsPosted, 6, "three chunks were posted, and not one event more")
+        XCTAssertEqual(result.eventsPosted, 120, "sixty character pairs were posted, and not one event more")
         XCTAssertEqual(
             intended.editor.string, Self.typedBeforeInterference,
             "what was typed before the switch must have arrived intact and in order"
@@ -99,15 +101,15 @@ final class KeyboardSimulatorInterferenceTests: XCTestCase {
         let unfixedOtherApplication = Self.receiver()
         var unfixedFrontmost = unfixedIntended
         let unfixed = Self.deliver(to: { unfixedFrontmost }, watch: nil) { posted in
-            if posted == 6 { unfixedFrontmost = unfixedOtherApplication }
+            if posted == 120 { unfixedFrontmost = unfixedOtherApplication }
         }
 
         XCTAssertNil(unfixed.interruptedBy, "with no watch the whole transcript is posted")
-        XCTAssertEqual(unfixed.eventsPosted, 10)
+        XCTAssertEqual(unfixed.eventsPosted, 200, "one pair per character of a hundred characters")
         XCTAssertEqual(unfixedIntended.editor.string, Self.typedBeforeInterference)
         XCTAssertEqual(
             unfixedOtherApplication.editor.string, Self.tail,
-            "control: without a watch the remaining chunks go to the new application"
+            "control: without a watch the remaining characters go to the new application"
         )
     }
 
@@ -115,13 +117,13 @@ final class KeyboardSimulatorInterferenceTests: XCTestCase {
 
     /// The user's own keystroke: it reaches the focused application through the
     /// window server, not through this delivery's sink, and it arrives between
-    /// the third and the fourth chunk. The watch reports it, so the delivery
-    /// stops there instead of typing the tail around it.
+    /// the sixtieth and the sixty-first character. The watch reports it, so the
+    /// delivery stops there instead of typing the tail around it.
     func testDeliveryStopsWhenTheUserTypesInsteadOfInterleaving() {
         let receiver = Self.receiver()
 
         let watch = KeyboardSimulator.DeliveryWatch { keyDownsPosted in
-            guard keyDownsPosted >= 3 else { return nil }
+            guard keyDownsPosted >= 60 else { return nil }
             receiver.editor.insertText(
                 "Q",
                 replacementRange: NSRange(location: receiver.editor.string.utf16.count, length: 0)
@@ -133,7 +135,7 @@ final class KeyboardSimulatorInterferenceTests: XCTestCase {
 
         XCTAssertEqual(result.interruptedBy, .userTyping, "the result must name the interference")
         XCTAssertEqual(result.deliveredCharacters, Self.typedBeforeInterference.count)
-        XCTAssertEqual(result.eventsPosted, 6, "three chunks were posted, and not one event more")
+        XCTAssertEqual(result.eventsPosted, 120, "sixty character pairs were posted, and not one event more")
 
         // Both streams did not mix: the transcript is one contiguous run, and the
         // user's own keystroke sits after it rather than between its characters.
@@ -151,7 +153,7 @@ final class KeyboardSimulatorInterferenceTests: XCTestCase {
         // where the two streams mix character by character.
         let unfixed = Self.receiver()
         let unfixedResult = Self.deliver(to: { unfixed }, watch: nil) { posted in
-            guard posted == 6 else { return }
+            guard posted == 120 else { return }
             unfixed.editor.insertText(
                 "Q",
                 replacementRange: NSRange(location: unfixed.editor.string.utf16.count, length: 0)
@@ -241,7 +243,7 @@ final class KeyboardSimulatorInterferenceTests: XCTestCase {
 
         XCTAssertNil(result.interruptedBy, "the delivery stopped itself over its own keystrokes")
         XCTAssertEqual(result.deliveredCharacters, text.count)
-        XCTAssertEqual(result.eventsPosted, 10)
+        XCTAssertEqual(result.eventsPosted, 16, "eight characters, one pair each")
     }
 
     /// The quiet case end to end, against the real probes: with nothing
@@ -253,7 +255,7 @@ final class KeyboardSimulatorInterferenceTests: XCTestCase {
 
         XCTAssertNil(result.interruptedBy, "the live watch stopped a delivery nothing interfered with")
         XCTAssertEqual(result.deliveredCharacters, Self.payload.count)
-        XCTAssertEqual(result.eventsPosted, 10)
+        XCTAssertEqual(result.eventsPosted, 200, "one pair per character of a hundred characters")
         XCTAssertEqual(receiver.editor.string, Self.payload)
     }
 

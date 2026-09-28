@@ -4,103 +4,50 @@ import AppKit
 
 final class KeyboardSimulatorTests: XCTestCase {
 
-    // MARK: - Chunking
-
-    func testChunksReconstituteLongASCIITextInOrder() {
-        let text = String(repeating: "abcdefghij", count: 7) // 70 ASCII characters
-        let chunks = KeyboardSimulator.chunks(of: text)
-
-        XCTAssertEqual(chunks.joined(), text)
-        XCTAssertFalse(chunks.isEmpty)
-        for chunk in chunks {
-            XCTAssertLessThanOrEqual(chunk.utf16.count, 20, "chunk exceeds 20 UTF-16 units: \(chunk)")
-        }
-        // 70 units / 20 per chunk => 4 chunks.
-        XCTAssertEqual(chunks.count, 4)
-    }
-
-    func testChunksDoNotSplitSurrogatePairs() {
-        // Emoji are surrogate pairs; combining diacritics add extra code points.
-        let text = "a😀bé😀café🇵🇱d😀é"
-        let chunks = KeyboardSimulator.chunks(of: text)
-
-        XCTAssertEqual(chunks.joined(), text)
-        for chunk in chunks {
-            XCTAssertLessThanOrEqual(chunk.utf16.count, 20, "chunk exceeds 20 UTF-16 units")
-            XCTAssertTrue(Self.decodesCleanly(chunk), "chunk's UTF-16 does not decode cleanly: \(chunk)")
-        }
-    }
-
-    func testChunksNeverExceedCapForGraphemeLongerThanCap() {
-        // A single grapheme cluster: "e" plus 30 combining acutes == 31 UTF-16 units.
-        let text = "e" + String(repeating: "\u{0301}", count: 30)
-        XCTAssertEqual(text.count, 1, "expected a single grapheme cluster")
-        XCTAssertEqual(text.utf16.count, 31)
-
-        let cap = 20
-        let chunks = KeyboardSimulator.chunks(of: text, maxUTF16: cap)
-
-        XCTAssertFalse(chunks.isEmpty)
-        for chunk in chunks {
-            XCTAssertLessThanOrEqual(chunk.utf16.count, cap, "chunk exceeds cap: \(chunk)")
-            XCTAssertTrue(Self.decodesCleanly(chunk), "chunk's UTF-16 does not decode cleanly")
-        }
-        // No code unit may be lost even though the grapheme was split.
-        XCTAssertEqual(chunks.flatMap { Array($0.utf16) }, Array(text.utf16))
-    }
-
-    func testChunksWithNonPositiveMaximumReturnEmpty() {
-        XCTAssertTrue(KeyboardSimulator.chunks(of: "abc", maxUTF16: 0).isEmpty)
-        XCTAssertTrue(KeyboardSimulator.chunks(of: "abc", maxUTF16: -5).isEmpty)
-        XCTAssertTrue(KeyboardSimulator.chunks(of: "😀", maxUTF16: 0).isEmpty)
-    }
-
-    func testChunksWithTinyMaximumKeepCharactersIntact() {
-        let text = "ab😀cd"
-        let chunks = KeyboardSimulator.chunks(of: text, maxUTF16: 2)
-        XCTAssertEqual(chunks, ["ab", "😀", "cd"])
-        XCTAssertEqual(chunks.joined(), text)
-    }
-
     // MARK: - Event production
 
-    /// The chunk travels on the keyDown and on nothing else.
+    /// The character travels on the keyDown and on nothing else.
     ///
-    /// This used to assert the opposite — that both events carried the chunk —
+    /// This used to assert the opposite — that both events carried the character —
     /// which is the duplication hazard this pair was carrying: a target that
-    /// inserts the text every event carries receives the chunk twice. What the
+    /// inserts the text every event carries receives the character twice. What the
     /// keyUp must be is a release of the same key that says "no text here", and
     /// the payload has to be *cleared* to say that: an event whose Unicode string
     /// was never set reads back as whatever its key code produces, and key code 0
     /// is `a`.
-    func testShortStringPostsKeyDownCarryingUnicodeAndAPayloadFreeKeyUp() throws {
+    func testShortStringPostsOnePayloadCarryingKeyDownPerCharacter() throws {
         var events: [CGEvent] = []
         KeyboardSimulator.typeText("Hé!") { events.append($0) }
 
-        XCTAssertEqual(events.count, 2)
+        // One pair per character: "H", "é", "!".
+        XCTAssertEqual(events.count, 6)
         let keyDown = try XCTUnwrap(events.first)
-        let keyUp = try XCTUnwrap(events.last)
+        let keyUp = try XCTUnwrap(events[1])
         XCTAssertEqual(keyDown.type, .keyDown)
         XCTAssertEqual(keyUp.type, .keyUp)
 
-        XCTAssertEqual(Self.unicodeString(of: keyDown), "Hé!")
+        XCTAssertEqual(Self.unicodeString(of: keyDown), "H", "each keyDown carries one character")
+        let characters = events.enumerated()
+            .filter { $0.offset % 2 == 0 }
+            .compactMap { Self.unicodeString(of: $0.element) }
+        XCTAssertEqual(characters, ["H", "é", "!"])
         XCTAssertNil(
             Self.unicodeString(of: keyUp),
             "the keyUp must carry no text: a target that inserts what each event carries would "
-            + "otherwise insert the chunk a second time"
+            + "otherwise insert the character a second time"
         )
-        // …and it stays the release of the key the chunk was pressed with, so a
+        // …and it stays the release of the key the character was pressed with, so a
         // target tracking key state sees a press and a release, not a stuck key.
         XCTAssertEqual(keyUp.getIntegerValueField(.keyboardEventKeycode),
                        keyDown.getIntegerValueField(.keyboardEventKeycode))
     }
 
-    func testLongStringPostsTwoEventsPerChunkInOrder() throws {
-        let text = String(repeating: "x", count: 45) // 3 chunks of 20/20/5
+    func testLongStringPostsTwoEventsPerCharacterInOrder() throws {
+        let text = String(repeating: "x", count: 45)
         var events: [CGEvent] = []
         KeyboardSimulator.typeText(text) { events.append($0) }
 
-        XCTAssertEqual(events.count, 6)
+        XCTAssertEqual(events.count, 90)
         for index in stride(from: 0, to: events.count, by: 2) {
             XCTAssertEqual(events[index].type, .keyDown)
             XCTAssertEqual(events[index + 1].type, .keyUp)
@@ -168,7 +115,7 @@ final class KeyboardSimulatorTests: XCTestCase {
                         Int64(KeyboardSimulator.tabKeyCode)])
     }
 
-    /// A chunk led by a character the layout produces only with modifiers carries
+    /// A character the layout produces only with modifiers carries
     /// those modifiers, and with them a key a target can actually use.
     ///
     /// The key code alone was never the whole story: on this machine's layout all
@@ -177,7 +124,7 @@ final class KeyboardSimulatorTests: XCTestCase {
     /// A physical keyboard presses Option+A for `ą`; a target that rebuilds
     /// characters from key codes (a Citrix session, a virtual machine, a remote
     /// desktop) can do nothing with 0x7F and can read Option+A.
-    func testADiacriticLedChunkCarriesTheModifiersItsKeyNeeds() throws {
+    func testADiacriticLedTextCarriesTheModifiersItsKeyNeeds() throws {
         // The layout is switched to the one whose mapping was measured, and put
         // back afterwards, because these cases run in parallel with classes that
         // switch layouts themselves — the active source is machine-wide, and a
@@ -199,10 +146,10 @@ final class KeyboardSimulatorTests: XCTestCase {
 
         let keyDown = try XCTUnwrap(events.first)
         XCTAssertEqual(keyDown.type, .keyDown)
-        XCTAssertEqual(Self.unicodeString(of: keyDown), "ąb", "the payload still carries the whole chunk")
+        XCTAssertEqual(Self.unicodeString(of: keyDown), "ą", "the payload carries the character")
         XCTAssertTrue(
             keyDown.flags.contains(.maskAlternate),
-            "a chunk led by a character this layout only produces with Option has to carry Option; "
+            "a character this layout only produces with Option has to carry Option; "
             + "flags were \(keyDown.flags.rawValue) and the key code was "
             + "\(keyDown.getIntegerValueField(.keyboardEventKeycode))"
         )
@@ -212,7 +159,7 @@ final class KeyboardSimulatorTests: XCTestCase {
             "…and a real key rather than the code for no key at all"
         )
         // The flags are exactly the layer's: a still-held Command must not turn
-        // the chunk into a shortcut.
+        // the character into a shortcut.
         XCTAssertFalse(keyDown.flags.contains(.maskCommand))
 
         // The layers around it, on the same layout: an uppercase diacritic needs
@@ -225,9 +172,9 @@ final class KeyboardSimulatorTests: XCTestCase {
         XCTAssertEqual(KeyboardSimulator.key(for: "z").flags, [])
     }
 
-    /// …and a chunk led by a character no layout produces keeps the unmapped code
+    /// …and a character led by a character no layout produces keeps the unmapped code
     /// and no modifiers, because there is no key to press for it.
-    func testAChunkNoLayoutCanProduceKeepsTheUnmappedKeyCodeAndNoModifiers() throws {
+    func testACharacterNoLayoutCanProduceKeepsTheUnmappedKeyCodeAndNoModifiers() throws {
         var events: [CGEvent] = []
         KeyboardSimulator.typeText("中文測試", trusted: true, post: { events.append($0) })
 
@@ -243,13 +190,27 @@ final class KeyboardSimulatorTests: XCTestCase {
     ///
     /// A target that rebuilds characters from key codes instead of reading the
     /// Unicode string — a Citrix session above all: its viewer links no
-    /// Unicode-payload reader at all — types `a` once per chunk for key code 0,
-    /// which is the worst thing a text event can carry. So the key code comes
-    /// from the active layout for the chunk's first character, and the events for
-    /// a chunk the layout has no key for carry a code no key is defined for.
-    func testTextEventsCarryTheLayoutsKeyForTheFirstCharacterAndNeverASilentA() throws {
+    /// Unicode-payload reader at all — types `a` once per event for key code 0,
+    /// which is the worst thing a text event can carry. Every character now rides
+    /// its own event with the key and the modifiers the active layout produces it
+    /// with, and a character no layer of the layout produces carries a code no
+    /// key is defined for.
+    func testEveryCharacterRidesTheKeyAndModifiersItsLayoutLayerNeeds() throws {
+        // The layout is switched to the measured one and put back afterwards: the
+        // active source is machine-wide and other classes in this suite switch it,
+        // which made this case fail intermittently — the events were built under
+        // one layout and looked up under another.
+        let original = ClipboardUtil.getCurrentInputSourceID()
+        let target = "com.apple.keylayout.PolishPro"
+        defer { if let original { _ = ClipboardUtil.switchToInputSource(withID: original) } }
+        guard ClipboardUtil.switchToInputSource(withID: target) else {
+            throw XCTSkip("layout \(target) not available on this machine")
+        }
+        TestFixtures.report("[keyboard] per-character key case running on "
+                            + "\(ClipboardUtil.getCurrentInputSourceID() ?? "nil")")
+
         var events: [CGEvent] = []
-        // Every chunk of this payload starts with a base-layer character: "Z",
+        // Every character of this payload starts with a base-layer character: "Z",
         // "ó" (Option+o), "j"… — the common shape of dictated text.
         KeyboardSimulator.typeText("Zażółć gęślą jaźń — 中文測試 Ж їß 😀 ok\n\ttail") { events.append($0) }
 
@@ -262,7 +223,7 @@ final class KeyboardSimulatorTests: XCTestCase {
             if keyCode == KeyboardSimulator.returnKeyCode || keyCode == KeyboardSimulator.tabKeyCode {
                 continue
             }
-            guard let chunk = Self.unicodeString(of: keyDown), let first = chunk.first else {
+            guard let character = Self.unicodeString(of: keyDown), let first = character.first else {
                 XCTFail("a text event carries no text at all")
                 continue
             }
@@ -272,7 +233,7 @@ final class KeyboardSimulatorTests: XCTestCase {
             let resolved = ClipboardUtil.findKey(for: first)
             XCTAssertEqual(
                 keyCode, resolved?.keyCode ?? KeyboardSimulator.unmappedKeyCode,
-                "chunk \(String(reflecting: chunk)) is posted with the key the layout produces "
+                "character \(String(reflecting: character)) is posted with the key the layout produces "
                 + "\(String(reflecting: first)) with, or with the unmapped code"
             )
             let flags = keyDown.flags
@@ -280,28 +241,19 @@ final class KeyboardSimulatorTests: XCTestCase {
                 flags, resolved?.flags ?? [],
                 "…and with the modifiers that layer needs, and no others"
             )
-            if flags == [] && keyCode == 0 {
-                XCTAssertEqual(
-                    first.lowercased(), "a",
-                    "key code 0 is the `a` key on a base layer and may only ride a chunk that starts with `a`; "
-                    + "\(String(reflecting: chunk)) starts with \(String(reflecting: first))"
-                )
-            }
-            if keyCode == 0 {
-                XCTAssertEqual(
-                    first.lowercased(), "a",
-                    "key code 0 means the `a` key and may only ride a chunk that starts with `a`; "
-                    + "\(String(reflecting: chunk)) starts with \(String(reflecting: first))"
-                )
-            }
+            // No assertion about key code 0 here. Which key produces which
+            // character is the layout's business: on the layout active on this
+            // machine 0 is the `a` key, and on a Polish typewriter layout the
+            // same key code produces `ą`. What has to hold is the pair above —
+            // the key and the modifiers are the ones this layout uses for this
+            // character — and that is layout-independent by construction.
         }
     }
 
-    /// A chunk whose first character the layout has no key for — every Polish
-    /// diacritic is an Option combination here, and CJK, Cyrillic and emoji have
-    /// no key at all — carries `unmappedKeyCode`, so no target can turn it into a
-    /// character the user did not dictate.
-    func testAChunkTheLayoutCannotTypeCarriesTheUnmappedKeyCode() {
+    /// A character the layout produces on no layer — CJK, Cyrillic, emoji —
+    /// carries `unmappedKeyCode`, so no target can turn it into a character the
+    /// user did not dictate.
+    func testACharacterTheLayoutCannotTypeCarriesTheUnmappedKeyCode() {
         // No layer of any layout produces these with one key.
         XCTAssertEqual(KeyboardSimulator.keyCode(for: "中文測試"), KeyboardSimulator.unmappedKeyCode)
         XCTAssertEqual(KeyboardSimulator.keyCode(for: "Ж їß"), KeyboardSimulator.unmappedKeyCode)
@@ -337,12 +289,14 @@ final class KeyboardSimulatorTests: XCTestCase {
         var events: [CGEvent] = []
         KeyboardSimulator.typeText("ab\ncd") { events.append($0) }
 
-        // "ab" keyDown/keyUp, Return keyDown/keyUp, "cd" keyDown/keyUp
-        XCTAssertEqual(events.count, 6)
-        XCTAssertEqual(Self.unicodeString(of: events[0]), "ab")
-        XCTAssertEqual(events[2].getIntegerValueField(.keyboardEventKeycode),
+        // "a", "b", Return, "c", "d": one pair each.
+        XCTAssertEqual(events.count, 10)
+        XCTAssertEqual(Self.unicodeString(of: events[0]), "a")
+        XCTAssertEqual(Self.unicodeString(of: events[2]), "b")
+        XCTAssertEqual(events[4].getIntegerValueField(.keyboardEventKeycode),
                        Int64(KeyboardSimulator.returnKeyCode))
-        XCTAssertEqual(Self.unicodeString(of: events[4]), "cd")
+        XCTAssertEqual(Self.unicodeString(of: events[6]), "c")
+        XCTAssertEqual(Self.unicodeString(of: events[8]), "d")
     }
 
     // MARK: - Empty input
@@ -371,7 +325,7 @@ final class KeyboardSimulatorTests: XCTestCase {
         let result = KeyboardSimulator.typeText("Hé!") { events.append($0) }
 
         XCTAssertEqual(result.eventsPosted, events.count)
-        XCTAssertEqual(result.eventsPosted, 2)
+        XCTAssertEqual(result.eventsPosted, 6, "one pair per character of \"Hé!\"")
         XCTAssertTrue(result.injected)
         XCTAssertEqual(result.trusted, KeyboardSimulator.isTrustedForInjection)
     }
@@ -391,15 +345,15 @@ final class KeyboardSimulatorTests: XCTestCase {
 
         XCTAssertFalse(result.trusted)
         XCTAssertEqual(result.eventsPosted, events.count)
-        XCTAssertEqual(result.eventsPosted, 2)
+        XCTAssertEqual(result.eventsPosted, 12)
     }
 
     // MARK: - Helpers
 
-    /// True when a chunk's UTF-16 round-trips losslessly and contains no
+    /// True when a character's UTF-16 round-trips losslessly and contains no
     /// replacement character (which would signal a lone/unpaired surrogate).
-    private static func decodesCleanly(_ chunk: String) -> Bool {
-        let units = Array(chunk.utf16)
+    private static func decodesCleanly(_ character: String) -> Bool {
+        let units = Array(character.utf16)
         let decoded = String(decoding: units, as: UTF16.self)
         return Array(decoded.utf16) == units
             && !decoded.unicodeScalars.contains { $0.value == 0xFFFD }
@@ -501,7 +455,7 @@ final class TypingReceiverView: NSView {
 /// The difference from `TypingReceiverView` above is what makes this one worth
 /// having: that receiver goes through AppKit's key bindings and therefore ignores
 /// keyUp exactly as the framework's own text system does, so it could not see a
-/// chunk posted twice no matter how the events were built.
+/// character posted twice no matter how the events were built.
 final class HidForwardedReceiverView: NSView {
     /// Everything the target ended up with, in the order it inserted it.
     private(set) var inserted = ""
@@ -559,8 +513,8 @@ final class HidForwardedReceiverView: NSView {
 @MainActor
 final class KeyboardSimulatorDeliveryTests: XCTestCase {
 
-    /// Multi-chunk and multi-script: longer than
-    /// `KeyboardSimulator.maxUTF16PerEvent`, so the text is split, and carrying
+    /// Multi-character and multi-script: longer than
+    /// several characters and several scripts, and carrying
     /// characters no single layout produces (CJK, Cyrillic, emoji) plus a
     /// newline and a tab.
     private static let payload = "Zažółć gęślą jaźń — 中文測試 Ж їß 😀 ok\n\ttail"
@@ -626,17 +580,17 @@ final class KeyboardSimulatorDeliveryTests: XCTestCase {
     }
 
     /// The event shape, pinned against the hazard it carried: a target that
-    /// inserts the text every event carries must receive each chunk once, not
+    /// inserts the text every event carries must receive each character once, not
     /// once per posted event.
     ///
     /// This is a guard, not a reproduction. Nothing ever captured the events the
     /// captain's failing target received, so no claim is made here that his
     /// target inserts on both transitions — what the case pins is that the pair
     /// this app posts does not hand the same text over twice, whatever the target
-    /// does with the events. It failed against the old shape, where the chunk
+    /// does with the events. It failed against the old shape, where the character
     /// travelled on the keyUp as well as the keyDown: 80 characters received for
     /// a 40-character payload.
-    func testATargetThatInsertsOnBothEventsReceivesTheChunkOnce() {
+    func testATargetThatInsertsOnBothEventsReceivesEachCharacterOnce() {
         let receiver = HidForwardedReceiverView()
 
         let result = KeyboardSimulator.typeText(Self.payload, trusted: true) { receiver.receive($0) }

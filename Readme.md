@@ -3,8 +3,9 @@
 OpenSuperWhisper is a macOS application that provides real-time audio transcription using the Whisper model. It offers a seamless way to record and transcribe audio with customizable settings and keyboard shortcuts.
 
 > **This tree is a fork of [Starmel/OpenSuperWhisper](https://github.com/Starmel/OpenSuperWhisper) (MIT).**
-> Everything the original does is still here; on top of it this fork adds local tone and clean-up rewrites that
-> **never change the language of what you dictated** (Polish stays Polish, English stays English), a dictation
+> Everything the original does is still here; on top of it this fork adds local tone and clean-up rewrites for
+> **English dictation** — a Polish dictation is delivered exactly as it was transcribed, with no model call at
+> all — a dictation
 > clean-up pass, keystroke delivery that leaves the clipboard alone (and reaches a Citrix session or a virtual machine through
 > the clipboard, which is restored), and a repaired long-form decode path. Section [What this fork changes](#what-this-fork-changes) describes every difference in detail, and
 > [What is unchanged](#what-is-unchanged) lists what is inherited verbatim.
@@ -32,12 +33,13 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 
 ### Added by this fork
 
-- 🌐 **Local tone and clean-up, in the language you spoke** — an instruction-tuned model runs inside the app
-  (llama.cpp linked in, no server, no port); two independent switches, off by default. The transcript is rewritten
-  in place: **the app never changes the language of your dictation**
-- 🇵🇱 **Tone rewrites run on Qwen3-8B when it is installed, in both languages** — clean-up alone keeps the
-  language preference (Polish prefers the 8B, English always runs the shipped 1.5B). The card says which model
-  each job uses and what it costs in RAM. Nothing is refused, nothing is substituted silently
+- 🌐 **Local tone and clean-up for English dictation** — a small model trained for exactly this job runs inside
+  the app (llama.cpp linked in, no server, no port); two independent switches, off by default. The transcript is
+  rewritten in place, in English: **the app never changes the language of your dictation**
+- 🇬🇧 **Every English transform runs on S1-mini by Superwhisper (462 MB) when it is installed**, and on the
+  shipped 1.5B while it is not. **A Polish dictation is delivered exactly as it was transcribed — no model is
+  asked for it at all.** The card says which model the work runs on and what it costs in RAM. Nothing is
+  refused, nothing is substituted silently
 - 🛡️ **A rewrite that answers instead of rewriting never reaches your text** — a deterministic guard rejects an
   assistant frame ("Sure,", "Oczywiście,"), a label line, the prompt's own `TRANSCRIPT`/`TRANSKRYPCJA`
   delimiter, a stub or a language flip, and pastes your own words with a notice instead. It reads text only:
@@ -92,24 +94,30 @@ shortcuts, the queue, the model catalogue, the onboarding — is upstream's, edi
 
 Paths below are relative to `OpenSuperWhisper/` unless they start with `Scripts/`, `packaging/` or `libllama/`.
 
-### 1. Tone and clean-up, inside the app — never a language change
+### 1. Tone and clean-up, inside the app — English dictation only
 
 Upstream transcribes; it has no notion of tone and no rewriting pass at all. This fork adds two independent
 switches in **Settings → Transcription** ("Apply tone" and "Clean up dictation"), both riding one call to a model
-that runs **inside the app**. The transcript is rewritten **in the language it was spoken in**: Polish stays
-Polish, English stays English, and there is no direction change anywhere in the product.
+that runs **inside the app**. The transform is **English-only**: an English dictation is rewritten in place, and
+a dictation in any other language — Polish included — is delivered exactly as it was transcribed, with no
+request and no model call at all. There is no direction change anywhere in the product.
 
-The rewrite is performed **in-process** by one of two models. `Qwen2.5-1.5B-Instruct-Q4_K_M` (~986 MB on disk,
-~1.1 GB of RAM while loaded) is the model every language can run on; `Qwen3-8B-Q4_K_M` (~5 GB on disk,
-~5.3 GB while loaded) is what a **tone rewrite prefers when it is installed — in both languages**, because
-holding the content still while the register moves is the job the shipped model was measured getting wrong
-(`fm-20260924-10`: added acknowledgements, preambles and invented nouns). Clean-up alone keeps the
-language-based preference: Polish prefers the 8B, English always runs the shipped 1.5B. The shipped model does
-the work for either job when the 8B is not installed, and the card says which one is in use. Each is
-downloaded on demand into the app's own Application Support folder and verified against its pinned checksum
-before it is used. llama.cpp is vendored as `libllama/` and linked into the app exactly like whisper.cpp, so
-there is no background server, no listening port and no endpoint override: the transform
-(`OpenSuperWhisper/TransformService.swift`) is the only way the text can be rewritten.
+The rewrite is performed **in-process** by one of two models. `S1-mini by Superwhisper` (Q4_K_M, ~462 MB on
+disk, ~0.9 GB of RAM while loaded) is a 0.6B text normalizer trained for exactly this job — raw ASR text in,
+clean written text out: fillers removed, false starts and self-corrections resolved, punctuation and
+capitalisation applied, and spoken numbers, dates, times, currency and email addresses written out. It is what
+**every English transform runs on while it is installed**. It is not an instruction follower: it takes one exact
+system prompt and a control line, so the app composes that format for it instead of its own instruction, mapping
+the three tone modes onto the model's `Styling` values (`[Styling: casual|semi-formal|formal] [Structure: prose]
+[Context: general]`) and asking for its answers greedily, as the model's card requires.
+`Qwen2.5-1.5B-Instruct-Q4_K_M` (~986 MB on disk, ~1.1 GB while loaded) is the **floor**: English runs on it
+while S1-mini is not installed, with the app's own instruction prompt, and the card says which one is in use.
+The ~5 GB `Qwen3-8B-Q4_K_M` that an earlier build preferred for tone and Polish clean-up is still listed and
+still removable, and no job resolves to it any more. Each model is downloaded on demand into the app's own
+Application Support folder and verified against its pinned checksum before it is used. llama.cpp is vendored as
+`libllama/` and linked into the app exactly like whisper.cpp, so there is no background server, no listening
+port and no endpoint override: the transform (`OpenSuperWhisper/TransformService.swift`) is the only way the
+text can be rewritten.
 
 ### 2. The language is auto-detected, and never changed
 
@@ -120,15 +128,17 @@ now that the **Language picker is gone from Settings, onboarding and the menu ba
 such as Parakeet. `params.language` is always `nil` and `params.detectLanguage` stays `false`. The rules that
 matter:
 
-- The transcript is rewritten **in its own language**, always: there is no target language in the product, and no
-  prompt that could move the text into another one.
+- **Only an English dictation is transformed.** English is what the app's backend serves; a Polish dictation —
+  and any other — is delivered exactly as it was transcribed, with no request and no model call at all.
+- The transcript is rewritten **in its own language**, which for a served dictation means English: there is no
+  target language in the product, and no prompt that could move the text into another one.
 - Both switches off is the default install: **no model call at all**, and the transcript is bit-for-bit what the
   engine produced.
 - A transcript nothing could place (an engine that reports nothing, and a text too short for the heuristic) is
   pasted raw; no model is asked to guess its language.
 - Tone no longer rides on anything: it is a same-language rewrite, so it needs no other switch to be on.
 
-The full switch table is in [Tone and clean-up](#tone-and-clean-up-in-the-language-you-spoke) below.
+The full switch table is in [Tone and clean-up](#tone-and-clean-up-english-dictation-only) below.
 
 ### 3. English-only model guard, re-keyed to the transcript
 
@@ -211,8 +221,8 @@ cleaned and final text, and the main window shows them side by side. History alw
 
 Upstream types the transcript by putting it on the system pasteboard and sending ⌘V
 (`ClipboardUtil.insertText` / `sendCmdV`), which overwrites whatever the user had copied. This fork delivers by
-synthesising the keystrokes instead (`Utils/KeyboardSimulator.swift`) — each chunk carrying its text in the event's
-text field under a key code taken from the active layout — so no native target's clipboard is read or written, and the layout-dependent keycode translation is covered by `KeyboardSimulatorTests`.
+synthesising the keystrokes instead (`Utils/KeyboardSimulator.swift`) — each character carrying its text in the
+event's text field under the key code and modifiers the active layout produces it with — so no native target's clipboard is read or written, and the layout-dependent keycode translation is covered by `KeyboardSimulatorTests`.
 Keystrokes that the system refuses to deliver are reported instead of being dropped silently. This also means
 Accessibility — not Input Monitoring — is the grant that matters; see the next point.
 
@@ -224,22 +234,26 @@ key codes and modifier flags, and links **no** Unicode-payload reader at all. So
 characters from key codes, under a keyboard layout this app neither controls nor knows. Two changes came out of
 that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
 
-* **A chunk travels once, and carries a real key code.** Both events of a chunk's keyDown/keyUp pair used to
-  carry the text. Carrying text on the release diverges from what the platform expects of a key pair, and it is a
-  duplication hazard in any target that inserts what each event carries: every 20-unit window arrives twice, the
-  second copy at the caret the first had already moved. The text is now on the keyDown only; the keyUp stays, and
-  keeps the keyDown's key code, so a host tracking key state sees a release rather than a stuck key, and its
-  Unicode field is *cleared* to length zero rather than left unset, because an unset field reads back as the
-  character the key code makes. **This is a hazard removed, not a cause proven**: no capture of the failing
-  target's event stream exists.
+* **One character per key pair, and it travels once.** Both events of the pair used to carry text — twenty
+  characters' worth of it — and carrying text on the release is a duplication hazard in any target that inserts
+  what each event carries: the window arrives twice, the second copy at the caret the first had already moved. A
+  pair now carries **one character**: it has exactly one key code, so anything beyond that character's own key is
+  lost to a target that rebuilds characters from key codes, which is what a redirected target does. The text is on
+  the keyDown only; the keyUp stays, and keeps the keyDown's key code *and modifiers*, so a host tracking key
+  state sees a release rather than a stuck key, and its Unicode field is *cleared* to length zero rather than left
+  unset, because an unset field reads back as the character the key code makes. **This is a hazard removed, not a
+  cause proven**: no capture of the failing target's event stream exists. The cost is event volume: about a
+  thousand events for a 487-character dictation instead of about fifty, which is why there is a small delay
+  between one character and the next (`KeyboardSimulator.defaultInterCharacterDelay`, 2 ms, about 500 characters a
+  second).
 * **The key code is no longer hardcoded to 0, and it carries the modifiers its character needs.** Key code 0 is
   the `A` key on ANSI layouts, and a target that rebuilds characters from key codes used to type `a` once per
-  chunk, because every chunk was posted on key 0. The key now comes from the active layout, for the chunk's first
-  character (one event carries up to 20 characters, so the first is the honest choice), resolved across all four
+  character — every character — because every event was posted on key 0. The key now comes from the active layout,
+  for the character that event carries, resolved across all four
   layers — none, Shift, Option, Shift+Option — and the event carries **that layer's modifiers with it**. On the
   layout active on this machine `ą` is Option+A, `ś` Option+S, `ó` Option+O, `ź` Option+X, `Ś` Option+Shift+S; every
   one of those used to be posted as key code `0x7F` — the code for no key at all — with no modifiers, which no
-  target can turn into a character. A chunk the layout produces on no layer (CJK, Cyrillic, emoji) still carries
+  target can turn into a character. A character the layout produces on no layer (CJK, Cyrillic, emoji) carries
   `0x7F` and no modifiers, because there is no key to press. Key plus modifiers is what a physical keyboard sends,
   which is exactly what a HID-forwarding client forwards.
   **What a key code cannot do, stated where it applies**: it is right only for a target whose keyboard layout is
@@ -249,11 +263,10 @@ that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
   why this is the keystroke path's character-level fix rather than a solution to redirected targets on its own.
   **What this does not claim, because an independent audit of this change measured it otherwise**: key code 0 can
   still be *resolved*. On the layout active here (`com.apple.keylayout.PolishPro`) key 0 *is* the `A` key, so a
-  chunk whose first character is `a` or `A` legitimately carries key code 0 next to its text. That is correct for
+  character that is `a` or `A` legitimately carries key code 0. That is correct for
   a native macOS target — its text arrives in the event's Unicode field whatever the key code is — and it is a
-  residual `a` once for that chunk in a target reached by keystrokes that ignores the field. The measured clients
-  take the clipboard path instead, and **Delivery** in Settings overrides the whole rule; the key code choice
-  alone cannot remove that residual, because one event carries up to 20 characters and can have only one key code.
+  residual: a redirected target that ignores the event's text field reads that one character and nothing else.
+  The measured clients take the clipboard path instead, and **Delivery** in Settings overrides the whole rule.
 * **The mechanism follows the target class** (`TextDelivery`): keystrokes into a native macOS application, and the
   clipboard paste for an application that redirects input elsewhere. The rule has two tiers and the difference
   between them is deliberate — one is measured here and one is not:
@@ -307,9 +320,9 @@ that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
     without clipboard sharing is silent, and after that notice the Settings copy and the delivery record are the
     only places the mechanism is visible.
   * **A redirected target with a different keyboard layout produces different characters.** The keystroke path now
-    sends the key and the modifiers this machine's layout uses for the first character of each chunk; the target's
+    sends the key and the modifiers this machine's layout uses, character by character; the target's
     layout is not visible to the sender, so `ą` arrives as whatever *its* Option+A means, and a target whose layout
-    has no such combination may produce nothing for that chunk. Nothing in this app can fix that — it is a property
+    has no such combination may produce nothing for that character. Nothing in this app can fix that — it is a property
     of the client's layout configuration — and it is why the recognised clients are given the clipboard instead
     (an independent judgment put "the layout mismatch remains" at 0.61).
   * **A pasteboard emptied deliberately is filled again.** Recovery puts the displaced contents back when the
@@ -588,15 +601,16 @@ Whisper Models — are kept as they are, apart from the notes this fork needed.
 
 ### Known limits and what is not built yet
 
-- **The larger model is a preference, not a guarantee.** `Qwen3-8B-Q4_K_M` is what a tone rewrite and Polish
-  clean-up *prefer*, and it is not required: with only the shipped 1.5B installed, that work runs on it, and the
-  card says so. Two measurements justify the preference: the tone run in `fm-20260924-10` (the failures above
-  are all absent on the 8B with the same prompt) and the earlier 8B/1.5B comparison taken on the translation
-  direction this fork removed (`fm-20260923-24`: 8B 11/15 clean and nothing invented, 1.5B 4/15 with 2
-  invented). Both are carried as a preference stated in the Settings card.
+- **The English transform is a preference, not a guarantee.** `S1-mini by Superwhisper` (462 MB) is what
+  every English transform runs on while it is installed, and it is not required: with only the shipped 1.5B
+  installed, English runs on that instead, and the card says so. The transform is **English-only**: a Polish
+  dictation is delivered exactly as it was transcribed, with no model call at all. The 5 GB 8B that used to be
+  preferred for tone and Polish clean-up no longer resolves any job; it stays in the model list so the file an
+  earlier build downloaded remains visible and removable, and its measured preference is still what the
+  earlier notes below describe.
 - **The guard catches the class, not the drift.** An assistant frame, a label line, the prompt's own delimiter,
   a stub and a language flip are rejected deterministically; subtle content drift (an article dropped, a noun
-  invented) is text the guard cannot judge, and it is the prompt's and the 8B's job. Nothing here grades
+  invented) is text the guard cannot judge, and it is the prompt's and the model's job. Nothing here grades
   rewrite quality at scale.
 - **The better 30B-A3B is not shipped.** It measured well and is fast per call, but it needs ~18 GB of RAM and
   ~44 s to load, which the 10-minute idle unload cannot hide on a 32 GB machine — and with the external-endpoint
@@ -625,10 +639,10 @@ Everything the app needs is inside the package: the speech engine (whisper.cpp
 plus llama.cpp for tone and clean-up) is linked into the app, its Metal
 shaders are embedded in it, and neither needs Homebrew, a background server or a
 listening port. Speech models (and, if you use the tone or clean-up switches, the
-rewrite models: ~1 GB for the model every language can run on, plus an optional
-~5 GB 8B that tone rewrites prefer in both languages and Polish clean-up prefers)
-are downloaded by the app into its own folder on
-first use.
+transform models: 462 MB for the English model every English transform runs on,
+plus a fallback ~1 GB for while it is not installed — and the optional ~5 GB 8B an
+earlier build used for tone and Polish) are downloaded by the app into its own
+folder on first use.
 
 On first launch macOS asks for the two permissions the app needs:
 
@@ -790,7 +804,7 @@ Scripts/dev-run.sh
 From then on ordinary rebuilds keep the grant; `Scripts/dev-run.sh --reset-tcc` does that
 reset for you if you ever need it again.
 
-## Tone and clean-up (in the language you spoke)
+## Tone and clean-up (English dictation only)
 
 Two independent switches in **Settings → Transcription**, both off by default: **Apply tone** (with a
 Formal / Casual / Neutral picker) and **Clean up dictation**. When either is on, the app runs an
@@ -799,42 +813,44 @@ server, no port, no cloud service, and there is no endpoint override any more. T
 **Download model** next to a model in Settings → Transcription: the app fetches those weights into its own
 Application Support folder, verifies the pinned checksum, and keeps them there.
 
-**The language of the transcript is never changed.** Polish comes back Polish, English comes back English.
-The tone switch asks for a different register of the *same* text; the clean-up switch removes filler, repairs
-punctuation, articles and word order, and drops stutters. Neither one is a translation, and no setting in the
-app can make them one. **The instruction is written in the language of the dictation too**, so a Polish
-dictation is asked for in Polish and an English one in English — on the captain's own Polish recordings that
-held his words still far more often than asking in English did (25 of 28 tone answers byte-identical against
-15, one invented word against two, one dropped word against four), and the Polish prompt additionally names
-the two `TRANSCRIPT` markers and forbids repeating them, because without that the model echoed the closing
-marker back as a word of its own answer on short dictations.
+**The transform is English-only, and it never changes the language of what you dictated.** An English dictation
+comes back English: the tone switch asks for a different register of the *same* text, and the clean-up switch
+removes filler, repairs punctuation and word order and drops stutters. A Polish dictation comes back exactly as
+it was transcribed, because nothing is asked of a model for it. Neither switch is a translation, and no setting
+in the app can make either one.
 
-**Which model each job uses.** The model is a preference, not a requirement:
+**How the prompt is composed follows the model.** S1-mini is not an instruction follower, so it does not get the
+app's instruction prompt: it gets the exact system prompt its card specifies, then a control line, then the raw
+transcript — `[Styling: <value>] [Structure: prose] [Context: general]`, with the tone switch's Formal / Casual
+/ Neutral mapped onto its `Styling` values (formal / casual / semi-formal) and `prose`/`general` fixed, because
+the app's contract forbids restructuring the dictation into bullets and has no email mode. Its answers are
+decoded greedily, as its card requires. The 1.5B floor keeps the app's own instruction prompt, which forbids
+answering, greeting, acknowledging or labelling the dictation and frames the user turn with
+`<<<TRANSCRIPT … TRANSCRIPT>>>`.
 
-| Job | Language | Model (Apache-2.0) | Download | RAM while loaded |
+**Which model the work uses.** The model is a preference, not a requirement:
+
+| Job | Language | Model | Download | RAM while loaded |
 |---|---|---|---|---|
-| Tone (with or without clean-up) | English | `Qwen3-8B-Q4_K_M` when installed | ~5.0 GB | ~5.3 GB |
-| Tone (with or without clean-up) | Polish | `Qwen3-8B-Q4_K_M` when installed | ~5.0 GB | ~5.3 GB |
-| Tone — when the 8B is not installed | either | `Qwen2.5-1.5B-Instruct-Q4_K_M` | ~986 MB | ~1.1 GB |
-| Clean-up alone | English | `Qwen2.5-1.5B-Instruct-Q4_K_M` | ~986 MB | ~1.1 GB |
-| Clean-up alone | Polish | `Qwen3-8B-Q4_K_M` when installed | ~5.0 GB | ~5.3 GB |
+| Tone and clean-up alike | English | `S1-mini by Superwhisper` (Q4_K_M) when installed | ~462 MB | ~0.9 GB |
+| Tone and clean-up alike — when S1-mini is not installed | English | `Qwen2.5-1.5B-Instruct-Q4_K_M` | ~986 MB | ~1.1 GB |
+| — | Polish | none: the transcript is delivered as transcribed | — | — |
+| — | anything else | none: the transcript is delivered as transcribed | — | — |
 
-Nothing has to be downloaded for either job to work: with only the shipped 1.5B installed, tone and Polish
-clean-up run on it, and the Settings card says exactly that ("The 8B is not installed, so the shipped model
-does the work — nothing is refused…"). A tone rewrite is the job that has to move the register while holding
-every fact still, and that is what the shipped model was measured getting wrong, so the 8B is preferred for it
-in both languages; clean-up alone is grammar repair and does not need the larger model. Only one model is ever
-resident: a change of job or language unloads one before loading the other, so the wired memory is the model in
-use, not the sum. Either is released after ten minutes without a transform; because the 8B's cold load is
-seconds rather than milliseconds, the app warms up the model the current switches imply when recording starts —
-the 8B while tone is on and it is installed, and the shipped model otherwise — so the load happens while you are
-still speaking. (Tone runs on one model in both languages, which is why the warm-up follows the switches rather
-than a language.)
+Nothing has to be downloaded for the feature to work: with only the shipped 1.5B installed, English runs on it,
+and the Settings card says exactly that ("S1-mini is not installed, so the shipped model does the work — nothing
+is refused…"). Only one model is ever resident: a change of model unloads one before loading the other, so the
+wired memory is the model in use, not the sum. Either is released after ten minutes without a transform; because
+a model's cold load is seconds rather than milliseconds, the app warms up what the current switches imply when
+recording starts — S1-mini while it is installed, the shipped floor otherwise — so the load happens while you are
+still speaking. (Every English policy resolves to the same model, which is why the warm-up follows the switches
+rather than a language.)
 
-**And if the rewrite is not a rewrite.** The prompt forbids answering, greeting, acknowledging or labelling the
-dictation, and the user turn is framed and delimited (`<<<TRANSCRIPT … TRANSCRIPT>>>`) so dictated instructions
-are rewritten rather than obeyed. Because the prompt alone did not survive the small model, a deterministic
-guard then reads the answer: an assistant frame, a `Register:`/`Output:` label, an announcement of the
+**And if the rewrite is not a rewrite.** The floor's prompt forbids answering, greeting, acknowledging or
+labelling the dictation, and its user turn is framed and delimited (`<<<TRANSCRIPT … TRANSCRIPT>>>`) so dictated
+instructions are rewritten rather than obeyed. Because a prompt alone did not survive the small model that used
+to do this work, a deterministic guard then reads every tone answer — S1-mini's included — an assistant frame, a
+`Register:`/`Output:` label, an announcement of the
 "rewritten text" (in either language), the prompt's own `TRANSCRIPT`/`TRANSKRYPCJA` delimiter returned as the
 answer, a stub of a dictation that carried a sentence, or an answer with no word of the language that went in —
 any of those and your own transcript is pasted instead, with a notice saying so and the same reason recorded
@@ -842,17 +858,17 @@ under the last dictation. A frame or a label counts only when the model *added* 
 if you dictated "Here is the summary…" or "I've already…", the rewrite that keeps your opening is kept too. The
 delimiter counts only as an all-caps marker standing on a line of its own, or as a word attached to `<<<`/`>>>`:
 `I need the transcript by Friday.` is your sentence and comes back as one. The guard makes no model call, so it
-cannot hallucinate; what it cannot see is subtle content drift — the prompt's and the 8B's job — and, in the
+cannot hallucinate; what it cannot see is subtle content drift — the model's job, and the reason the tone
+rewrite is a preference stated in the card rather than a guarantee — and, in the
 answer, a marker a model invents later in a spelling neither prompt uses, unless it arrives inside the brackets.
 
 | Tone | Clean up | Spoken language | Pasted text |
 |---|---|---|---|
 | off | off | any | the raw transcript — nothing is detected, nothing is called |
-| on | off | Polish | rewritten Polish, formal/casual/neutral, same language |
-| on | off | English | rewritten English, same language |
-| off | on | any placed language | the transcript repaired in the language it was spoken in |
-| on | on | either | one call carrying both instructions |
-| any | any | unplaceable text | the raw transcript — no prompt can name the language to keep |
+| any | any | Polish, or any language but English | the raw transcript: the transform is English-only, so no model is called |
+| on | off | English | rewritten in the register you picked, by S1-mini or by the floor without it |
+| off | on | English | the transcript repaired: punctuation, articles, word order, fillers |
+| on | on | English | one call carrying both instructions |
 
 Dictation history always keeps the raw transcript, and recordings transcribed from the list (queued or re-run
 files) are never rewritten. The language of each utterance is detected automatically, which needs a

@@ -6,7 +6,7 @@ import os
 
 /// Delivers text to the focused application by simulating keyboard events.
 ///
-/// This is the path that never touches `NSPasteboard`. Each chunk of text is
+/// This is the path that never touches `NSPasteboard`. Each character is
 /// carried by a `CGEvent` via `keyboardSetUnicodeString`, which makes the output
 /// Unicode-complete and independent of the active keyboard layout. It is the
 /// mechanism `TextDelivery` uses for every native macOS target; for a target
@@ -14,9 +14,6 @@ import os
 /// the clipboard paste instead, because the Unicode string on an event does not
 /// survive that hop — see `TextDelivery` for why that trade is made.
 enum KeyboardSimulator {
-
-    /// Maximum number of UTF-16 code units carried by a single event.
-    static let maxUTF16PerEvent = 20
 
     /// What one injection attempt observed and did.
     ///
@@ -37,7 +34,8 @@ enum KeyboardSimulator {
         /// How many characters of the transcript had been handed to `post` when
         /// the delivery ended — the whole transcript when `interruptedBy` is
         /// `nil`. Counted over the text after CR/CRLF normalisation, and a
-        /// grapheme cluster split by the chunking cap counts once per piece.
+        /// The text after CR/CRLF normalisation is delivered one character at a
+        /// time, so this is also the number of characters handed over.
         var deliveredCharacters: Int = 0
         /// Which of `TextDelivery`'s mechanisms produced these numbers. The
         /// caller logs it, so a dictation that arrived wrong can be traced to
@@ -61,8 +59,8 @@ enum KeyboardSimulator {
 
     /// Why a delivery stopped before it had typed the whole transcript.
     enum DeliveryInterruption: Equatable, CustomStringConvertible {
-        /// Another application came to the front: every remaining chunk would
-        /// have been typed into that one instead of the intended target.
+        /// Another application came to the front: every remaining character
+        /// would have been typed into that one instead of the intended target.
         case focusChanged
         /// The user typed while the transcript was being posted: continuing
         /// would have mixed the two streams character by character.
@@ -182,6 +180,25 @@ enum KeyboardSimulator {
         event.post(tap: .cghidEventTap)
     }
 
+    /// The delay between one character's event pair and the next one.
+    ///
+    /// The delivery used to be a single uninterrupted turn: the whole transcript
+    /// posted as fast as the loop could build events, which for a redirected
+    /// target means about a thousand events arriving in a fraction of a
+    /// millisecond, with nothing between them. Two milliseconds per character is
+    /// about 500 characters a second — an order of magnitude faster than a person
+    /// types, slow enough that a client forwarding each event into a session is
+    /// not asked to absorb a whole dictation inside one turn, and short enough
+    /// that a 500-character dictation delays this app by about a second. An
+    /// independent judgment put "pacing is required" at 0.64; the number is this
+    /// file's choice and is settable.
+    static let defaultInterCharacterDelay: TimeInterval = 0.002
+
+    /// The delay the delivery actually uses, and `0` under test: a test host posts
+    /// nothing, so waiting between events there would only make the suite slower.
+    static var interCharacterDelay: TimeInterval =
+        OpenSuperWhisperApp.isRunningTests ? 0 : defaultInterCharacterDelay
+
     /// Records exactly one line per dictation. `print` is invisible for an app
     /// launched by LaunchServices (its stdout is `/dev/null`), which is how the
     /// shipped app runs, so the line that explains a dropped dictation goes to
@@ -233,7 +250,7 @@ enum KeyboardSimulator {
 
     /// A key code the system defines no key for.
     ///
-    /// Used for a chunk the active layout has no key for. 0x7F is past the end of
+    /// Used for a character the active layout has no key for. 0x7F is past the end of
     /// the defined key codes: measured on this machine, an event carrying it
     /// still delivers its Unicode payload to a local text view, and with the
     /// Unicode field cleared it reads back as length zero, so nothing derives a
@@ -242,19 +259,20 @@ enum KeyboardSimulator {
     /// as a function key and ignores the Unicode payload on it.
     static let unmappedKeyCode: CGKeyCode = 0x7F
 
-    /// The key and modifiers a text-carrying event is posted with, for `chunk`.
+    /// The key and modifiers a text-carrying event is posted with, for one
+    /// character.
     ///
     /// Key code 0 is not "no key": it is the `A` key on ANSI layouts, and a target
     /// that rebuilds characters from key codes instead of reading the Unicode
     /// string types `a` for it. Key code 0 was therefore the worst possible
-    /// choice for a chunk whose text is only in the Unicode field: measured on
+    /// choice for a character whose text is only in the Unicode field: measured on
     /// this machine with the app's own events, a Citrix client taps the events,
     /// reads key codes and modifier flags, and links no Unicode-payload reader at
-    /// all, so every chunk arrived as a key code it read as `a`.
+    /// all, so every character arrived as a key code it read as `a`.
     ///
-    /// So the key comes from the active layout, for the chunk's *first*
-    /// character — one event carries up to `maxUTF16PerEvent` characters and can
-    /// only have one key, so the first character is the honest choice:
+    /// So the key comes from the active layout, for the character the event
+    /// carries — one character per event now, so every character of the
+    /// transcript gets its own key:
     ///
     /// * the layout produces it on some layer — that layer's key code and that
     ///   layer's modifiers (none, shift, option, or option+shift). A physical
@@ -271,27 +289,27 @@ enum KeyboardSimulator {
     /// target's layout and no key-code scheme can, which is why the clipboard path
     /// exists for the targets that are recognised.
     ///
-    /// The Unicode field still carries the whole chunk, so a target that reads the
+    /// The Unicode field still carries the character, so a target that reads the
     /// field — every native macOS target — is unaffected by any of this.
-    static func key(for chunk: String) -> ClipboardUtil.ResolvedKey {
-        guard let first = chunk.first, let resolved = ClipboardUtil.findKey(for: first) else {
+    static func key(for character: String) -> ClipboardUtil.ResolvedKey {
+        guard let first = character.first, let resolved = ClipboardUtil.findKey(for: first) else {
             return ClipboardUtil.ResolvedKey(keyCode: unmappedKeyCode, flags: [])
         }
         return resolved
     }
 
     /// The key code alone, for callers that only need that half.
-    static func keyCode(for chunk: String) -> CGKeyCode {
-        key(for: chunk).keyCode
+    static func keyCode(for character: String) -> CGKeyCode {
+        key(for: character).keyCode
     }
 
     /// Types `text` by posting synthetic key events.
     ///
-    /// Text is split into chunks of at most `maxUTF16PerEvent` UTF-16 code units
-    /// (never splitting a surrogate pair). Each chunk is carried by one
-    /// keyDown, followed by a keyUp that releases the same key and carries no
-    /// text — a target that inserts the text on every event it is handed
-    /// therefore receives the chunk once. Control characters are handled as
+    /// Each character is carried by one keyDown, with the key code and modifiers
+    /// the active layout uses for it, followed by a keyUp that releases the same
+    /// key and carries no text, and `interCharacterDelay` separates one
+    /// character's pair from the next — a target that inserts the text on every event it is handed
+    /// therefore receives the character once. Control characters are handled as
     /// dedicated key codes: newlines map to Return and tabs to Tab. Empty input
     /// posts nothing.
     ///
@@ -308,7 +326,7 @@ enum KeyboardSimulator {
     ///     the live `AXIsProcessTrusted()` answer, which is what production
     ///     uses; injectable so a test can pin the answer instead of depending on
     ///     whether the machine happens to hold the grant.
-    ///   - watch: Interference check consulted between chunks, or `nil` to post
+    ///   - watch: Interference check consulted between characters, or `nil` to post
     ///     the whole text unchecked. Production passes `.live()`.
     ///   - post: Sink for the generated events. Defaults to posting to the HID
     ///     event tap; tests inject a capture closure.
@@ -367,13 +385,26 @@ enum KeyboardSimulator {
             return true
         }
 
-        /// Posts the buffered text, in chunks, unless something interfered.
+        /// Posts the buffered text, one character per event pair, unless
+        /// something interfered.
+        ///
+        /// One character per keyDown/keyUp pair is what a physical keyboard
+        /// emits, and it is the only shape a target that rebuilds characters
+        /// from key codes can read: a pair carries exactly one key code, so
+        /// anything the pair carries beyond that character's own key is lost to
+        /// such a target. The cost is event volume — a character per pair rather
+        /// than up to twenty per pair.
         @discardableResult
         func flushBuffer() -> Bool {
             if interruptedBy != nil { return false }
             guard !buffer.isEmpty else { return true }
-            for chunk in chunks(of: buffer, maxUTF16: maxUTF16PerEvent) {
-                guard emitUnlessInterrupted(makeUnicodeEvents(for: chunk), characters: chunk.count) else {
+            var isFirst = true
+            for character in buffer {
+                if !isFirst, interCharacterDelay > 0 {
+                    Thread.sleep(forTimeInterval: interCharacterDelay)
+                }
+                isFirst = false
+                guard emitUnlessInterrupted(makeUnicodeEvents(for: String(character)), characters: 1) else {
                     return false
                 }
             }
@@ -408,59 +439,16 @@ enum KeyboardSimulator {
         )
     }
 
-    /// Splits `text` into chunks of at most `maxUTF16` UTF-16 code units.
+    /// Builds the keyDown/keyUp pair that carries one character as a Unicode
+    /// string.
     ///
-    /// The walk is over UTF-16 code units, packing up to `maxUTF16` units per
-    /// chunk. A high surrogate is always kept together with the low surrogate
-    /// that follows it, so no returned chunk contains a lone surrogate. A
-    /// grapheme cluster longer than the cap may therefore be spread across
-    /// chunks, but no code unit is dropped.
-    ///
-    /// - Returns: An empty array when `text` is empty or `maxUTF16 <= 0`.
-    static func chunks(of text: String, maxUTF16: Int = 20) -> [String] {
-        guard !text.isEmpty, maxUTF16 > 0 else { return [] }
-
-        let units = Array(text.utf16)
-        var result: [String] = []
-        var current: [UInt16] = []
-        current.reserveCapacity(maxUTF16)
-
-        var index = 0
-        while index < units.count {
-            let unit = units[index]
-            let isHighSurrogate = (0xD800...0xDBFF).contains(unit)
-            let hasPairedLow = isHighSurrogate
-                && index + 1 < units.count
-                && (0xDC00...0xDFFF).contains(units[index + 1])
-            let width = hasPairedLow ? 2 : 1
-
-            if !current.isEmpty && current.count + width > maxUTF16 {
-                result.append(String(decoding: current, as: UTF16.self))
-                current.removeAll(keepingCapacity: true)
-            }
-
-            current.append(unit)
-            if hasPairedLow {
-                current.append(units[index + 1])
-            }
-            index += width
-        }
-
-        if !current.isEmpty {
-            result.append(String(decoding: current, as: UTF16.self))
-        }
-        return result
-    }
-
-    /// Builds the keyDown/keyUp pair that carries `chunk` as a Unicode string.
-    ///
-    /// The chunk travels on the keyDown and on nothing else.
+    /// The character travels on the keyDown and on nothing else.
     ///
     /// Putting it on both events was a divergence from what the platform expects
     /// of a key pair, and it is a real duplication hazard: a target that inserts
     /// the text every event carries, rather than acting on the press alone,
-    /// receives the chunk twice — the second copy landing at whatever caret the
-    /// first one had already moved. No capture of the failing target's events
+    /// receives the character twice — the second copy landing at whatever caret
+    /// the first one had already moved. No capture of the failing target's events
     /// exists, so this is fixed as a hazard rather than convicted as the cause:
     /// the pair now carries the text once whatever the target does with it.
     ///
@@ -476,20 +464,20 @@ enum KeyboardSimulator {
     /// code 0 is `a` (see `TextDelivery`, which is where a target that reads the
     /// field instead of the payload is sent). Clearing it says "no text here".
     ///
-    /// Returns an empty array if `chunk` is empty or if event creation fails.
-    static func makeUnicodeEvents(for chunk: String) -> [CGEvent] {
-        guard !chunk.isEmpty else { return [] }
+    /// Returns an empty array if `character` is empty or if event creation fails.
+    static func makeUnicodeEvents(for character: String) -> [CGEvent] {
+        guard !character.isEmpty else { return [] }
         guard let source = CGEventSource(stateID: .combinedSessionState) else { return [] }
 
-        let utf16 = Array(chunk.utf16)
-        let resolved = key(for: chunk)
+        let utf16 = Array(character.utf16)
+        let resolved = key(for: character)
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: resolved.keyCode, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: resolved.keyCode, keyDown: false)
         else { return [] }
 
         // The modifiers are the layer's and nothing else: assigning the flags
         // rather than adding to them also drops whatever the system had inherited,
-        // so a still-held hotkey cannot turn this chunk into a shortcut (Command+A)
+        // so a still-held hotkey cannot turn the character into a shortcut (Command+A)
         // instead of plain text — while Option and Shift, which the character may
         // genuinely need, are what a physical keyboard would be holding.
         keyDown.flags = resolved.flags
