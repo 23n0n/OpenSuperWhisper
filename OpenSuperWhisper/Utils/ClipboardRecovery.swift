@@ -18,12 +18,18 @@ import os
 ///   any point after that has something to recover from;
 /// * it is cleared as soon as the delivery's own restore has run, so the ordinary
 ///   case leaves nothing behind;
-/// * recovery puts the contents back only when the pasteboard is still holding
-///   *our* text — checked by digest, not by changeCount, because the pasteboard
-///   server resets across a logout or reboot — so a clipboard somebody else has
-///   taken since the crash is never overwritten;
-/// * anything that does not fit those two cases deletes the record and leaves the
-///   clipboard alone.
+/// * recovery puts the contents back when the pasteboard still holds *our* text
+///   (checked by digest, not by changeCount, because the pasteboard server resets
+///   across a logout or reboot) **or when the pasteboard is empty** — an empty
+///   board holds nothing of anybody's, so nothing can be taken from anyone by
+///   filling it, and a reboot leaves exactly that state, which is the case the
+///   record exists for;
+/// * anything else — other text, or content of a type this app did not write —
+///   deletes the record and leaves the clipboard alone.
+///
+/// The cost the empty-board rule accepts: a pasteboard emptied *deliberately*,
+/// or one that is empty because there is no clipboard in the current context, is
+/// indistinguishable from a reboot and gets the displaced contents put on it.
 ///
 /// # The privacy trade, stated rather than hidden
 ///
@@ -152,10 +158,24 @@ enum ClipboardRecovery {
         try? FileManager.default.removeItem(at: url)
     }
 
-    /// Answers whether the pasteboard still holds the text a delivery wrote.
-    private static func pasteboardHoldsOurText(_ record: Record, _ pasteboard: NSPasteboard) -> Bool {
-        guard let current = pasteboard.string(forType: .string) else { return false }
-        return digest(of: current) == record.writtenTextDigest
+    /// What the pasteboard holds, as far as the recovery is concerned.
+    private enum BoardState {
+        /// Nothing at all — no type with any bytes. The ordinary state after a
+        /// reboot, because the pasteboard server does not keep a clipboard.
+        case empty
+        /// The exact text the delivery wrote there.
+        case thisAppText
+        /// Anything else: other text, or content of a non-text type.
+        case somethingElse
+    }
+
+    private static func boardState(_ record: Record, _ pasteboard: NSPasteboard) -> BoardState {
+        let held = (pasteboard.types ?? []).filter { pasteboard.data(forType: $0) != nil }
+        guard !held.isEmpty else { return .empty }
+        guard let current = pasteboard.string(forType: .string),
+              digest(of: current) == record.writtenTextDigest
+        else { return .somethingElse }
+        return .thisAppText
     }
 
     /// What a launch does about a pending record.
@@ -199,12 +219,24 @@ enum ClipboardRecovery {
         }
         defer { clear(at: url) }
 
-        guard pasteboardHoldsOurText(record, pasteboard) else {
+        switch boardState(record, pasteboard) {
+        case .somethingElse:
             log.notice("""
-                clipboard recovery: a record was pending but the pasteboard no longer holds this app's \
-                text, so the clipboard was left alone
+                clipboard recovery: a record was pending but the pasteboard holds something that is not this \
+                app's text, so the clipboard was left alone
                 """)
             return .somebodyElseHasTheClipboard
+        case .empty:
+            // An empty pasteboard holds nothing of anybody's, so putting the
+            // displaced contents into it cannot take anything from anyone — and
+            // it is the ordinary state after a reboot, which is exactly the case
+            // the disk record exists for. The cost it accepts: a board that was
+            // cleared deliberately, or that is empty because there is no
+            // clipboard in this context, is indistinguishable from a reboot, and
+            // gets stale contents put on it.
+            log.notice("clipboard recovery: a record was pending and the pasteboard is empty; putting the displaced contents back")
+        case .thisAppText:
+            break
         }
 
         let types = record.types.compactMap { NSPasteboard.PasteboardType(rawValue: $0) }

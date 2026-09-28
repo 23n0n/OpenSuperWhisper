@@ -172,6 +172,65 @@ final class ClipboardRecoveryTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: ClipboardRecovery.recordURL.path))
     }
 
+    /// A reboot comes back to an empty pasteboard — the pasteboard server keeps
+    /// nothing — and the record is still on disk. The displaced contents go back
+    /// into a board that holds nothing of anyone's.
+    func testARecordIsRestoredIntoAnEmptyPasteboardAfterAReboot() throws {
+        let boardName = NSPasteboard.Name("osw-reboot-\(UUID().uuidString)")
+        let pasteboard = NSPasteboard(name: boardName)
+        defer { pasteboard.releaseGlobally() }
+
+        // What the delivery displaced, and what it wrote over it.
+        pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString("what the user had copied", forType: .string)
+        let payload = "the transcription that was on the clipboard when the app died \(UUID().uuidString)"
+        let record = try XCTUnwrap(ClipboardRecovery.record(for: pasteboard, writtenText: payload))
+        XCTAssertTrue(ClipboardRecovery.write(record, to: ClipboardRecovery.recordURL))
+
+        // …and then the machine restarts: the clipboard comes back empty.
+        pasteboard.clearContents()
+        XCTAssertTrue((pasteboard.types ?? []).isEmpty, "a cleared pasteboard reports no types")
+
+        let outcome = ClipboardRecovery.recoverIfNeeded(from: ClipboardRecovery.recordURL, on: pasteboard)
+        TestFixtures.report("[recovery] outcome after a reboot (empty pasteboard): \(outcome); "
+                            + "board now holds: \(pasteboard.string(forType: .string) ?? "nil")")
+        XCTAssertEqual(outcome, .restored(types: record.types.count))
+        XCTAssertEqual(pasteboard.string(forType: .string), "what the user had copied")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: ClipboardRecovery.recordURL.path))
+    }
+
+    /// …and a board holding anything that is not this app's text is still left
+    /// alone, whether it is somebody's text or content of another type entirely.
+    func testARecordIsDiscardedWhenTheBoardHoldsSomethingThatIsNotThisAppsText() throws {
+        for (label, seed) in [("somebody's text", { (board: NSPasteboard) in
+            board.declareTypes([.string], owner: nil)
+            board.setString("copied by somebody else after the crash", forType: .string)
+        }), ("a non-text item", { (board: NSPasteboard) in
+            board.declareTypes([.tiff], owner: nil)
+            board.setData(Data([0x00, 0x01, 0x02, 0x03]), forType: .tiff)
+        })] {
+            let boardName = NSPasteboard.Name("osw-not-ours-\(UUID().uuidString)")
+            let pasteboard = NSPasteboard(name: boardName)
+            defer { pasteboard.releaseGlobally() }
+
+            pasteboard.declareTypes([.string], owner: nil)
+            pasteboard.setString("what the user had", forType: .string)
+            let record = try XCTUnwrap(ClipboardRecovery.record(
+                for: pasteboard,
+                writtenText: "the transcription \(UUID().uuidString)"
+            ))
+            XCTAssertTrue(ClipboardRecovery.write(record, to: ClipboardRecovery.recordURL))
+
+            pasteboard.clearContents()
+            seed(pasteboard)
+
+            let outcome = ClipboardRecovery.recoverIfNeeded(from: ClipboardRecovery.recordURL, on: pasteboard)
+            TestFixtures.report("[recovery] outcome with \(label) on the board: \(outcome)")
+            XCTAssertEqual(outcome, .somebodyElseHasTheClipboard, "\(label) must not be overwritten")
+            XCTAssertFalse(FileManager.default.fileExists(atPath: ClipboardRecovery.recordURL.path))
+        }
+    }
+
     /// A record nothing can read is removed rather than left to be retried.
     func testAnUnreadableRecordIsDiscarded() throws {
         let pasteboard = NSPasteboard(name: NSPasteboard.Name("osw-recovery-\(UUID().uuidString)"))

@@ -272,12 +272,21 @@ that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
   clipboard-recovery.plist` (`0600`, readable by that user alone) **before** the pasteboard is touched, and the
   next launch puts it back if the record is still there — proven in `ClipboardRecoveryTests`, which kills a child
   process built from the app's own code and then runs the same recovery entry point the launch runs. The record
-  is cleared as soon as the delivery restores the clipboard itself, and recovery refuses to put anything back
-  when the clipboard no longer holds this app's text. That refusal is content-based, not identity-based: it
-  compares the digest of the text that is on the clipboard with the digest of the text the delivery wrote, so a
-  third party who wrote the *byte-identical* transcription after a crash would still be overwritten. An
-  independent audit measured that window and called it negligible; it is stated here rather than left implied.
-* **What remains unclosed, stated rather than hidden.** Four paths, three of them silent:
+  is cleared as soon as the delivery restores the clipboard itself, and recovery puts the contents back when the
+  clipboard still holds this app's text or when it holds nothing at all (see the last entries of the list below).
+  The test is content-based, not identity-based: it compares the digest of the text that is on the clipboard with
+  the digest of the text the delivery wrote, so a third party who wrote the *byte-identical* transcription after a
+  crash would still be overwritten. An independent audit measured that window and called it negligible; it is
+  stated here rather than left implied.
+* **What remains unclosed, stated rather than hidden.** Six paths; all but the first are silent:
+  * **An application that redirects input elsewhere but is in neither tier takes keystrokes, and therefore gets
+    the mangling this whole change exists to remove.** The measured tier is five bundle identifiers read off this
+    machine; the vendor-prefix tier is a judgement and is **off by default**; anything else — a client from a
+    vendor with no prefix, or a bundle of a listed vendor that is not in the measured set — is typed into, and a
+    target that rebuilds characters from key codes reads that as key codes. This is the one gap that reproduces
+    the original defect, and an independent judgment put "acceptable as a documented cost" at **0.18**. What
+    closes it is coverage (adding a client's bundle identifiers to the measured tier, which needs that client on
+    the machine) or the vendor switch, not a better key code.
   * A target that services the paste *later* than the restore gets the **restored** clipboard contents — the
     user's own previous clipboard pasted into their document instead of the dictation (measured case:
     `TextDeliveryTests`).
@@ -288,13 +297,21 @@ that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
   * If the session has clipboard redirection switched off, the paste delivers **nothing at all** and this app
     cannot tell, because the only thing it can observe is its own pasteboard. The once-per-install notice says the
     dictation went through the clipboard and what a silence means — **once**, never again, so a later session
-    without clipboard sharing is silent.
-  * That notice is once per install by design; after it, the Settings copy and the delivery record are the only
-    places the mechanism is visible.
+    without clipboard sharing is silent, and after that notice the Settings copy and the delivery record are the
+    only places the mechanism is visible.
+  * **A pasteboard emptied deliberately is filled again.** Recovery puts the displaced contents back when the
+    clipboard still holds this app's text *or* when it holds nothing at all — the empty case because nothing of
+    anyone's can be taken from an empty board and because that is what a reboot leaves, and this is the case the
+    disk record exists for (an independent judgment put restoring into an empty board at **0.85**, against 0.12
+    for always refusing). The cost: a board cleared on purpose, or one that is empty because there is no clipboard
+    in the current context, is indistinguishable from a reboot and gets the old contents put on it.
+  * The protected clipboard itself is written and restored on the paste path, so a target that reads it *while*
+    the transcript is on it sees the transcript — that is the mechanism, stated here so it is not a surprise.
   `Settings → Transcription` offers **Delivery** (Automatic, Keystrokes only, Clipboard paste) plus the vendor
   toggle: "Keystrokes only" turns the clipboard path off entirely, and every dictation's unified-log line records
   `mechanism=`, the `target=` bundle identifier and whether the match was `match=verified-client` or
-  `match=vendor-family`.
+  `match=vendor-family` — which is also how an unlisted client is found: its delivery says `match=not-a-client`
+  and `mechanism=keystrokes`.
 
 **Verified and not verified.** On this side: the events a delivery posts, the shape of the pair, the key code and
 Unicode field each event carries, which mechanism the target rule selects for a given application and preference,
