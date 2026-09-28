@@ -355,18 +355,31 @@ class WhisperEngine: TranscriptionEngine {
         
         try Task.checkCancellation()
         
-        // VAD gate: whisper never sees non-speech audio, so silence cannot
-        // produce hallucinated text and long pauses are not decoded at all.
-        // (whisper_full_with_state has no built-in VAD path — params.vad works
-        // only through whisper_full, which would share decoding state.)
-        let speechSegments = try detectSpeech(in: converted)
+        // VAD pre-filter. Off by default (Jev 1.13.0 ruling), on measurement:
+        // the speech-only audio the filter builds drops whole phrases on quiet
+        // recordings. One 8.69 s dictation kept 0.86 s of speech and came out
+        // "See you later." where the same audio with the filter off reads "All
+        // right, I gotta go home. See you later and keep up."; across the four
+        // worst of the captain's own recordings the filter off recovered 35
+        // words with 0 still missing, against 0 recovered and 35 still missing
+        // with it on. A threshold of 0.15 recovered 29 of those 35, and
+        // min-silence, min-speech, speech-pad and beam size changed almost
+        // nothing, so the product exposes off/on only and the parameters stay
+        // internal. (whisper_full_with_state has no built-in VAD path —
+        // params.vad works only through whisper_full, which would share
+        // decoding state.)
+        let usesVAD = settings.useVAD
+        let speechSegments = usesVAD ? try detectSpeech(in: converted) : nil
         try Task.checkCancellation()
         if abortFlag.isSet { throw CancellationError() }
-        if speechSegments.isEmpty {
+        if let speechSegments, speechSegments.isEmpty {
             // The VAD found nothing to decode, so the decoder never runs. This
             // empty utterance still carries the one fact the gate refuses on —
             // there was no speech in the recording — instead of leaving a
-            // transcript nobody said.
+            // transcript nobody said. With the filter off this verdict does not
+            // exist and is not guessed at: the decoder runs, and the no-speech
+            // probability it measures over its own segments is what the gate
+            // above reads instead.
             return DetailedTranscription(
                 text: "",
                 segments: [],
@@ -379,9 +392,14 @@ class WhisperEngine: TranscriptionEngine {
         // stitching is also the only place the pauses are still measurable:
         // the decoder gets `pauses` back so a pause the speaker actually left
         // can end the sentence instead of being flattened into a breath.
-        let stitched = settings.showTimestamps
-            ? StitchedAudio(samples: converted, pauses: [])
-            : Self.stitch(from: converted, segments: speechSegments, policy: pausePolicy)
+        // With the pre-filter off there is nothing to trim and nothing to
+        // stitch: the decoder hears the recording itself.
+        let stitched: StitchedAudio
+        if let speechSegments, !settings.showTimestamps {
+            stitched = Self.stitch(from: converted, segments: speechSegments, policy: pausePolicy)
+        } else {
+            stitched = StitchedAudio(samples: converted, pauses: [])
+        }
         let samples = stitched.samples
         
         let nThreads = max(2, min(ProcessInfo.processInfo.activeProcessorCount, 8))
@@ -392,9 +410,16 @@ class WhisperEngine: TranscriptionEngine {
         // why the language is measured here, before the decoder is handed
         // anything, and only when the prompt is actually going to be the
         // table's: a switch off stays upstream's audio byte for byte.
+        // The default prompt exists to serve the pause machinery, and only the
+        // pre-filter measures a pause: with it off there is no pause to serve, so
+        // the detect-only language pass and the language's default prompt both
+        // stay off with it. That is also what the measurement asks for — a
+        // Polish prompt on VAD-stitched input cost words rather than gaining
+        // them, and the language is never forced.
         let spokenLanguage = settings.initialPrompt.isEmpty
             && pausePolicy.closesSentence
             && !settings.showTimestamps
+            && usesVAD
             ? try measureLanguage(of: samples, nThreads: nThreads)
             : nil
         var effectiveSettings = settings
@@ -1003,6 +1028,11 @@ class WhisperEngine: TranscriptionEngine {
         // decoder really covered, so no speech is skipped.
         params.noTimestamps = false
         params.suppressBlank = settings.suppressBlankAudio
+        // The pre-filter decision travels with the parameters so the exposure
+        // test can see it. The engine reads the same setting itself, because the
+        // VAD call happens before these parameters exist.
+        params.vad = settings.useVAD
+        params.vadParams = Self.vadParams
         // The language is never set: the app always lets the model detect it,
         // and nothing in the product may condition the decoder on a chosen
         // language. `detectLanguage` stays false as it must — setting it makes
@@ -1034,11 +1064,16 @@ class WhisperEngine: TranscriptionEngine {
         guard let vadContext else {
             throw TranscriptionError.contextInitializationFailed
         }
-        guard let segments = vadContext.speechSegments(in: samples) else {
+        guard let segments = vadContext.speechSegments(in: samples, params: Self.vadParams) else {
             throw TranscriptionError.processingFailed
         }
         return segments
     }
+
+    /// The parameters the silero pre-filter runs with while `settings.useVAD` is
+    /// on. Internal on purpose: no threshold beat turning the filter off, so the
+    /// product exposes off/on and nothing else (see `WhisperVadParams`).
+    static let vadParams = WhisperVadParams()
     
     /// Keeps only speech, mirroring upstream whisper_full VAD stitching:
     /// each segment (already padded by the VAD) gets 0.1s of the following

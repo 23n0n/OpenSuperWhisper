@@ -178,6 +178,27 @@ final class AppPreferences {
     @UserDefault(key: "showTimestamps", defaultValue: false)
     var showTimestamps: Bool
 
+    /// "VAD" — whether the silero speech-only pre-filter runs before the decoder.
+    ///
+    /// **Off by default**, on measurement, and measured on the captain's own
+    /// recordings rather than on synthetic audio: with the filter on, one 8.69 s
+    /// dictation kept 0.86 s of speech and came out "See you later." where the
+    /// same audio with the filter off reads "All right, I gotta go home. See you
+    /// later and keep up."; across the four worst rows the filter off recovered
+    /// 35 words with 0 still missing, against 0 recovered and 35 still missing
+    /// with it on. A threshold of 0.15 recovered 29 of those 35, min-silence,
+    /// min-speech, speech-pad and beam size changed almost nothing, and the
+    /// filter on a fully silent recording returns no transcript at all. So the
+    /// control is off/on and the VAD's own parameters are not exposed
+    /// (`WhisperEngine.vadParams`). Jev 1.13.0 ruling: toggle_only 0.96
+    /// (conf 0.93), settings toggle 0.76 (conf 0.67).
+    ///
+    /// This recovery is an audio-level result measured outside the test suite;
+    /// CI cannot re-verify it, and the suite asserts only that the setting
+    /// reaches the decoder's parameters.
+    @UserDefault(key: "useVAD", defaultValue: false)
+    var useVAD: Bool
+
     /// "Long Pauses End the Sentence" — the switch that keeps a pause instead of
     /// dissolving it.
     ///
