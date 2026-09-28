@@ -180,7 +180,9 @@ class AudioRecorder: NSObject, ObservableObject {
         #if os(macOS)
         if let activeMic = activeMic {
             switchSystemDefaultInput(to: activeMic)
-            channelCount = MicrophoneService.shared.getInputChannelCount(for: activeMic)
+            // A microphone with no readable input channels reports nil: keep the
+            // mono default rather than record a channel count nobody measured.
+            channelCount = MicrophoneService.shared.getInputChannelCount(for: activeMic) ?? channelCount
             print("Recording with \(channelCount) input channel(s) from \(activeMic.displayName)")
         }
         #endif
@@ -212,8 +214,22 @@ class AudioRecorder: NSObject, ObservableObject {
             recordingSession = nil
             currentRecordingURL = nil
             restoreSystemDefaultInputIfNeeded()
-            failStart(sessionID: sessionID, message: error.localizedDescription)
+            failStart(sessionID: sessionID, message: Self.startFailureMessage(for: error, activeMic: activeMic))
         }
+    }
+    
+    /// `'!dev'` (560227702, `kAudioHardwareBadDeviceError`) is the HAL saying the
+    /// device it was handed is not usable. Its raw description names a number and
+    /// nothing else, so say which microphone failed and how to get out of it.
+    private static func startFailureMessage(for error: Error, activeMic: MicrophoneService.AudioDevice?) -> String {
+        let nsError = error as NSError
+        guard nsError.domain == "com.apple.coreaudio.avfaudio",
+              nsError.code == Int(kAudioHardwareBadDeviceError) else {
+            return error.localizedDescription
+        }
+        
+        let deviceName = activeMic?.displayName ?? "The selected microphone"
+        return "\(deviceName) could not be used for recording. Choose a different microphone in Settings."
     }
 
     private func failStart(sessionID: UUID, message: String) {
@@ -320,9 +336,16 @@ class AudioRecorder: NSObject, ObservableObject {
         let currentDefault = MicrophoneService.shared.getCurrentSystemDefaultInputDevice()
         guard currentDefault != targetID else { return }
         
+        // Record the previous default before the write: if the write fails, the
+        // restore must still know which device the system was on.
+        previousDefaultInputDeviceID = currentDefault
+        
         if MicrophoneService.shared.setSystemDefaultInputDevice(targetID) {
-            previousDefaultInputDeviceID = currentDefault
             print("Set system default input to: \(device.displayName)")
+        } else {
+            // Nothing was switched, so leave no target behind for the restore
+            // equality check to match and undo the device we never left.
+            recordingDeviceID = nil
         }
     }
     
