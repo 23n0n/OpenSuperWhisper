@@ -83,6 +83,36 @@ final class PCMRecordingWriter {
             guard status != .error else { throw TranscriptionError.audioConversionFailed }
             guard output.frameLength > 0 else { continue }
             try file.write(from: output)
+            // What is written here is what the device produced: no trimming of
+            // the leading silence, and no gain. Both are ruled, not assumed
+            // (Jev 1.13.0).
+            //
+            // Trimming the ~217 ms of leading exact zeros is rejected: measured,
+            // it recovered 0 words, and it can drop a real first phoneme
+            // (trim 0.01, trim_alone_not_shippable 0.92, trim_phoneme_risk 0.91).
+            //
+            // Gain or normalisation belongs at decode if it is ever added, never
+            // at capture (at_decode_not_capture 0.97, confidence 0.95). It is not
+            // a fix for quiet input either, measured on the captain's own
+            // recordings: over 23 quiet rows normalisation recovered 14 words and
+            // lost 13 (net +1), a peak target netted 0, no previously-missing row
+            // gained content, and the loud control was word-identical — while
+            // pushing a near-silent file to a target made whisper invent words
+            // ("*Bad music*" at an rms target, "*BOOM*" at a peak target).
+            //
+            // The app must never write the device's input volume and never refuse
+            // a device for being quiet (never_write_device_absolute 0.90,
+            // confidence 0.87; may_write_input_volume 0.00; may_refuse_quiet_device
+            // 0.00).
+            //
+            // The level is the microphone's business, which is the reason not to
+            // correct it here: the app applies no gain anywhere and follows the
+            // system default input device, so nothing chooses the microphone.
+            // Measured on this machine, a Jabra Evolve2 30 SE arrived at peak
+            // −31.2 dBFS and rms −54.2 dBFS with a 217 ms zero head, an Anker
+            // PowerConf C200 at peak −12.8 dBFS and rms −32.9 dBFS with 0.0 ms.
+            // The quieter microphone is why the silero VAD pre-filter was eating
+            // speech; that filter is off by default now.
             let data = output.int16ChannelData![0]
             let count = channels.count
             for channel in 0..<count {
