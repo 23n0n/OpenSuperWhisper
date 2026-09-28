@@ -59,9 +59,20 @@ final class FailedDictationStoresNoTranscriptTests: XCTestCase {
         XCTAssertEqual(stored.map(\.id), [row.id])
         let saved = try XCTUnwrap(stored.first)
 
+        XCTAssertTrue(saved.transcription.isEmpty,
+                      "a failed dictation must carry no transcript at all, got: \(saved.transcription)")
         XCTAssertFalse(saved.transcription.contains(failureText),
                        "the failure message was stored as the transcript")
-        for fragment in ["operation couldn", "be completed", "OpenSuperWhisper", "TranscriptionError", "error 1"] {
+        // Every fragment must exist in the failure text, or the absence checks below
+        // are inert. "error 1" used to be in this list and no longer appears in the
+        // bridged message (the code follows the case count), so it could pass with
+        // the defect present; the list is kept anchored to the text it probes.
+        let failureFragments = ["operation couldn", "be completed", "OpenSuperWhisper", "TranscriptionError"]
+        for fragment in failureFragments {
+            XCTAssertTrue(failureText.localizedCaseInsensitiveContains(fragment),
+                          "stale fragment in the probe list, fix the list: \(fragment)")
+        }
+        for fragment in failureFragments {
             XCTAssertFalse(saved.transcription.localizedCaseInsensitiveContains(fragment),
                            "the transcript carries part of the failure text: \(fragment)")
         }
