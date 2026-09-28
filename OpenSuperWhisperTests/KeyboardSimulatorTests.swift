@@ -168,6 +168,75 @@ final class KeyboardSimulatorTests: XCTestCase {
                         Int64(KeyboardSimulator.tabKeyCode)])
     }
 
+    /// A chunk led by a character the layout produces only with modifiers carries
+    /// those modifiers, and with them a key a target can actually use.
+    ///
+    /// The key code alone was never the whole story: on this machine's layout all
+    /// nine Polish diacritics are Option combinations, so before this every one of
+    /// them rode key code `0x7F` — the code for no key at all — with no modifiers.
+    /// A physical keyboard presses Option+A for `ą`; a target that rebuilds
+    /// characters from key codes (a Citrix session, a virtual machine, a remote
+    /// desktop) can do nothing with 0x7F and can read Option+A.
+    func testADiacriticLedChunkCarriesTheModifiersItsKeyNeeds() throws {
+        // The layout is switched to the one whose mapping was measured, and put
+        // back afterwards, because these cases run in parallel with classes that
+        // switch layouts themselves — the active source is machine-wide, and a
+        // first attempt at this assertion failed intermittently for exactly that
+        // reason. A machine without that layout skips, like the other
+        // layout-dependent cases in this suite.
+        let original = ClipboardUtil.getCurrentInputSourceID()
+        let target = "com.apple.keylayout.PolishPro"
+        defer {
+            if let original { _ = ClipboardUtil.switchToInputSource(withID: original) }
+        }
+        guard ClipboardUtil.switchToInputSource(withID: target) else {
+            throw XCTSkip("layout \(target) not available on this machine")
+        }
+        TestFixtures.report("[keyboard] key-modifier case running on \(ClipboardUtil.getCurrentInputSourceID() ?? "nil")")
+
+        var events: [CGEvent] = []
+        KeyboardSimulator.typeText("ąb", trusted: true, post: { events.append($0) })
+
+        let keyDown = try XCTUnwrap(events.first)
+        XCTAssertEqual(keyDown.type, .keyDown)
+        XCTAssertEqual(Self.unicodeString(of: keyDown), "ąb", "the payload still carries the whole chunk")
+        XCTAssertTrue(
+            keyDown.flags.contains(.maskAlternate),
+            "a chunk led by a character this layout only produces with Option has to carry Option; "
+            + "flags were \(keyDown.flags.rawValue) and the key code was "
+            + "\(keyDown.getIntegerValueField(.keyboardEventKeycode))"
+        )
+        XCTAssertNotEqual(
+            keyDown.getIntegerValueField(.keyboardEventKeycode),
+            Int64(KeyboardSimulator.unmappedKeyCode),
+            "…and a real key rather than the code for no key at all"
+        )
+        // The flags are exactly the layer's: a still-held Command must not turn
+        // the chunk into a shortcut.
+        XCTAssertFalse(keyDown.flags.contains(.maskCommand))
+
+        // The layers around it, on the same layout: an uppercase diacritic needs
+        // option *and* shift, an uppercase letter needs shift alone, and a plain
+        // lowercase letter needs nothing.
+        let uppercaseDiacritic = KeyboardSimulator.key(for: "Ś")
+        XCTAssertEqual(uppercaseDiacritic.flags, [.maskAlternate, .maskShift])
+        XCTAssertEqual(uppercaseDiacritic.keyCode, ClipboardUtil.findKey(for: "Ś")?.keyCode)
+        XCTAssertEqual(KeyboardSimulator.key(for: "Z").flags, .maskShift)
+        XCTAssertEqual(KeyboardSimulator.key(for: "z").flags, [])
+    }
+
+    /// …and a chunk led by a character no layout produces keeps the unmapped code
+    /// and no modifiers, because there is no key to press for it.
+    func testAChunkNoLayoutCanProduceKeepsTheUnmappedKeyCodeAndNoModifiers() throws {
+        var events: [CGEvent] = []
+        KeyboardSimulator.typeText("中文測試", trusted: true, post: { events.append($0) })
+
+        let keyDown = try XCTUnwrap(events.first)
+        XCTAssertEqual(keyDown.getIntegerValueField(.keyboardEventKeycode),
+                       Int64(KeyboardSimulator.unmappedKeyCode))
+        XCTAssertEqual(keyDown.flags, [])
+    }
+
     // MARK: - The key code a text event carries
 
     /// Key code 0 is the `A` key, not "no key".
@@ -197,12 +266,27 @@ final class KeyboardSimulatorTests: XCTestCase {
                 XCTFail("a text event carries no text at all")
                 continue
             }
-            let layoutKey = ClipboardUtil.findKeycodeForCharacter(first)
+            // Four layers now: a character the base layer lacks may still be
+            // reachable with shift or option, and that layer's key is what the
+            // event has to carry.
+            let resolved = ClipboardUtil.findKey(for: first)
             XCTAssertEqual(
-                keyCode, layoutKey ?? KeyboardSimulator.unmappedKeyCode,
-                "chunk \(String(reflecting: chunk)) is posted with the layout's key for "
-                + "\(String(reflecting: first)), or with the unmapped code"
+                keyCode, resolved?.keyCode ?? KeyboardSimulator.unmappedKeyCode,
+                "chunk \(String(reflecting: chunk)) is posted with the key the layout produces "
+                + "\(String(reflecting: first)) with, or with the unmapped code"
             )
+            let flags = keyDown.flags
+            XCTAssertEqual(
+                flags, resolved?.flags ?? [],
+                "…and with the modifiers that layer needs, and no others"
+            )
+            if flags == [] && keyCode == 0 {
+                XCTAssertEqual(
+                    first.lowercased(), "a",
+                    "key code 0 is the `a` key on a base layer and may only ride a chunk that starts with `a`; "
+                    + "\(String(reflecting: chunk)) starts with \(String(reflecting: first))"
+                )
+            }
             if keyCode == 0 {
                 XCTAssertEqual(
                     first.lowercased(), "a",
@@ -218,14 +302,21 @@ final class KeyboardSimulatorTests: XCTestCase {
     /// no key at all — carries `unmappedKeyCode`, so no target can turn it into a
     /// character the user did not dictate.
     func testAChunkTheLayoutCannotTypeCarriesTheUnmappedKeyCode() {
+        // No layer of any layout produces these with one key.
         XCTAssertEqual(KeyboardSimulator.keyCode(for: "中文測試"), KeyboardSimulator.unmappedKeyCode)
         XCTAssertEqual(KeyboardSimulator.keyCode(for: "Ж їß"), KeyboardSimulator.unmappedKeyCode)
         XCTAssertEqual(KeyboardSimulator.keyCode(for: "😀 ok"), KeyboardSimulator.unmappedKeyCode)
-        XCTAssertEqual(KeyboardSimulator.keyCode(for: "ą ć ę ł ń ó ś ź ż"),
-                       ClipboardUtil.findKeycodeForCharacter("ą") ?? KeyboardSimulator.unmappedKeyCode)
         XCTAssertEqual(KeyboardSimulator.unmappedKeyCode, 0x7F)
         XCTAssertNotEqual(KeyboardSimulator.unmappedKeyCode, KeyboardSimulator.returnKeyCode)
         XCTAssertNotEqual(KeyboardSimulator.unmappedKeyCode, KeyboardSimulator.tabKeyCode)
+
+        // The Polish diacritics are *not* in this list any more — this machine's
+        // layout produces them with Option, so they resolve to a key and that
+        // layer's modifiers. That is pinned by
+        // `testADiacriticLedChunkCarriesTheModifiersItsKeyNeeds`, which switches
+        // the layout itself and so does not race the classes that switch layouts
+        // in parallel with this one; asserting it here from whatever layout is
+        // active failed intermittently for exactly that reason.
     }
 
     func testCarriageReturnAndCRLFMapToSingleReturn() {

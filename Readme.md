@@ -232,14 +232,21 @@ that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
   Unicode field is *cleared* to length zero rather than left unset, because an unset field reads back as the
   character the key code makes. **This is a hazard removed, not a cause proven**: no capture of the failing
   target's event stream exists.
-* **The key code is no longer hardcoded to 0.** Key code 0 is the `A` key on ANSI layouts, and a target that
-  rebuilds characters from key codes used to type `a` once per chunk, because every chunk was posted on key 0. No
-  line in the delivery path passes key code 0 any more: the code now comes from the active layout, for the chunk's
-  first character (one event carries up to 20 characters, so the first is the honest choice), and a chunk the
-  layout has no key for — all nine of `ą ć ę ł ń ó ś ź ż` are Option combinations on the layout active here, and
-  CJK, Cyrillic and emoji have none — carries `0x7F`, a code the system defines no key for. The layout's modifiers
-  are deliberately not sent with it: they would turn the event into an Option-modified key for every local
-  application, and a redirected target re-reads them under its own layout anyway.
+* **The key code is no longer hardcoded to 0, and it carries the modifiers its character needs.** Key code 0 is
+  the `A` key on ANSI layouts, and a target that rebuilds characters from key codes used to type `a` once per
+  chunk, because every chunk was posted on key 0. The key now comes from the active layout, for the chunk's first
+  character (one event carries up to 20 characters, so the first is the honest choice), resolved across all four
+  layers — none, Shift, Option, Shift+Option — and the event carries **that layer's modifiers with it**. On the
+  layout active on this machine `ą` is Option+A, `ś` Option+S, `ó` Option+O, `ź` Option+X, `Ś` Option+Shift+S; every
+  one of those used to be posted as key code `0x7F` — the code for no key at all — with no modifiers, which no
+  target can turn into a character. A chunk the layout produces on no layer (CJK, Cyrillic, emoji) still carries
+  `0x7F` and no modifiers, because there is no key to press. Key plus modifiers is what a physical keyboard sends,
+  which is exactly what a HID-forwarding client forwards.
+  **What a key code cannot do, stated where it applies**: it is right only for a target whose keyboard layout is
+  the same as this one. The sender cannot see the target's layout and no key-code scheme can, so a redirected
+  target set to a different layout produces different characters from the ones dictated (an independent judgment
+  put "the layout mismatch remains" at **0.61**). That is why the recognised clients get the clipboard path, and
+  why this is the keystroke path's character-level fix rather than a solution to redirected targets on its own.
   **What this does not claim, because an independent audit of this change measured it otherwise**: key code 0 can
   still be *resolved*. On the layout active here (`com.apple.keylayout.PolishPro`) key 0 *is* the `A` key, so a
   chunk whose first character is `a` or `A` legitimately carries key code 0 next to its text. That is correct for
@@ -278,7 +285,7 @@ that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
   the digest of the text the delivery wrote, so a third party who wrote the *byte-identical* transcription after a
   crash would still be overwritten. An independent audit measured that window and called it negligible; it is
   stated here rather than left implied.
-* **What remains unclosed, stated rather than hidden.** Six paths; all but the first are silent:
+* **What remains unclosed, stated rather than hidden.** Seven paths; all but the first are silent:
   * **An application that redirects input elsewhere but is in neither tier takes keystrokes, and therefore gets
     the mangling this whole change exists to remove.** The measured tier is five bundle identifiers read off this
     machine; the vendor-prefix tier is a judgement and is **off by default**; anything else — a client from a
@@ -299,6 +306,12 @@ that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
     dictation went through the clipboard and what a silence means — **once**, never again, so a later session
     without clipboard sharing is silent, and after that notice the Settings copy and the delivery record are the
     only places the mechanism is visible.
+  * **A redirected target with a different keyboard layout produces different characters.** The keystroke path now
+    sends the key and the modifiers this machine's layout uses for the first character of each chunk; the target's
+    layout is not visible to the sender, so `ą` arrives as whatever *its* Option+A means, and a target whose layout
+    has no such combination may produce nothing for that chunk. Nothing in this app can fix that — it is a property
+    of the client's layout configuration — and it is why the recognised clients are given the clipboard instead
+    (an independent judgment put "the layout mismatch remains" at 0.61).
   * **A pasteboard emptied deliberately is filled again.** Recovery puts the displaced contents back when the
     clipboard still holds this app's text *or* when it holds nothing at all — the empty case because nothing of
     anyone's can be taken from an empty board and because that is what a reboot leaves, and this is the case the

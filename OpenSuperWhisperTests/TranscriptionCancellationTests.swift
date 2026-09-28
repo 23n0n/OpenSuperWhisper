@@ -131,7 +131,7 @@ final class TranscriptionCancellationTests: XCTestCase {
         let viewModel = IndicatorViewModel(
             transcriptionService: service,
             stopRecording: { RecordedAudio(url: tempURL, samples: []) },
-            cancelAudioRecording: {}
+            cancelAudioRecording: {}, injectText: { _ in KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 2) }
         )
         viewModel.state = .recording
 
@@ -173,7 +173,8 @@ final class TranscriptionCancellationTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
         let vm = IndicatorViewModel(transcriptionService: service,
                                     stopRecording: { RecordedAudio(url: url, samples: []) },
-                                    cancelAudioRecording: {})
+                                    cancelAudioRecording: {}, injectText: { _ in KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 2) }
+)
         vm.state = .recording
         let manager = IndicatorWindowManager.shared
         let original = manager.viewModel
@@ -240,7 +241,8 @@ final class TranscriptionCancellationTests: XCTestCase {
         let recordedBytes = try Data(contentsOf: url)
         defer { try? FileManager.default.removeItem(at: url); AppErrorCenter.shared.issue = nil }
         let vm = IndicatorViewModel(transcriptionService: service, recordingStore: store,
-                                    stopRecording: { recorded }, cancelAudioRecording: {})
+                                    stopRecording: { recorded }, cancelAudioRecording: {}, injectText: { _ in KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 2) }
+)
         vm.state = .recording
         let started = expectation(description: "decode started")
         engine.notifyOnNextStart { started.fulfill() }
@@ -353,8 +355,10 @@ final class TranscriptionCancellationTests: XCTestCase {
 
     func testLateViewModelCompletionCannotHideCurrentSession() {
         let service = TranscriptionService(engine: ControlledTranscriptionEngine())
-        let oldViewModel = IndicatorViewModel(transcriptionService: service)
-        let currentViewModel = IndicatorViewModel(transcriptionService: service)
+        let oldViewModel = IndicatorViewModel(transcriptionService: service, injectText: { _ in KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 2) }
+)
+        let currentViewModel = IndicatorViewModel(transcriptionService: service, injectText: { _ in KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 2) }
+)
         let manager = IndicatorWindowManager.shared
         let originalViewModel = manager.viewModel
         defer { manager.viewModel = originalViewModel }

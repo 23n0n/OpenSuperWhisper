@@ -166,6 +166,22 @@ enum KeyboardSimulator {
     /// Live answer to "may this process post synthetic keystrokes right now?".
     static var isTrustedForInjection: Bool { AXIsProcessTrusted() }
 
+    /// Where production hands its events: the HID event tap.
+    ///
+    /// Under test it hands them nowhere. A test host is a real application with
+    /// the app's own bundle identifier, so a suite that reaches the default sink
+    /// types into whatever is frontmost on the machine — which is exactly what
+    /// happened: the captain's unified log shows an app-hosted test process
+    /// emitting `injected=1` keystrokes into his frontmost application at 14:32,
+    /// 14:38, 14:41, 14:45, 14:51, 14:54 and 14:59 on the day this was written.
+    /// A case that wants to see events passes its own sink, which is what every
+    /// delivery case does; the default must be the one that cannot damage the
+    /// machine it runs on.
+    static let livePostSink: (CGEvent) -> Void = { event in
+        guard !OpenSuperWhisperApp.isRunningTests else { return }
+        event.post(tap: .cghidEventTap)
+    }
+
     /// Records exactly one line per dictation. `print` is invisible for an app
     /// launched by LaunchServices (its stdout is `/dev/null`), which is how the
     /// shipped app runs, so the line that explains a dropped dictation goes to
@@ -226,7 +242,7 @@ enum KeyboardSimulator {
     /// as a function key and ignores the Unicode payload on it.
     static let unmappedKeyCode: CGKeyCode = 0x7F
 
-    /// The key code a text-carrying event is posted with, for `chunk`.
+    /// The key and modifiers a text-carrying event is posted with, for `chunk`.
     ///
     /// Key code 0 is not "no key": it is the `A` key on ANSI layouts, and a target
     /// that rebuilds characters from key codes instead of reading the Unicode
@@ -236,30 +252,37 @@ enum KeyboardSimulator {
     /// reads key codes and modifier flags, and links no Unicode-payload reader at
     /// all, so every chunk arrived as a key code it read as `a`.
     ///
-    /// So the key code comes from the active layout, for the chunk's *first*
+    /// So the key comes from the active layout, for the chunk's *first*
     /// character — one event carries up to `maxUTF16PerEvent` characters and can
-    /// only have one key code, so the first character is the honest choice:
+    /// only have one key, so the first character is the honest choice:
     ///
-    /// * the layout has a key for it (the common case: most Polish text is base
-    ///   letters with diacritics between them) — that key's code;
-    /// * it does not (every one of `ą ć ę ł ń ó ś ź ż` is an Option combination
-    ///   on this machine's layout, and CJK, Cyrillic and emoji have no key at
-    ///   all) — `unmappedKeyCode`, which no target can turn into a character.
+    /// * the layout produces it on some layer — that layer's key code and that
+    ///   layer's modifiers (none, shift, option, or option+shift). A physical
+    ///   keyboard sends exactly this pair, so a HID-forwarding client forwards
+    ///   exactly this, which is the most a sender can do;
+    /// * the layout produces it on no layer (`ą` used to land here, and so does
+    ///   every CJK, Cyrillic and emoji character) — `unmappedKeyCode`, which no
+    ///   target can turn into a character, with no modifiers.
     ///
-    /// The layout's *modifiers* are deliberately not sent with it: they would
-    /// make the event an Option-modified key for every local application (a menu
-    /// key equivalent can match before any text is inserted), and a target that
-    /// re-reads the modifier under its own layout gets a different character
-    /// anyway, which is exactly the per-character-key-code approach that cannot
-    /// work across two unknown layouts.
+    /// What the pair cannot fix, stated here because it matters more than the key
+    /// code does: the target's own layout. Correct key and correct modifiers is
+    /// what a real keyboard sends; if the target's layout is not this one, the
+    /// character it produces is not the one dictated. The sender cannot see the
+    /// target's layout and no key-code scheme can, which is why the clipboard path
+    /// exists for the targets that are recognised.
     ///
-    /// The Unicode field still carries the whole chunk, so a target that reads
-    /// the field — every native macOS target — is unaffected by this choice.
+    /// The Unicode field still carries the whole chunk, so a target that reads the
+    /// field — every native macOS target — is unaffected by any of this.
+    static func key(for chunk: String) -> ClipboardUtil.ResolvedKey {
+        guard let first = chunk.first, let resolved = ClipboardUtil.findKey(for: first) else {
+            return ClipboardUtil.ResolvedKey(keyCode: unmappedKeyCode, flags: [])
+        }
+        return resolved
+    }
+
+    /// The key code alone, for callers that only need that half.
     static func keyCode(for chunk: String) -> CGKeyCode {
-        guard let first = chunk.first,
-              let layoutKey = ClipboardUtil.findKeycodeForCharacter(first)
-        else { return unmappedKeyCode }
-        return layoutKey
+        key(for: chunk).keyCode
     }
 
     /// Types `text` by posting synthetic key events.
@@ -299,7 +322,7 @@ enum KeyboardSimulator {
         _ text: String,
         trusted: Bool = isTrustedForInjection,
         watch: DeliveryWatch? = nil,
-        post: (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) }
+        post: (CGEvent) -> Void = KeyboardSimulator.livePostSink
     ) -> InjectionResult {
         var eventsPosted = 0
         var keyDownsPosted = 0
@@ -441,9 +464,11 @@ enum KeyboardSimulator {
     /// exists, so this is fixed as a hazard rather than convicted as the cause:
     /// the pair now carries the text once whatever the target does with it.
     ///
-    /// The keyUp is kept, and keeps the keyDown's key code: the pair is what a
-    /// host that forwards input to another machine tracks as a press and a
-    /// release, and a keyDown with no release leaves that key held in the guest.
+    /// The keyUp is kept, and keeps the keyDown's key code *and its modifiers*:
+    /// the pair is what a host that forwards input to another machine tracks as a
+    /// press and a release, and a keyDown with no release leaves that key held in
+    /// the guest — while a release without the modifiers the press carried is a
+    /// different key to anything that tracks modifier state.
     ///
     /// Its Unicode string is cleared to length zero rather than left alone,
     /// because an event with the field unset is not an event without text: read
@@ -457,15 +482,18 @@ enum KeyboardSimulator {
         guard let source = CGEventSource(stateID: .combinedSessionState) else { return [] }
 
         let utf16 = Array(chunk.utf16)
-        let keyCode = keyCode(for: chunk)
-        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
+        let resolved = key(for: chunk)
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: resolved.keyCode, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: resolved.keyCode, keyDown: false)
         else { return [] }
 
-        // Clear inherited modifier flags so a still-held hotkey cannot turn
-        // this chunk into a shortcut (e.g. Command+A) instead of plain text.
-        keyDown.flags = []
-        keyUp.flags = []
+        // The modifiers are the layer's and nothing else: assigning the flags
+        // rather than adding to them also drops whatever the system had inherited,
+        // so a still-held hotkey cannot turn this chunk into a shortcut (Command+A)
+        // instead of plain text — while Option and Shift, which the character may
+        // genuinely need, are what a physical keyboard would be holding.
+        keyDown.flags = resolved.flags
+        keyUp.flags = resolved.flags
 
         keyDown.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
         keyUp.keyboardSetUnicodeString(stringLength: 0, unicodeString: [])

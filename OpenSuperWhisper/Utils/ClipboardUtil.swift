@@ -46,6 +46,15 @@ class ClipboardUtil {
     static func insertText(_ text: String,
                            postEvent: (CGEvent) -> Void,
                            pasteboard: NSPasteboard = .general) {
+        // A test host must never write the machine's own clipboard. Every case
+        // that exercises this path passes a pasteboard of its own; the general
+        // board is left alone whenever this process is a test host, which is the
+        // same rule the event sink applies. The check is written with the test
+        // bundle's own marker rather than the app's flag because this file is
+        // compiled on its own into the crash-test child, which must not drag the
+        // rest of the app in.
+        guard !(NSClassFromString("XCTestCase") != nil && pasteboard.name == .general) else { return }
+
         // Save current pasteboard contents — to disk first, because everything
         // below this line can die with the process.
         let savedContents = saveCurrentPasteboardContents(from: pasteboard)
@@ -168,6 +177,94 @@ class ClipboardUtil {
         return qwertyCommandLayouts.contains { upperID.contains($0.uppercased()) }
     }
     
+    /// A key and the modifiers the active layout needs to produce a character.
+    struct ResolvedKey: Equatable {
+        let keyCode: CGKeyCode
+        let flags: CGEventFlags
+    }
+
+    /// The key the active layout produces `character` with, and the modifiers that
+    /// layer needs.
+    ///
+    /// The layers are tried in the order a keyboard would prefer them: none,
+    /// shift, option, then option+shift. `findKeycodeForCharacter` above walks the
+    /// base layer only, which is what a caller after a bare key needs; this is
+    /// what a *delivery* needs, because a target that rebuilds characters from key
+    /// codes instead of reading the event's Unicode field (a Citrix session, a
+    /// virtual machine, a remote desktop) gets a character only if the event
+    /// carries the key the layout uses for it **and** the modifiers held for that
+    /// layer. Measured on this machine's layout: `ą` is Option+A, `ó` Option+O,
+    /// `ź` Option+X, `Ś` Option+Shift+S — and every one of those diacritics used
+    /// to be sent as key code `0x7F` with no modifiers, which no target can turn
+    /// into a character.
+    ///
+    /// **What this cannot do.** Nothing here consults the *target's* keyboard
+    /// layout, and the sender cannot see it. Correct key code plus correct
+    /// modifiers is exactly what a physical keyboard sends and what a
+    /// HID-forwarding client forwards; if the target's layout is not the sender's,
+    /// the character it produces is not the one that was dictated. That gap is the
+    /// client's to close or the user's to work around, and it is stated in the
+    /// Readme with the other unclosed paths.
+    static func findKey(for character: Character) -> ResolvedKey? {
+        let layers: [CGEventFlags] = [[], .maskShift, .maskAlternate, [.maskAlternate, .maskShift]]
+        for flags in layers {
+            if let keyCode = keyCode(producing: character, layer: flags) {
+                return ResolvedKey(keyCode: keyCode, flags: flags)
+            }
+        }
+        return nil
+    }
+
+    /// The key code that produces exactly `character` on the current layout with
+    /// `layer` held, or `nil` when no key does.
+    ///
+    /// Carbon wants the modifier state as the Event Manager constant shifted right
+    /// by eight — the classic `UCKeyTranslate` convention — and the *down* action,
+    /// which is the one that applies modifiers (the display action this file's
+    /// other lookup uses reports the base layer's character whatever is held).
+    private static func keyCode(producing character: Character, layer: CGEventFlags) -> CGKeyCode? {
+        guard let inputSource = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
+              let layoutDataPtr = TISGetInputSourceProperty(inputSource, kTISPropertyUnicodeKeyLayoutData)
+        else { return nil }
+
+        let layoutData = unsafeBitCast(layoutDataPtr, to: CFData.self)
+        let keyboardLayout = unsafeBitCast(
+            CFDataGetBytePtr(layoutData),
+            to: UnsafePointer<UCKeyboardLayout>.self
+        )
+
+        var modifierState: UInt32 = 0
+        if layer.contains(.maskShift) { modifierState |= UInt32(shiftKey >> 8) }
+        if layer.contains(.maskAlternate) { modifierState |= UInt32(optionKey >> 8) }
+
+        let wanted = String(character)
+        // 0…127 rather than the 0…50 the base-layer walk uses: the layers above
+        // the base are not confined to the letter rows (Option+Shift+8, the
+        // character keys, the punctuation keys).
+        for keycode: UInt16 in 0...127 {
+            var deadKeyState: UInt32 = 0
+            var chars = [UniChar](repeating: 0, count: 8)
+            var length = 0
+            let status = UCKeyTranslate(
+                keyboardLayout,
+                keycode,
+                UInt16(kUCKeyActionDown),
+                modifierState,
+                UInt32(LMGetKbdType()),
+                UInt32(kUCKeyTranslateNoDeadKeysBit),
+                &deadKeyState,
+                chars.count,
+                &length,
+                &chars
+            )
+            if status == noErr, length > 0,
+               String(utf16CodeUnits: chars, count: length) == wanted {
+                return CGKeyCode(keycode)
+            }
+        }
+        return nil
+    }
+
     static func findKeycodeForCharacter(_ char: Character) -> CGKeyCode? {
         guard let inputSource = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
               let layoutDataPtr = TISGetInputSourceProperty(inputSource, kTISPropertyUnicodeKeyLayoutData)

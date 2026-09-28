@@ -364,7 +364,7 @@ enum TextDelivery {
         pasteIntoRecognisedVendors: Bool = AppPreferences.shared.pasteIntoRecognisedVendors,
         watch: KeyboardSimulator.DeliveryWatch? = nil,
         pasteboard: NSPasteboard = .general,
-        post: (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) }
+        post: (CGEvent) -> Void = KeyboardSimulator.livePostSink
     ) -> KeyboardSimulator.InjectionResult {
         let match = targetMatch(frontmostBundleIdentifier)
         let mechanism = mechanism(preference: preference,

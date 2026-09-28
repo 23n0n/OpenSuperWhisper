@@ -1473,7 +1473,8 @@ final class NoMicrophoneGuardTests: XCTestCase {
 
     func testIndicatorViewModel_startRecording_withNoMicrophone_showsNoMicrophoneState() {
         withActiveMicrophone(nil) {
-            let viewModel = IndicatorViewModel()
+            let viewModel = IndicatorViewModel(injectText: { _ in KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 2) }
+)
             viewModel.startRecording()
 
             XCTAssertTrue(viewModel.state == .noMicrophone,
@@ -1509,7 +1510,8 @@ final class NoMicrophoneGuardTests: XCTestCase {
         XCTAssertTrue(overloaded.isLoading, "Precondition: the engine load holds the service busy")
 
         withActiveMicrophone(nil) {
-            let viewModel = IndicatorViewModel(transcriptionService: overloaded)
+            let viewModel = IndicatorViewModel(transcriptionService: overloaded, injectText: { _ in KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 2) }
+)
             viewModel.startRecording()
 
             XCTAssertTrue(viewModel.state == .noMicrophone,
@@ -1535,7 +1537,8 @@ final class NoMicrophoneGuardTests: XCTestCase {
                                                   manufacturer: "Test",
                                                   isBuiltIn: true)
         withActiveMicrophone(device) {
-            let viewModel = IndicatorViewModel(transcriptionService: overloaded)
+            let viewModel = IndicatorViewModel(transcriptionService: overloaded, injectText: { _ in KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 2) }
+)
             viewModel.startRecording()
 
             XCTAssertTrue(viewModel.state == .busy,
@@ -1572,7 +1575,8 @@ final class EscapeCancelConfirmationTests: XCTestCase {
     }
 
     private func makeRecordingViewModel(elapsed: TimeInterval) -> IndicatorViewModel {
-        let viewModel = IndicatorViewModel()
+        let viewModel = IndicatorViewModel(injectText: { _ in KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 2) }
+)
         viewModel.state = .recording
         viewModel.recordingStartedAt = Date().addingTimeInterval(-elapsed)
         return viewModel
@@ -1613,7 +1617,8 @@ final class EscapeCancelConfirmationTests: XCTestCase {
     }
 
     func testDecodingState_cancelsImmediately() {
-        let viewModel = IndicatorViewModel()
+        let viewModel = IndicatorViewModel(injectText: { _ in KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 2) }
+)
         viewModel.state = .decoding
         viewModel.recordingStartedAt = Date().addingTimeInterval(-15)
 
