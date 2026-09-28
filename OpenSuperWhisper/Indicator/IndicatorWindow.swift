@@ -82,8 +82,10 @@ class IndicatorViewModel: ObservableObject {
         },
         injectText: @escaping (String) -> KeyboardSimulator.InjectionResult = {
             // The live watch captures the delivery target as the delivery
-            // begins and stops it if the target changes or the user types.
-            KeyboardSimulator.typeText($0, watch: .live())
+            // begins and stops it if the target changes or the user types; the
+            // ladder picks the mechanism from the application being typed into,
+            // and records which one it was — see `TextDelivery`.
+            TextDelivery.deliver($0, watch: .live())
         },
         transformText: @escaping (String, String?) async -> TransformService.TransformOutcome = {
             await TransformService.shared.transformDetailed($0, sourceLanguage: $1)
@@ -479,7 +481,8 @@ class IndicatorViewModel: ObservableObject {
                 injected: result.injected,
                 eventsPosted: result.eventsPosted,
                 deliveredCharacters: result.deliveredCharacters,
-                interruptedBy: result.interruptedBy
+                interruptedBy: result.interruptedBy,
+                mechanism: result.mechanism
             )
             if !result.trusted {
                 reportInjectionWithoutAccessibilityTrust()
@@ -492,6 +495,13 @@ class IndicatorViewModel: ObservableObject {
                     delivered: result.deliveredCharacters,
                     total: finalText.count
                 )
+            } else if !result.injected {
+                // Trusted, uninterfered with, and the delivery still handed the
+                // system nothing: the events could not be built, so the
+                // dictation reached nowhere. That is the one outcome the
+                // per-dictation record cannot show the user, so it is said out
+                // loud rather than left to look delivered.
+                reportInjectionThatPostedNothing(result.mechanism)
             }
         } else {
             KeyboardSimulator.logDictation(
@@ -532,6 +542,22 @@ class IndicatorViewModel: ObservableObject {
             message: "\(whatHappened)\n\n"
                 + "Typing stopped after \(delivered) of the dictation's \(total) characters, and nothing "
                 + "else was typed. The whole transcription is in the History tab."
+        )
+    }
+
+    /// The delivery was trusted and nothing interfered, and it still handed the
+    /// system no event at all: the dictation reached nowhere. Nothing about that
+    /// is visible to the user afterwards — the dictation looks delivered — so it
+    /// is reported with the same voice as the other two failures, and the
+    /// transcript is in the history either way.
+    private func reportInjectionThatPostedNothing(_ mechanism: DeliveryMechanism) {
+        let how = mechanism == .clipboardPaste
+            ? "the ⌘V that pastes the dictation"
+            : "the keystrokes that spell it out"
+        AppErrorCenter.shared.report(
+            "Transcription was not typed",
+            message: "OpenSuperWhisper could not build \(how), so the dictation was typed nowhere. "
+                + "It is saved in the History tab."
         )
     }
 

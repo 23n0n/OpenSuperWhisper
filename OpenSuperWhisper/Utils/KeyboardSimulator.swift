@@ -6,10 +6,13 @@ import os
 
 /// Delivers text to the focused application by simulating keyboard events.
 ///
-/// Unlike pasteboard-based injection, this never touches `NSPasteboard`. Each
-/// chunk of text is carried by a `CGEvent` via `keyboardSetUnicodeString`, which
-/// makes the output Unicode-complete and independent of the active keyboard
-/// layout.
+/// This is the path that never touches `NSPasteboard`. Each chunk of text is
+/// carried by a `CGEvent` via `keyboardSetUnicodeString`, which makes the output
+/// Unicode-complete and independent of the active keyboard layout. It is the
+/// mechanism `TextDelivery` uses for every native macOS target; for a target
+/// that forwards input to a machine this one does not control it hands over to
+/// the clipboard paste instead, because the Unicode string on an event does not
+/// survive that hop — see `TextDelivery` for why that trade is made.
 enum KeyboardSimulator {
 
     /// Maximum number of UTF-16 code units carried by a single event.
@@ -36,6 +39,10 @@ enum KeyboardSimulator {
         /// `nil`. Counted over the text after CR/CRLF normalisation, and a
         /// grapheme cluster split by the chunking cap counts once per piece.
         var deliveredCharacters: Int = 0
+        /// Which of `TextDelivery`'s mechanisms produced these numbers. The
+        /// caller logs it, so a dictation that arrived wrong can be traced to
+        /// the path it took.
+        var mechanism: DeliveryMechanism = .keystrokes
 
         /// Whether any keystroke was actually handed to the system.
         var injected: Bool { eventsPosted > 0 }
@@ -155,14 +162,17 @@ enum KeyboardSimulator {
     ///
     /// `deliveredCharacters` and `interruptedBy` say what became of the
     /// transcript: how much of it was handed to the system, and what ended the
-    /// delivery early when something did.
+    /// delivery early when something did. `mechanism` says which of
+    /// `TextDelivery`'s two paths carried it — the first thing to look at when a
+    /// dictation arrived wrong.
     static func logDictation(
         trusted: Bool,
         characters: Int,
         injected: Bool,
         eventsPosted: Int,
         deliveredCharacters: Int = 0,
-        interruptedBy: DeliveryInterruption? = nil
+        interruptedBy: DeliveryInterruption? = nil,
+        mechanism: DeliveryMechanism? = nil
     ) {
         log.notice("""
             dictation-injection trusted=\(trusted ? 1 : 0, privacy: .public) \
@@ -170,7 +180,8 @@ enum KeyboardSimulator {
             injected=\(injected ? 1 : 0, privacy: .public) \
             events=\(eventsPosted, privacy: .public) \
             delivered=\(deliveredCharacters, privacy: .public) \
-            interrupted=\(interruptedBy?.description ?? "none", privacy: .public)
+            interrupted=\(interruptedBy?.description ?? "none", privacy: .public) \
+            mechanism=\(mechanism?.logToken ?? "none", privacy: .public)
             """)
     }
 
@@ -183,10 +194,12 @@ enum KeyboardSimulator {
     /// Types `text` by posting synthetic key events.
     ///
     /// Text is split into chunks of at most `maxUTF16PerEvent` UTF-16 code units
-    /// (never splitting a surrogate pair). Each chunk produces a keyDown
-    /// followed by a keyUp event carrying the chunk. Control characters are
-    /// handled as dedicated key codes: newlines map to Return and tabs to Tab.
-    /// Empty input posts nothing.
+    /// (never splitting a surrogate pair). Each chunk is carried by one
+    /// keyDown, followed by a keyUp that releases the same key and carries no
+    /// text — a target that inserts the text on every event it is handed
+    /// therefore receives the chunk once. Control characters are handled as
+    /// dedicated key codes: newlines map to Return and tabs to Tab. Empty input
+    /// posts nothing.
     ///
     /// With a `watch`, the delivery is checked before every pair of events and
     /// stops cleanly at the first interference instead of typing into the wrong
@@ -347,6 +360,23 @@ enum KeyboardSimulator {
 
     /// Builds the keyDown/keyUp pair that carries `chunk` as a Unicode string.
     ///
+    /// The chunk travels on the keyDown and on nothing else. Both events used to
+    /// carry it, and a target that inserts the text every event carries — the
+    /// forwards the guest of a virtual machine receives — therefore inserted
+    /// every chunk twice: whole phrases repeated, the second copy landing at
+    /// whatever caret the first one had already moved, which is the splicing the
+    /// captain dictated into.
+    ///
+    /// The keyUp is kept, and keeps the keyDown's key code: the pair is what a
+    /// host that forwards input to another machine tracks as a press and a
+    /// release, and a keyDown with no release leaves that key held in the guest.
+    ///
+    /// Its Unicode string is cleared to length zero rather than left alone,
+    /// because an event with the field unset is not an event without text: read
+    /// back, an unset field reports the character the key code produces, and key
+    /// code 0 is `a` (see `TextDelivery`, which is where a target that reads the
+    /// field instead of the payload is sent). Clearing it says "no text here".
+    ///
     /// Returns an empty array if `chunk` is empty or if event creation fails.
     static func makeUnicodeEvents(for chunk: String) -> [CGEvent] {
         guard !chunk.isEmpty else { return [] }
@@ -363,11 +393,20 @@ enum KeyboardSimulator {
         keyUp.flags = []
 
         keyDown.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
-        keyUp.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
+        keyUp.keyboardSetUnicodeString(stringLength: 0, unicodeString: [])
         return [keyDown, keyUp]
     }
 
     /// Builds a plain keyDown/keyUp pair for a virtual key code (no Unicode).
+    ///
+    /// Both events have their Unicode string cleared to length zero. Unset, the
+    /// field reports the character the key code produces — Return on the Return
+    /// key, Tab on the Tab key — so leaving it alone would hand a target that
+    /// reads the field a second insertion of the very character the key press
+    /// already makes. Cleared, the pair is what it says it is: a key press and
+    /// its release. A target that needs the character derives it from the key
+    /// code, which is what makes Return a newline in a text view and in a guest
+    /// alike.
     static func makeKeyEvents(for keyCode: CGKeyCode) -> [CGEvent] {
         guard let source = CGEventSource(stateID: .combinedSessionState),
               let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
@@ -378,6 +417,9 @@ enum KeyboardSimulator {
         // Return/Tab into a modified key.
         keyDown.flags = []
         keyUp.flags = []
+
+        keyDown.keyboardSetUnicodeString(stringLength: 0, unicodeString: [])
+        keyUp.keyboardSetUnicodeString(stringLength: 0, unicodeString: [])
         return [keyDown, keyUp]
     }
 }

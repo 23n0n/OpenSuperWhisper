@@ -177,6 +177,14 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
+    /// Which mechanism delivers a dictation. Read per dictation, so changing it
+    /// takes effect on the next one.
+    @Published var deliveryPreference: DeliveryPreference {
+        didSet {
+            AppPreferences.shared.deliveryPreference = deliveryPreference
+        }
+    }
+
     @Published var toneEnabled: Bool {
         didSet {
             AppPreferences.shared.toneEnabled = toneEnabled
@@ -405,6 +413,7 @@ class SettingsViewModel: ObservableObject {
         self.addSpaceAfterSentence = prefs.addSpaceAfterSentence
         self.autoCopyToClipboard = prefs.autoCopyToClipboard
         self.autoPasteTranscription = prefs.autoPasteTranscription
+        self.deliveryPreference = prefs.deliveryPreference
         self.toneEnabled = prefs.toneEnabled
         self.transformToneMode = prefs.transformToneMode
         self.cleanUpEnabled = prefs.cleanUpEnabled
@@ -1630,9 +1639,10 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Auto-paste Transcription")
                                     .font(.subheadline)
-                                Text("Types the text into the focused app as keystrokes, not a paste "
-                                     + "— Accessibility is required for the keystrokes to land. "
-                                     + "The clipboard is left alone unless Copy to Clipboard above is on")
+                                Text("Delivers the text into the focused app as it is transcribed — "
+                                     + "Accessibility is required for that to land. Keystrokes by default, "
+                                     + "and the clipboard paste for a virtual machine or remote desktop; "
+                                     + "see below")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -1641,6 +1651,30 @@ struct SettingsView: View {
                             Toggle("", isOn: $viewModel.autoPasteTranscription)
                                 .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
                                 .labelsHidden()
+                        }
+
+                        if viewModel.autoPasteTranscription {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Delivery")
+                                    .font(.subheadline)
+                                Picker("Delivery", selection: $viewModel.deliveryPreference) {
+                                    ForEach(DeliveryPreference.allCases, id: \.self) { preference in
+                                        Text(preference.displayName).tag(preference)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .labelsHidden()
+                                Text(viewModel.deliveryPreference.explanation
+                                     + ". Text is typed as synthetic keystrokes, which no keyboard layout "
+                                     + "changes and which leaves the clipboard alone. A virtual machine or a "
+                                     + "remote desktop never receives that text — it rebuilds characters from "
+                                     + "key codes under a layout of its own — so those get the transcript "
+                                     + "through the clipboard instead, and whatever was in the clipboard is put "
+                                     + "back afterwards.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                     }
                 }

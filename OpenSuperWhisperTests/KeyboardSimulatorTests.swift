@@ -64,7 +64,15 @@ final class KeyboardSimulatorTests: XCTestCase {
 
     // MARK: - Event production
 
-    func testShortStringPostsKeyDownThenKeyUpCarryingUnicode() throws {
+    /// The chunk travels on the keyDown and on nothing else.
+    ///
+    /// This used to assert the opposite — that both events carried the chunk —
+    /// which is the defect itself: a target that inserts the text every event
+    /// carries received every chunk twice. What the keyUp must be is a release
+    /// of the same key that says "no text here", and the payload has to be
+    /// *cleared* to say that: an event whose Unicode string was never set reads
+    /// back as whatever its key code produces, and key code 0 is `a`.
+    func testShortStringPostsKeyDownCarryingUnicodeAndAPayloadFreeKeyUp() throws {
         var events: [CGEvent] = []
         KeyboardSimulator.typeText("Hé!") { events.append($0) }
 
@@ -75,7 +83,15 @@ final class KeyboardSimulatorTests: XCTestCase {
         XCTAssertEqual(keyUp.type, .keyUp)
 
         XCTAssertEqual(Self.unicodeString(of: keyDown), "Hé!")
-        XCTAssertEqual(Self.unicodeString(of: keyUp), "Hé!")
+        XCTAssertNil(
+            Self.unicodeString(of: keyUp),
+            "the keyUp must carry no text: a target that inserts what each event carries would "
+            + "otherwise insert the chunk a second time"
+        )
+        // …and it stays the release of the key the chunk was pressed with, so a
+        // target tracking key state sees a press and a release, not a stuck key.
+        XCTAssertEqual(keyUp.getIntegerValueField(.keyboardEventKeycode),
+                       keyDown.getIntegerValueField(.keyboardEventKeycode))
     }
 
     func testLongStringPostsTwoEventsPerChunkInOrder() throws {
@@ -119,6 +135,36 @@ final class KeyboardSimulatorTests: XCTestCase {
             XCTAssertEqual(event.getIntegerValueField(.keyboardEventKeycode),
                            Int64(KeyboardSimulator.tabKeyCode))
         }
+    }
+
+    /// Return and Tab travel as key codes with no text on them, press and
+    /// release alike. An event whose Unicode string is merely left unset still
+    /// reads back as the character its key code produces, so a target that
+    /// inserts the text each event carries would insert the newline twice — once
+    /// for the press and once for the release.
+    func testReturnAndTabEventsCarryNoUnicodeText() {
+        for control in ["\n", "\t"] {
+            var events: [CGEvent] = []
+            KeyboardSimulator.typeText(control) { events.append($0) }
+
+            XCTAssertEqual(events.count, 2)
+            for event in events {
+                XCTAssertNil(
+                    Self.unicodeString(of: event),
+                    "\(control.debugDescription) has to travel as a key code alone, not as text"
+                )
+            }
+        }
+
+        // …and the key codes are still the ones that make the characters, in
+        // press/release order.
+        var events: [CGEvent] = []
+        KeyboardSimulator.typeText("\n\t") { events.append($0) }
+        XCTAssertEqual(events.map { $0.getIntegerValueField(.keyboardEventKeycode) },
+                       [Int64(KeyboardSimulator.returnKeyCode),
+                        Int64(KeyboardSimulator.returnKeyCode),
+                        Int64(KeyboardSimulator.tabKeyCode),
+                        Int64(KeyboardSimulator.tabKeyCode)])
     }
 
     func testCarriageReturnAndCRLFMapToSingleReturn() {
@@ -282,6 +328,63 @@ final class TypingReceiverView: NSView {
     }
 }
 
+/// The second class of target: the one the captain's dictation into a virtual
+/// machine belongs to.
+///
+/// This receiver is handed the events the delivery path posts, but it reads them
+/// the way a HID-forwarding host reads them — it takes the text the event itself
+/// carries (`kCGEventKeyboardUnicodeString`, the field `keyboardSetUnicodeString`
+/// fills) and inserts it for **every event that carries one, keyUp included**,
+/// because what a guest receives from such a host is a stream of insertions, not
+/// a stream of key transitions.
+///
+/// An event with no text on it is reconstructed from its key code, the way a
+/// guest with a keyboard layout of its own does; a keyUp with no text is a
+/// release and inserts nothing.
+///
+/// That is the difference from `TypingReceiverView` above, which goes through
+/// AppKit's key bindings and therefore ignores keyUp exactly as the framework's
+/// own text system does — the empty `keyUp` override is what hid this defect from
+/// the suite.
+final class HidForwardedReceiverView: NSView {
+    /// Everything the target ended up with, in the order it inserted it.
+    private(set) var inserted = ""
+
+    override var acceptsFirstResponder: Bool { true }
+
+    /// Hands one event of the posted stream to this target.
+    func receive(_ event: CGEvent) {
+        if let payload = Self.unicodePayload(of: event), !payload.isEmpty {
+            inserted += payload
+            return
+        }
+        // No text on the event: a guest inserts from the key code it was given,
+        // under its own layout. Only a key *press* inserts; a release does not.
+        guard event.type == .keyDown else { return }
+        switch event.getIntegerValueField(.keyboardEventKeycode) {
+        case Int64(KeyboardSimulator.returnKeyCode):
+            inserted += "\n"
+        case Int64(KeyboardSimulator.tabKeyCode):
+            inserted += "\t"
+        default:
+            // Whatever this key code means in the guest's own layout — the
+            // character the delivery never asked for.
+            inserted += "«\(event.getIntegerValueField(.keyboardEventKeycode))»"
+        }
+    }
+
+    /// The text an event carries, or `nil` when it carries none.
+    static func unicodePayload(of event: CGEvent) -> String? {
+        var length = 0
+        var buffer = [UniChar](repeating: 0, count: 512)
+        event.keyboardGetUnicodeString(maxStringLength: buffer.count,
+                                       actualStringLength: &length,
+                                       unicodeString: &buffer)
+        guard length > 0 else { return nil }
+        return String(utf16CodeUnits: buffer, count: length)
+    }
+}
+
 /// The path the captain dictates through every day — the transcript reaches the
 /// focused application as synthetic keystrokes, the clipboard untouched — end to
 /// end and without naming a keyboard layout.
@@ -363,6 +466,28 @@ final class KeyboardSimulatorDeliveryTests: XCTestCase {
             "keyboard delivery: active input source \(activeSourceID), \(result.eventsPosted) events, "
             + "payload characters that layout cannot type: "
             + untypedByTheLayout.map(String.init).joined()
+        )
+    }
+
+    /// The defect the captain reported, pinned on the target class that showed
+    /// it: a target that inserts the text every event carries — the forwards the
+    /// guest of a virtual machine receives — must end up with the transcript
+    /// exactly once, not once per posted event.
+    ///
+    /// Every chunk used to travel on the keyDown *and* on the keyUp, so a target
+    /// that reads both inserted every 20-unit window twice: whole phrases
+    /// repeated, and the second copy landing at whatever caret the first one
+    /// left, which is the spliced-mid-word shape he saw.
+    func testATargetThatInsertsOnBothEventsReceivesTheTranscriptExactlyOnce() {
+        let receiver = HidForwardedReceiverView()
+
+        let result = KeyboardSimulator.typeText(Self.payload, trusted: true) { receiver.receive($0) }
+
+        XCTAssertTrue(result.injected)
+        XCTAssertEqual(
+            receiver.inserted, Self.payload,
+            "a target that inserts what each event carries has to receive the transcript once; "
+            + "it received \(receiver.inserted.count) characters for a \(Self.payload.count)-character payload"
         )
     }
 }

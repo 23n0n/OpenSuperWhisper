@@ -284,6 +284,20 @@ final class AppPreferences {
     @UserDefault(key: "autoPasteTranscription", defaultValue: true)
     var autoPasteTranscription: Bool
 
+    /// How a dictation is delivered to the focused application.
+    ///
+    /// Stored as its raw value because `UserDefault` reads the domain back
+    /// untyped; `automatic` is the default, and an unreadable value falls back
+    /// to it rather than to an arbitrary mechanism. See `TextDelivery` for what
+    /// automatic means and why there are two mechanisms at all.
+    @UserDefault(key: "deliveryPreference", defaultValue: DeliveryPreference.automatic.rawValue)
+    var deliveryPreferenceRaw: String
+
+    var deliveryPreference: DeliveryPreference {
+        get { DeliveryPreference(rawValue: deliveryPreferenceRaw) ?? .automatic }
+        set { deliveryPreferenceRaw = newValue.rawValue }
+    }
+
     // Tone and clean-up settings
     //
     // The translation feature is gone, and so are the preferences that

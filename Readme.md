@@ -5,7 +5,8 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 > **This tree is a fork of [Starmel/OpenSuperWhisper](https://github.com/Starmel/OpenSuperWhisper) (MIT).**
 > Everything the original does is still here; on top of it this fork adds local tone and clean-up rewrites that
 > **never change the language of what you dictated** (Polish stays Polish, English stays English), a dictation
-> clean-up pass, keystroke delivery that never touches the clipboard, and a repaired long-form decode path. Section [What this fork changes](#what-this-fork-changes) describes every difference in detail, and
+> clean-up pass, keystroke delivery that leaves the clipboard alone (and reaches a virtual machine through the
+> clipboard, which is restored), and a repaired long-form decode path. Section [What this fork changes](#what-this-fork-changes) describes every difference in detail, and
 > [What is unchanged](#what-is-unchanged) lists what is inherited verbatim.
 >
 > **The `brew install` line and the release links below install the *original* app, not this build.** This fork
@@ -51,7 +52,10 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 - 🧹 **Dictation clean-up** — filler words, `hmm`, `aaa` and stutters are scrubbed, punctuation, articles and word
   order repaired, all in the language that was spoken, through the same single transform call
 - 📚 **Reference / glossary field** — names and terms fed into the transform prompt
-- ⌨️ **Keystroke delivery** — the transcript is typed into the focused app; the clipboard is never written to
+- ⌨️ **Keystroke delivery** — the transcript is typed into the focused app as synthetic keystrokes, which no
+  keyboard layout changes and which leave the clipboard alone; a virtual machine or remote desktop, where
+  keystrokes arrive as key codes instead of text, gets it through a clipboard paste that restores what was
+  there (numbers in §5)
 - 🔒 **Accessibility only** — Input Monitoring is no longer used or required anywhere, and no permission screen
   blocks the app
 - 📊 **Last-dictation card** — the detected language and the raw, cleaned and final text of the last dictation
@@ -203,16 +207,43 @@ terms, jargon — and passes it into that prompt so the model stops mangling the
 The last dictation is inspectable in the app: `DictationReport.swift` records the detected language plus the raw,
 cleaned and final text, and the main window shows them side by side. History always keeps the raw transcript.
 
-### 5. Delivery by synthetic keystrokes — the clipboard is never used
+### 5. Delivery: synthetic keystrokes, and the clipboard for a virtual machine
 
 Upstream types the transcript by putting it on the system pasteboard and sending ⌘V
 (`ClipboardUtil.insertText` / `sendCmdV`), which overwrites whatever the user had copied. This fork delivers by
-synthesising the keystrokes instead (`Utils/KeyboardSimulator.swift`; it is the only delivery path —
-`Indicator/IndicatorWindow.swift:65-66`, and no `ClipboardUtil` paste call site remains in the app). The clipboard
-is not read or written by the delivery path at all, and the layout-dependent keycode translation is covered by
-`KeyboardSimulatorTests`. Keystrokes that the system refuses to
-deliver are reported instead of being dropped silently. This also means Accessibility — not Input Monitoring — is
-the grant that matters; see the next point.
+synthesising the keystrokes instead (`Utils/KeyboardSimulator.swift`), so the clipboard is not read or written by
+the delivery path at all, and the layout-dependent keycode translation is covered by `KeyboardSimulatorTests`.
+Keystrokes that the system refuses to deliver are reported instead of being dropped silently. This also means
+Accessibility — not Input Monitoring — is the grant that matters; see the next point.
+
+The keystroke path is not, however, the whole story, and the day the captain dictated into a Parallels guest and
+read back spliced, repeated text is why. A synthetic key event carries the text in an Apple-specific field, and a
+target that forwards input to *another* machine — a virtual machine, a remote desktop, a VNC viewer — never sees
+that field: the guest rebuilds characters from the key codes it receives, under a keyboard layout this app neither
+controls nor knows. Two fixes came out of that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
+
+* **A chunk travels once.** Both events of a chunk's keyDown/keyUp pair used to carry the text, so a target that
+  inserts what each event carries inserted every 20-unit window twice, the second copy landing at the caret the
+  first had moved: whole phrases repeated, fragments spliced mid-word. The text is now on the keyDown only. The
+  keyUp stays — and keeps the keyDown's key code — so a host tracking key state sees a release rather than a stuck
+  key, and its Unicode field is *cleared* to length zero rather than left unset, because an unset field reads back
+  as the character the key code makes (key code 0 is `a`).
+* **The mechanism follows the target** (`TextDelivery`): keystrokes for a native macOS application, and the
+  clipboard paste for an application that forwards input to a machine this one does not control
+  (`TextDelivery.hidForwardingHostBundleIDs` — Parallels, VMware Fusion, VirtualBox, UTM, QEMU, Screen Sharing,
+  RDP, Citrix, Jump, Screens, RealVNC, TigerVNC, TeamViewer, AnyDesk, Parsec, RustDesk, Chrome Remote Desktop,
+  NoMachine). **This is a deliberate change to the doctrine above**: "the clipboard is never used" is no longer
+  unconditionally true — for those targets the transcript is put on the clipboard and pasted with ⌘V, and
+  `ClipboardUtil` puts the previous contents back after 1.5 s if nothing else has taken the clipboard in the
+  meantime (proved in `TextDeliveryTests`). The alternatives were rejected on the record, not by silence: real
+  per-character key codes cannot reproduce `ą ć ę ł ń ó ś ź ż` on a guest whose layout is unknown (these are
+  Option combinations here, and Option-plus-key means something else there), and accessibility insertion cannot
+  reach a guest at all — the host side of a virtual machine window exposes no text element to write into. The
+  cost that remains: a guest with clipboard sharing switched off receives nothing from this path, and the app
+  cannot tell, because the only thing it can observe is its own pasteboard. `Settings → Transcription` offers
+  **Delivery** (Automatic, Keystrokes only, Clipboard paste) as the override, and every dictation's unified-log
+  line ends with `mechanism=keystrokes` or `mechanism=clipboard-paste`.
+
 
 ### 6. Permissions: Accessibility only, and nothing blocks on it
 

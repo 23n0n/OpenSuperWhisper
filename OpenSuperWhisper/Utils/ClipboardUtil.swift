@@ -28,12 +28,17 @@ class ClipboardUtil {
 
     /// Pastes text and restores original clipboard (legacy behavior)
     static func insertText(_ text: String) {
-        insertText(text, postEvent: { $0.post(tap: .cghidEventTap) })
+        insertText(text, postEvent: { $0.post(tap: .cghidEventTap) }, pasteboard: .general)
     }
 
-    static func insertText(_ text: String, postEvent: (CGEvent) -> Void) {
-        let pasteboard = NSPasteboard.general
-
+    /// Pastes `text` on `pasteboard` and restores what was there before.
+    ///
+    /// `pasteboard` is the general one in the app and a pasteboard of its own in
+    /// the tests, so a case can prove the restore without racing every other
+    /// process on the machine for the system clipboard.
+    static func insertText(_ text: String,
+                           postEvent: (CGEvent) -> Void,
+                           pasteboard: NSPasteboard = .general) {
         // Save current pasteboard contents
         let savedContents = saveCurrentPasteboardContents(from: pasteboard)
 

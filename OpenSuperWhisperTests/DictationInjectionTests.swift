@@ -227,6 +227,63 @@ final class DictationInjectionTests: XCTestCase {
         XCTAssertEqual(rows.map(\.transcription), ["nobody received this"])
     }
 
+    /// The third way a delivery reaches nowhere, and the one that looks
+    /// delivered because there is nothing to see afterwards: the app is trusted,
+    /// the target never changed, and the mechanism still handed the system no
+    /// event at all — no keystrokes, or no ⌘V. The user is told which mechanism
+    /// could not be built, and the dictation is still in the history.
+    func testADeliveryThatPostedNothingIsReportedToTheUser() async throws {
+        let store = try makeStore()
+        let sources = makeSourceFiles(count: 1)
+        var injected: [String] = []
+
+        let restoreAutoPaste = pinAutoPasteOn()
+        defer { restoreAutoPaste() }
+
+        let viewModel = IndicatorViewModel(
+            transcriptionService: TranscriptionService(
+                engine: ScriptedTranscriptionEngine(transcripts: ["typed nowhere"])
+            ),
+            recordingStore: store,
+            stopRecording: {
+                guard let url = sources.next() else { return nil }
+                return RecordedAudio(url: url, samples: [])
+            },
+            cancelAudioRecording: {},
+            injectText: { text in
+                injected.append(text)
+                return KeyboardSimulator.InjectionResult(trusted: true,
+                                                        eventsPosted: 0,
+                                                        mechanism: .clipboardPaste)
+            },
+            transformText: Self.passthroughTransform
+        )
+        defer { viewModel.cleanup() }
+        AppErrorCenter.shared.issue = nil
+
+        try await dictate(viewModel)
+        try await waitForInjections(1, { injected })
+
+        XCTAssertEqual(injected, ["typed nowhere"])
+        let issue = try XCTUnwrap(
+            AppErrorCenter.shared.issue,
+            "a trusted, uninterrupted delivery that posted nothing reached nowhere and must say so"
+        )
+        XCTAssertTrue(issue.title.contains("not typed"), "unexpected title: \(issue.title)")
+        XCTAssertTrue(
+            issue.message.contains("⌘V"),
+            "the report has to name what could not be built for the mechanism that ran: \(issue.message)"
+        )
+        XCTAssertTrue(
+            issue.message.contains("History"),
+            "the report has to say where the transcript is: \(issue.message)"
+        )
+
+        let rows = try await store.fetchRecordings(limit: 10, offset: 0)
+        temporaryFiles.append(contentsOf: rows.map(\.url))
+        XCTAssertEqual(rows.map(\.transcription), ["typed nowhere"])
+    }
+
     /// An interference that stopped the delivery has to reach the user the same
     /// way the untrusted case does — which interference ended it and how much of
     /// the dictation got through — instead of leaving a truncated paste with no
