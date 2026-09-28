@@ -1,4 +1,5 @@
 import AVFoundation
+import CryptoKit
 import XCTest
 @testable import OpenSuperWhisper
 
@@ -128,5 +129,69 @@ enum TestFixtures {
         } else {
             FileManager.default.createFile(atPath: path, contents: data)
         }
+    }
+
+    // MARK: - The machine's real clipboard
+
+    /// Every type on a pasteboard and the bytes of each, plus the changeCount
+    /// read with them.
+    ///
+    /// For the cases that have to touch the machine's **real** clipboard — the
+    /// only one whose behaviour is in question — and put it back exactly as they
+    /// found it. The contents are never printed: reports use
+    /// `description`, which carries type identifiers, byte counts and SHA-256
+    /// prefixes.
+    struct ClipboardSnapshot {
+        let items: [(type: NSPasteboard.PasteboardType, data: Data)]
+        let changeCount: Int
+
+        var description: String {
+            let parts = items.map { "\($0.type.rawValue):\(Self.digest($0.data))(\($0.data.count)B)" }
+            return "changeCount=\(changeCount) types=\(items.map(\.type.rawValue)) "
+                + "digests=[\(parts.joined(separator: " "))]"
+        }
+
+        var text: String? {
+            items.first { $0.type == .string }.flatMap { String(data: $0.data, encoding: .utf8) }
+        }
+
+        static func digest(_ data: Data) -> String {
+            SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined().prefix(16).description
+        }
+    }
+
+    /// Where a case leaves a copy of the clipboard it displaced, so the user can
+    /// restore it by hand even if the case crashes.
+    static let realClipboardBackup = URL(fileURLWithPath: "/tmp/osw-clipboard-measurement-backup.plist")
+
+    static func snapshotClipboard(_ pasteboard: NSPasteboard = .general) -> ClipboardSnapshot {
+        let items = (pasteboard.types ?? []).compactMap { type in
+            pasteboard.data(forType: type).map { (type: type, data: $0) }
+        }
+        return ClipboardSnapshot(items: items, changeCount: pasteboard.changeCount)
+    }
+
+    static func restoreClipboard(_ snapshot: ClipboardSnapshot, on pasteboard: NSPasteboard = .general) {
+        pasteboard.clearContents()
+        guard !snapshot.items.isEmpty else { return }
+        pasteboard.declareTypes(snapshot.items.map(\.type), owner: nil)
+        for item in snapshot.items {
+            pasteboard.setData(item.data, forType: item.type)
+        }
+    }
+
+    /// Captures the real clipboard, writes a copy of it to `realClipboardBackup`
+    /// for the user, and hands the body a snapshot it can always put back.
+    static func withTheRealClipboardPreserved(
+        _ body: (NSPasteboard, ClipboardSnapshot) throws -> Void
+    ) rethrows {
+        let pasteboard = NSPasteboard.general
+        let before = snapshotClipboard(pasteboard)
+        let backup = Dictionary(uniqueKeysWithValues: before.items.map { ($0.type.rawValue, $0.data) })
+        try? (backup as NSDictionary).write(to: realClipboardBackup)
+        report("[clipboard] backup of the real clipboard written to \(realClipboardBackup.path) "
+               + "(\(before.items.count) types)")
+        defer { restoreClipboard(before, on: pasteboard) }
+        try body(pasteboard, before)
     }
 }

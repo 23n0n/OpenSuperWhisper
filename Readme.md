@@ -5,8 +5,8 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 > **This tree is a fork of [Starmel/OpenSuperWhisper](https://github.com/Starmel/OpenSuperWhisper) (MIT).**
 > Everything the original does is still here; on top of it this fork adds local tone and clean-up rewrites that
 > **never change the language of what you dictated** (Polish stays Polish, English stays English), a dictation
-> clean-up pass, keystroke delivery that leaves the clipboard alone (and reaches a virtual machine through the
-> clipboard, which is restored), and a repaired long-form decode path. Section [What this fork changes](#what-this-fork-changes) describes every difference in detail, and
+> clean-up pass, keystroke delivery that leaves the clipboard alone (and reaches a Citrix session or a virtual machine through
+> the clipboard, which is restored), and a repaired long-form decode path. Section [What this fork changes](#what-this-fork-changes) describes every difference in detail, and
 > [What is unchanged](#what-is-unchanged) lists what is inherited verbatim.
 >
 > **The `brew install` line and the release links below install the *original* app, not this build.** This fork
@@ -53,9 +53,9 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
   order repaired, all in the language that was spoken, through the same single transform call
 - 📚 **Reference / glossary field** — names and terms fed into the transform prompt
 - ⌨️ **Keystroke delivery** — the transcript is typed into the focused app as synthetic keystrokes, which no
-  keyboard layout changes and which leave the clipboard alone; a virtual machine or remote desktop, where
-  keystrokes arrive as key codes instead of text, gets it through a clipboard paste that restores what was
-  there (numbers in §5)
+  keyboard layout changes and which leave the clipboard alone; a Citrix session, a virtual machine or a remote
+  desktop, where keystrokes arrive as key codes instead of text, gets it through a clipboard paste that restores
+  what was there (numbers in §5)
 - 🔒 **Accessibility only** — Input Monitoring is no longer used or required anywhere, and no permission screen
   blocks the app
 - 📊 **Last-dictation card** — the detected language and the raw, cleaned and final text of the last dictation
@@ -207,54 +207,94 @@ terms, jargon — and passes it into that prompt so the model stops mangling the
 The last dictation is inspectable in the app: `DictationReport.swift` records the detected language plus the raw,
 cleaned and final text, and the main window shows them side by side. History always keeps the raw transcript.
 
-### 5. Delivery: synthetic keystrokes, and the clipboard for a virtual machine
+### 5. Delivery: synthetic keystrokes, and the clipboard for a redirected target
 
 Upstream types the transcript by putting it on the system pasteboard and sending ⌘V
 (`ClipboardUtil.insertText` / `sendCmdV`), which overwrites whatever the user had copied. This fork delivers by
-synthesising the keystrokes instead (`Utils/KeyboardSimulator.swift`), so the clipboard is not read or written by
-the delivery path at all, and the layout-dependent keycode translation is covered by `KeyboardSimulatorTests`.
+synthesising the keystrokes instead (`Utils/KeyboardSimulator.swift`) — each chunk carrying its text in the event's
+text field under a key code taken from the active layout — so no native target's clipboard is read or written, and the layout-dependent keycode translation is covered by `KeyboardSimulatorTests`.
 Keystrokes that the system refuses to deliver are reported instead of being dropped silently. This also means
 Accessibility — not Input Monitoring — is the grant that matters; see the next point.
 
-The keystroke path is not, however, the whole story, and the day the captain dictated into a Parallels guest and
-read back spliced, repeated text is why. A synthetic key event carries the text in an Apple-specific field, and a
-target that forwards input to *another* machine — a virtual machine, a remote desktop, a VNC viewer — may never
-look at that field: it hands the guest key codes, and the guest rebuilds characters from them under a keyboard
-layout this app neither controls nor knows. Whether that is what happened to the captain is **not established** —
-no capture of the failing target's event stream exists, and what a guest received cannot be read back from the
-host at all — so the two changes below are made so that neither answer has to be known
-(`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
+The keystroke path is not, however, the whole story, and the day the captain dictated into a **Citrix session** and
+read back spliced, repeated text is why. A synthetic key event carries its text in an Apple-specific field, and a
+target that redirects input into another machine — a Citrix session, a virtual machine, a remote desktop — may
+never look at that field: measured on this machine, the Citrix client's own viewer taps the keyboard events, reads
+key codes and modifier flags, and links **no** Unicode-payload reader at all. So the session must rebuild
+characters from key codes, under a keyboard layout this app neither controls nor knows. Two changes came out of
+that (`Utils/TextDelivery.swift`, `Utils/KeyboardSimulator.swift`):
 
-* **A chunk travels once.** Both events of a chunk's keyDown/keyUp pair used to carry the text. Carrying text on
-  the release diverges from what the platform expects of a key pair, and it is a duplication hazard in any target
-  that inserts what each event carries: every 20-unit window arrives twice, the second copy at the caret the first
-  had already moved. The text is now on the keyDown only. The keyUp stays — and keeps the keyDown's key code — so
-  a host tracking key state sees a release rather than a stuck key, and its Unicode field is *cleared* to length
-  zero rather than left unset, because an unset field reads back as the character the key code makes (key code 0
-  is `a`). This is a hazard removed, not a cause proven.
-* **The mechanism follows the target** (`TextDelivery`): keystrokes for a native macOS application, and the
-  clipboard paste for an application that forwards input to a machine this one does not control
-  (`TextDelivery.hidForwardingHostBundleIDs` — Parallels, VMware Fusion, VirtualBox, UTM, QEMU, Screen Sharing,
-  RDP, Citrix, Jump, Screens, RealVNC, TigerVNC, TeamViewer, AnyDesk, Parsec, RustDesk, Chrome Remote Desktop,
-  NoMachine). **This is a deliberate change to the doctrine above**: "the clipboard is never used" is no longer
-  unconditionally true — for those targets the transcript is put on the clipboard and pasted with ⌘V, and
-  `ClipboardUtil` puts the previous contents back after 1.5 s if nothing else has taken the clipboard in the
-  meantime (proved in `TextDeliveryTests`). Real per-character key codes were rejected on the record: all nine of
-  `ą ć ę ł ń ó ś ź ż` are Option combinations on this machine's active layout, and a guest re-reads Option-plus-key
-  under its own, so `å` arrives where `ą` was meant. Accessibility insertion was rejected too: the text lives in
-  the guest, and the host side of a virtual machine window exposes no text element to write into. The cost that
-  remains is stated rather than hidden: a guest with clipboard sharing switched off receives nothing from the
-  paste path and the app cannot tell, because the only thing it can observe is its own pasteboard.
-  `Settings → Transcription` offers **Delivery** (Automatic, Keystrokes only, Clipboard paste) as the override,
-  and every dictation's unified-log line ends with `mechanism=keystrokes` or `mechanism=clipboard-paste`.
+* **A chunk travels once, and carries a real key code.** Both events of a chunk's keyDown/keyUp pair used to
+  carry the text. Carrying text on the release diverges from what the platform expects of a key pair, and it is a
+  duplication hazard in any target that inserts what each event carries: every 20-unit window arrives twice, the
+  second copy at the caret the first had already moved. The text is now on the keyDown only; the keyUp stays, and
+  keeps the keyDown's key code, so a host tracking key state sees a release rather than a stuck key, and its
+  Unicode field is *cleared* to length zero rather than left unset, because an unset field reads back as the
+  character the key code makes. **This is a hazard removed, not a cause proven**: no capture of the failing
+  target's event stream exists.
+* **The key code is no longer 0.** Key code 0 is the `A` key on ANSI layouts, so a target that reads key codes
+  typed `a` once per chunk — about as wrong as an answer can be. The key code now comes from the active layout,
+  for the chunk's first character (one event carries up to 20 characters, so the first is the honest choice), and
+  a chunk the layout has no key for — all nine of `ą ć ę ł ń ó ś ź ż` are Option combinations on the layout
+  active here, and CJK, Cyrillic and emoji have none — carries `0x7F`, a code the system defines no key for. The
+  layout's modifiers are deliberately not sent with it: they would turn the event into an Option-modified key for
+  every local application, and a redirected target re-reads them under its own layout anyway.
+* **The mechanism follows the target class** (`TextDelivery`): keystrokes into a native macOS application, and the
+  clipboard paste for an application that redirects input elsewhere. The rule has two tiers and the difference
+  between them is deliberate — one is measured here and one is not:
+  * *measured* (`verifiedRemoteClientBundleIdentifiers`): the bundle identifiers read out of the installed and
+    running applications on this machine — Citrix Viewer `com.citrix.receiver.icaviewer.mac` (seen frontmost,
+    `active=true`, with a session up), the Workspace UI `com.citrix.receiver.nomas`, the engine
+    `com.citrix.HdxRtcEngine`, Parallels Desktop, macOS Screen Sharing. A match here pastes;
+  * *a judgement* (`remoteClientVendorPrefixes`): the same clients' vendor families — `com.citrix.`,
+    `com.parallels.`, `com.teamviewer.`, VMware Fusion, VirtualBox, UTM, QEMU, Microsoft Remote Desktop, Jump
+    Desktop, Screens, RealVNC, TigerVNC, AnyDesk, Parsec, RustDesk, Chrome Remote Desktop, NoMachine. An
+    independent reading put "a prefix rule is safe" at **0.36**, so a prefix-only match **does not paste unless
+    the user switches on** *Paste into other apps from these vendors* in Settings: an uncertain match fails
+    toward the behaviour that does not touch the clipboard.
+  **This is a deliberate change to the doctrine above**: "the clipboard is never used" is no longer
+  unconditionally true. Accessibility insertion was rejected because a session exposes no host-side text element
+  to write into, and real per-character key codes because they cannot reproduce arbitrary Unicode on a target
+  whose layout is unknown.
+* **The clipboard path's crash hole is closed on disk by `ClipboardRecovery`.** The previous contents are put
+  back 1.5 s after the paste — proved on the machine's real pasteboard, byte-identical, in
+  `DeliveryMeasurementTests` — but that restore is an in-process block, and a measurement showed what a process
+  that dies inside that window leaves behind: the transcription on the clipboard and the user's own contents
+  gone. So the displaced clipboard is written to `~/Library/Application Support/ru.starmel.OpenSuperWhisper/
+  clipboard-recovery.plist` (`0600`, readable by that user alone) **before** the pasteboard is touched, and the
+  next launch puts it back if the record is still there — proven in `ClipboardRecoveryTests`, which kills a child
+  process built from the app's own code and then runs the same recovery entry point the launch runs. The record
+  is cleared as soon as the delivery restores the clipboard itself, and recovery refuses to put anything back
+  when the clipboard no longer holds this app's text.
+* **What remains unclosed, stated rather than hidden.** A target that services the paste *later* than the restore
+  gets the **restored** clipboard contents — the user's own previous clipboard pasted into their document instead
+  of the dictation (measured case: `TextDeliveryTests`); an app killed between the copy and the restore keeps the
+  transcription on the clipboard until the next launch puts the old contents back; and if the session has
+  clipboard redirection switched off, the paste delivers **nothing at all** and this app cannot tell, because the
+  only thing it can observe is its own pasteboard. `Settings → Transcription` offers **Delivery** (Automatic,
+  Keystrokes only, Clipboard paste) plus the vendor toggle: "Keystrokes only" turns the clipboard path off
+  entirely, and every dictation's unified-log line records `mechanism=`, the `target=` bundle identifier and
+  whether the match was `match=verified-client` or `match=vendor-family`.
 
-**Verified and not verified.** On this side: the events a delivery posts and the shape of the pair, what each
-event's Unicode field reads back as, which mechanism the ladder selects, that ⌘V is posted, and that the
-pasteboard holds the transcript and then gets its previous contents back. That the text *arrives* is verified for
-a native macOS target, through a real `NSTextView` driven by AppKit's own key bindings. It is **not** verified for
-a virtual machine: there is no guest in the suite and nothing about the guest is observable from the host.
-Closing that needs a capture inside the guest — a dictation into a guest text field with the guest's own text
-dumped before and after.
+**Verified and not verified.** On this side: the events a delivery posts, the shape of the pair, the key code and
+Unicode field each event carries, which mechanism the target rule selects for a given application and preference,
+that ⌘V is posted, that the pasteboard holds the transcript and gets its previous contents back byte-identically,
+what a target that services the paste late receives, and that a killed process's clipboard record is recovered on
+the next run. That the text *arrives* is verified for a native macOS target, through a real `NSTextView` driven by
+AppKit's own key bindings. It is **not** verified for a Citrix session: there is no session in the test suite and
+nothing about a session is observable from the host — whether the session reads key codes rather than the event's
+text field, and whether the paste lands at all (that one needs clipboard redirection enabled in the session), are
+both open. Which bundle is in front during a real delivery *is* answered by the log line's `target=` and `match=`
+fields on the next real dictation; the rest needs a probe inside the session.
+
+**Installing it.** Nothing above reaches the running app until it is built and installed: `Scripts/dev-run.sh`
+builds, signs with the local dev identity and runs `build/Build/Products/Debug/OpenSuperWhisper.app`;
+`Scripts/install-and-verify.sh` packages it, backs up the user's data, replaces `/Applications/OpenSuperWhisper.app`
+and verifies the installed copy. The grant the delivery needs is **Accessibility** (the app is not sandboxed and
+its entitlements already carry it), and because the signer's designated requirement is what TCC matches against,
+an install through those scripts keeps the existing grant — if macOS does ask, the app's own message says to
+switch the Accessibility entry off and on once. Nothing in the delivery path needs a new permission, and no
+Settings default has to be set for the measured Citrix bundles to get the clipboard.
 
 
 ### 6. Permissions: Accessibility only, and nothing blocks on it

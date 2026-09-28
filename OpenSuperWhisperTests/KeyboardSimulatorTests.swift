@@ -168,6 +168,66 @@ final class KeyboardSimulatorTests: XCTestCase {
                         Int64(KeyboardSimulator.tabKeyCode)])
     }
 
+    // MARK: - The key code a text event carries
+
+    /// Key code 0 is the `A` key, not "no key".
+    ///
+    /// A target that rebuilds characters from key codes instead of reading the
+    /// Unicode string — a Citrix session above all: its viewer links no
+    /// Unicode-payload reader at all — types `a` once per chunk for key code 0,
+    /// which is the worst thing a text event can carry. So the key code comes
+    /// from the active layout for the chunk's first character, and the events for
+    /// a chunk the layout has no key for carry a code no key is defined for.
+    func testTextEventsCarryTheLayoutsKeyForTheFirstCharacterAndNeverASilentA() throws {
+        var events: [CGEvent] = []
+        // Every chunk of this payload starts with a base-layer character: "Z",
+        // "ó" (Option+o), "j"… — the common shape of dictated text.
+        KeyboardSimulator.typeText("Zażółć gęślą jaźń — 中文測試 Ж їß 😀 ok\n\ttail") { events.append($0) }
+
+        let keyDowns = events.filter { $0.type == .keyDown }
+        XCTAssertFalse(keyDowns.isEmpty)
+
+        for keyDown in keyDowns {
+            let keyCode = CGKeyCode(keyDown.getIntegerValueField(.keyboardEventKeycode))
+            // A Return or Tab event is its own key; the rest carry text.
+            if keyCode == KeyboardSimulator.returnKeyCode || keyCode == KeyboardSimulator.tabKeyCode {
+                continue
+            }
+            guard let chunk = Self.unicodeString(of: keyDown), let first = chunk.first else {
+                XCTFail("a text event carries no text at all")
+                continue
+            }
+            let layoutKey = ClipboardUtil.findKeycodeForCharacter(first)
+            XCTAssertEqual(
+                keyCode, layoutKey ?? KeyboardSimulator.unmappedKeyCode,
+                "chunk \(String(reflecting: chunk)) is posted with the layout's key for "
+                + "\(String(reflecting: first)), or with the unmapped code"
+            )
+            if keyCode == 0 {
+                XCTAssertEqual(
+                    first.lowercased(), "a",
+                    "key code 0 means the `a` key and may only ride a chunk that starts with `a`; "
+                    + "\(String(reflecting: chunk)) starts with \(String(reflecting: first))"
+                )
+            }
+        }
+    }
+
+    /// A chunk whose first character the layout has no key for — every Polish
+    /// diacritic is an Option combination here, and CJK, Cyrillic and emoji have
+    /// no key at all — carries `unmappedKeyCode`, so no target can turn it into a
+    /// character the user did not dictate.
+    func testAChunkTheLayoutCannotTypeCarriesTheUnmappedKeyCode() {
+        XCTAssertEqual(KeyboardSimulator.keyCode(for: "中文測試"), KeyboardSimulator.unmappedKeyCode)
+        XCTAssertEqual(KeyboardSimulator.keyCode(for: "Ж їß"), KeyboardSimulator.unmappedKeyCode)
+        XCTAssertEqual(KeyboardSimulator.keyCode(for: "😀 ok"), KeyboardSimulator.unmappedKeyCode)
+        XCTAssertEqual(KeyboardSimulator.keyCode(for: "ą ć ę ł ń ó ś ź ż"),
+                       ClipboardUtil.findKeycodeForCharacter("ą") ?? KeyboardSimulator.unmappedKeyCode)
+        XCTAssertEqual(KeyboardSimulator.unmappedKeyCode, 0x7F)
+        XCTAssertNotEqual(KeyboardSimulator.unmappedKeyCode, KeyboardSimulator.returnKeyCode)
+        XCTAssertNotEqual(KeyboardSimulator.unmappedKeyCode, KeyboardSimulator.tabKeyCode)
+    }
+
     func testCarriageReturnAndCRLFMapToSingleReturn() {
         var crEvents: [CGEvent] = []
         KeyboardSimulator.typeText("\r") { crEvents.append($0) }

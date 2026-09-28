@@ -36,11 +36,27 @@ class ClipboardUtil {
     /// `pasteboard` is the general one in the app and a pasteboard of its own in
     /// the tests, so a case can prove the restore without racing every other
     /// process on the machine for the system clipboard.
+    ///
+    /// The restore is an in-process block, so the delivery can die before it
+    /// runs and leave the transcription on the clipboard with the user's contents
+    /// gone. `ClipboardRecovery` closes that: the displaced contents are written
+    /// to disk **before** the pasteboard is touched, and the next launch puts them
+    /// back if the record is still there. The record is cleared as soon as the
+    /// delivery restores the clipboard itself, which is the ordinary case.
     static func insertText(_ text: String,
                            postEvent: (CGEvent) -> Void,
                            pasteboard: NSPasteboard = .general) {
-        // Save current pasteboard contents
+        // Save current pasteboard contents — to disk first, because everything
+        // below this line can die with the process.
         let savedContents = saveCurrentPasteboardContents(from: pasteboard)
+        let record = ClipboardRecovery.record(for: pasteboard, writtenText: text)
+        if let record {
+            ClipboardRecovery.write(record)
+        } else {
+            // Nothing to restore, so a crash would have nothing to bring back;
+            // make sure no stale record from an earlier delivery is left behind.
+            ClipboardRecovery.clear()
+        }
 
         // Set new text to pasteboard
         pasteboard.declareTypes([.string], owner: nil)
@@ -50,15 +66,39 @@ class ClipboardUtil {
         // Simulate Cmd+V using layout-aware keycode resolution
         sendCmdV(postEvent: postEvent)
 
-        // Restore original contents only after the target app had a chance to
+        // Put the clipboard back only after the target app had a chance to
         // process the paste, and only if the pasteboard still holds our text:
         // a different changeCount means the user (or another app) took over
-        // the clipboard and restoring would clobber their data.
-        if let contents = savedContents {
-            DispatchQueue.main.asyncAfter(deadline: .now() + clipboardRestoreDelay) {
+        // the clipboard and putting anything back would clobber their data.
+        DispatchQueue.main.asyncAfter(deadline: .now() + clipboardRestoreDelay) {
+            if let contents = savedContents {
                 restoreIfUnchanged(contents, expectedChangeCount: changeCountAfterCopy, pasteboard: pasteboard)
+            } else {
+                // There was nothing on the clipboard to save, so there is nothing
+                // to put back — but the transcription is not the user's to keep
+                // either. Without this, a paste onto an empty clipboard left the
+                // dictation there with nothing scheduled to take it off, which is
+                // the wrong outcome for the app's own text: it should end up where
+                // the clipboard started.
+                clearIfUnchanged(pasteboard, expectedChangeCount: changeCountAfterCopy)
             }
+            // The delivery has done its own restore (or decided not to), so the
+            // crash-recovery record has nothing left to do and must not survive to
+            // put stale contents back on a later launch.
+            ClipboardRecovery.clear()
         }
+    }
+
+    /// Empties `pasteboard` when it still holds what this app put there.
+    ///
+    /// - Returns: Whether it cleared, which is also whether the pasteboard was
+    ///   untouched by anyone else since the copy.
+    @discardableResult
+    static func clearIfUnchanged(_ pasteboard: NSPasteboard = .general,
+                                 expectedChangeCount: Int) -> Bool {
+        guard pasteboard.changeCount == expectedChangeCount else { return false }
+        pasteboard.clearContents()
+        return true
     }
 
     @discardableResult

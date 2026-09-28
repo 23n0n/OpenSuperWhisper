@@ -216,4 +216,204 @@ final class TextDeliveryTests: XCTestCase {
         XCTAssertEqual(result.eventsPosted, 0)
         XCTAssertEqual(result.deliveredCharacters, 0)
     }
+
+    // MARK: - The clipboard is a hazard, measured
+
+    /// The cost of the paste path, demonstrated rather than asserted away.
+    ///
+    /// This case does NOT pin desired behaviour. It measures the hazard the
+    /// delivery path carries for its users: the clipboard is put back on a timer
+    /// (1.5 s), so a target that services the ⌘V it was handed *after* that timer
+    /// has run pastes the restored contents — the user's own previous clipboard —
+    /// into their document in place of the dictation. Browsers, Electron apps and
+    /// remote sessions are exactly the slow consumers the delay exists for.
+    ///
+    /// It stands as documentation of a known limitation of the mechanism, not as
+    /// a contract: if the delivery ever stops restoring on a timer (by handing
+    /// the target the text some other way, or by waiting for the paste to be
+    /// serviced), this case's assertion is what should change — its scenario is
+    /// still what a slow target does.
+    func testAPasteThatLandsAfterTheRestoreDeliversTheOldClipboardInsteadOfTheTranscript() {
+        seedClipboard(Self.usersClipboard)
+        let editor = NSTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 200))
+        editor.isRichText = false
+
+        // The delivery posts ⌘V, and this case does not service it: it stands in
+        // for a target that is still busy when the events arrive.
+        var posted: [CGEvent] = []
+        TextDelivery.deliver(
+            Self.transcript,
+            trusted: true,
+            preference: .clipboardPaste,
+            frontmostBundleIdentifier: "com.citrix.receiver.icaviewer.mac",
+            pasteboard: pasteboard,
+            post: { posted.append($0) }
+        )
+        XCTAssertEqual(posted.count, 2, "the ⌘V pair went out")
+
+        // The restore timer fires while the slow target is still busy.
+        let restored = waitForClipboard(Self.usersClipboard)
+        TestFixtures.report(
+            "[delivery] hazard probe: seeded with \(String(reflecting: Self.usersClipboard)), "
+            + "after the restore delay the pasteboard holds \(String(reflecting: restored))"
+        )
+        XCTAssertEqual(restored, Self.usersClipboard, "the restore ran while the target was busy")
+
+        // …and now the target services the paste it was handed. The paste reads
+        // the clipboard the delivery wrote to, which is what any target does —
+        // AppKit's own `paste:` reads the general pasteboard, so this case reads
+        // its own board explicitly to say which clipboard the slow target saw.
+        let didPaste = editor.readSelection(from: pasteboard)
+
+        TestFixtures.report(
+            "[delivery] a paste serviced after the restore delay inserted "
+            + "\(editor.string.count) characters (\(didPaste ? "paste accepted" : "paste refused")); "
+            + "the dictation was \(Self.transcript.count): the target received "
+            + "\(editor.string == Self.transcript ? "the transcript" : "the restored clipboard")"
+        )
+        XCTAssertEqual(
+            editor.string, Self.usersClipboard,
+            "a target that services the paste after the restore delay gets the user's old clipboard — "
+            + "the measured cost of the clipboard mechanism, not a desired outcome"
+        )
+        XCTAssertNotEqual(editor.string, Self.transcript, "the dictation never reached it")
+    }
+
+    /// The other half of the same hazard: there is nothing to restore when the
+    /// clipboard had nothing on it, so the transcription used to stay there with
+    /// nothing scheduled to take it off — the user's dictation left in a
+    /// clipboard any application can read.
+    ///
+    /// `ClipboardUtil` now clears the clipboard in that case, under the same
+    /// changeCount guard it uses for a restore, so the clipboard ends up where it
+    /// started: empty.
+    func testATranscriptPastedOntoAnEmptyClipboardDoesNotStayOnIt() {
+        pasteboard.clearContents()
+        XCTAssertNil(ClipboardUtil.saveCurrentPasteboardContents(from: pasteboard),
+                     "an empty pasteboard has nothing to save")
+
+        TextDelivery.deliver(
+            Self.transcript,
+            trusted: true,
+            preference: .clipboardPaste,
+            frontmostBundleIdentifier: "com.citrix.receiver.icaviewer.mac",
+            pasteboard: pasteboard,
+            post: { _ in }
+        )
+        XCTAssertEqual(clipboardContents(), Self.transcript,
+                       "the transcript is on the clipboard while the paste is being made")
+
+        // Well past the restore delay.
+        RunLoop.current.run(until: Date().addingTimeInterval(ClipboardUtil.clipboardRestoreDelay + 0.4))
+        TestFixtures.report(
+            "[delivery] paste onto an empty clipboard: after \(ClipboardUtil.clipboardRestoreDelay) s the "
+            + "pasteboard holds \(String(reflecting: clipboardContents()))"
+        )
+        XCTAssertNil(
+            clipboardContents(),
+            "with nothing saved to put back, the transcript must not be left on the clipboard"
+        )
+    }
+
+    /// …and the guard still holds when somebody else takes the clipboard while
+    /// the paste is being made: whoever wrote last keeps their contents, whether
+    /// the app had something to restore or nothing at all.
+    func testAClipboardTakenBySomeoneElseIsNeverOverwritten() {
+        // Nothing saved, so the delivery would clear — unless the clipboard is
+        // no longer ours by the time that runs.
+        pasteboard.clearContents()
+        TextDelivery.deliver(
+            Self.transcript,
+            trusted: true,
+            preference: .clipboardPaste,
+            frontmostBundleIdentifier: "com.citrix.receiver.icaviewer.mac",
+            pasteboard: pasteboard,
+            post: { _ in }
+        )
+        seedClipboard("copied by the user during the paste")
+
+        RunLoop.current.run(until: Date().addingTimeInterval(ClipboardUtil.clipboardRestoreDelay + 0.4))
+        XCTAssertEqual(
+            clipboardContents(), "copied by the user during the paste",
+            "a changeCount that moved means the clipboard is somebody else's and must be left alone"
+        )
+    }
+
+    /// The delivery records which application it was aimed at, because that is
+    /// the first question a delivery that went wrong has to answer and it is not
+    /// recoverable afterwards — it is what will say whether the frontmost bundle
+    /// during a real Citrix dictation is the Viewer, the Workspace UI, or
+    /// neither.
+    func testTheOutcomeRecordsTheApplicationTheDeliveryWasAimedAt() {
+        // Seeded so the paste path schedules its restore, which this case drains
+        // before the pasteboard is released; what is asserted here is the record.
+        seedClipboard(Self.usersClipboard)
+        let result = TextDelivery.deliver(
+            Self.transcript,
+            trusted: true,
+            preference: .automatic,
+            frontmostBundleIdentifier: "com.citrix.receiver.icaviewer.mac",
+            pasteboard: pasteboard,
+            post: { _ in }
+        )
+
+        XCTAssertEqual(result.targetBundleIdentifier, "com.citrix.receiver.icaviewer.mac")
+        XCTAssertEqual(result.mechanism, .clipboardPaste)
+        XCTAssertEqual(waitForClipboard(Self.usersClipboard), Self.usersClipboard)
+    }
+
+    // MARK: - Which applications get the paste
+
+    /// The two tiers of the target rule, on the identifiers verified from the
+    /// installed clients rather than on invented ones.
+    ///
+    /// The exact tier is measured on this machine and switches the mechanism; the
+    /// vendor-prefix tier is a judgement (an independent reading put it at 0.36)
+    /// and therefore does NOT switch anything unless the user asks for it.
+    func testTheTargetRuleDistinguishesWhatIsMeasuredFromWhatIsGuessed() {
+        // Measured: the three Citrix bundles seen running on this machine, the
+        // session window among them.
+        XCTAssertEqual(TextDelivery.targetMatch("com.citrix.receiver.icaviewer.mac"), .verifiedClient)
+        XCTAssertEqual(TextDelivery.targetMatch("com.citrix.receiver.nomas"), .verifiedClient)
+        XCTAssertEqual(TextDelivery.targetMatch("com.citrix.HdxRtcEngine"), .verifiedClient)
+        XCTAssertEqual(TextDelivery.targetMatch("com.parallels.desktop.console"), .verifiedClient)
+        XCTAssertEqual(TextDelivery.targetMatch("com.apple.ScreenSharing"), .verifiedClient)
+
+        // A guess: another bundle from a client family we know.
+        XCTAssertEqual(TextDelivery.targetMatch("com.citrix.receiver.helper"), .vendorFamily)
+        XCTAssertEqual(TextDelivery.targetMatch("com.teamviewer.TeamViewer"), .vendorFamily)
+
+        // Not a client at all — including a bundle that merely starts the same.
+        XCTAssertEqual(TextDelivery.targetMatch("com.apple.Terminal"), .notAClient)
+        XCTAssertEqual(TextDelivery.targetMatch("com.googlecode.iterm2"), .notAClient)
+        XCTAssertEqual(TextDelivery.targetMatch("com.citrixsux.example"), .notAClient)
+        XCTAssertEqual(TextDelivery.targetMatch(nil), .notAClient)
+
+        // …and the mechanism follows the tier, not the prefix on its own.
+        XCTAssertEqual(
+            TextDelivery.mechanism(preference: .automatic,
+                                   frontmostBundleIdentifier: "com.citrix.receiver.nomas",
+                                   pasteIntoRecognisedVendors: false),
+            .clipboardPaste,
+            "a measured bundle pastes without being asked"
+        )
+        XCTAssertEqual(
+            TextDelivery.mechanism(preference: .automatic,
+                                   frontmostBundleIdentifier: "com.citrix.receiver.helper",
+                                   pasteIntoRecognisedVendors: false),
+            .keystrokes,
+            "a vendor-prefix guess fails toward the behaviour that does not touch the clipboard"
+        )
+        XCTAssertEqual(
+            TextDelivery.mechanism(preference: .automatic,
+                                   frontmostBundleIdentifier: "com.citrix.receiver.helper",
+                                   pasteIntoRecognisedVendors: true),
+            .clipboardPaste,
+            "…and pastes once the user has asked for the wider rule"
+        )
+        XCTAssertFalse(TextDelivery.redirectsInput("com.citrix.receiver.helper",
+                                                  pasteIntoRecognisedVendors: false))
+        XCTAssertTrue(TextDelivery.redirectsInput("com.citrix.receiver.helper",
+                                                 pasteIntoRecognisedVendors: true))
+    }
 }

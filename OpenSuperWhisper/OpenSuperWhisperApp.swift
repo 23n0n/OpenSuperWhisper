@@ -118,6 +118,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
             return
         }
 
+        // A paste delivery writes the transcript over the clipboard and puts the
+        // previous contents back 1.5 s later, from a block inside this process. If
+        // the process died inside that window, the contents are still on disk
+        // (`ClipboardRecovery`) and this is where they come back — before anything
+        // else in the app has a chance to put something else on the clipboard.
+        // Nothing is pending in the ordinary case, so this is a file-existence
+        // check on a normal launch.
+        let recovered = ClipboardRecovery.recoverIfNeeded()
+        if recovered != .nothingPending {
+            NSLog("OpenSuperWhisper: clipboard recovery %@", recovered.description)
+        }
+
         setupStatusBarItem()
 
         // The WindowGroup window usually does not exist yet at this point:

@@ -185,6 +185,14 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
+    /// Whether a vendor-prefix match alone is enough to paste. Off by default:
+    /// that half of the target rule is a judgement, so it is the user's to make.
+    @Published var pasteIntoRecognisedVendors: Bool {
+        didSet {
+            AppPreferences.shared.pasteIntoRecognisedVendors = pasteIntoRecognisedVendors
+        }
+    }
+
     @Published var toneEnabled: Bool {
         didSet {
             AppPreferences.shared.toneEnabled = toneEnabled
@@ -414,6 +422,7 @@ class SettingsViewModel: ObservableObject {
         self.autoCopyToClipboard = prefs.autoCopyToClipboard
         self.autoPasteTranscription = prefs.autoPasteTranscription
         self.deliveryPreference = prefs.deliveryPreference
+        self.pasteIntoRecognisedVendors = prefs.pasteIntoRecognisedVendors
         self.toneEnabled = prefs.toneEnabled
         self.transformToneMode = prefs.transformToneMode
         self.cleanUpEnabled = prefs.cleanUpEnabled
@@ -1666,14 +1675,37 @@ struct SettingsView: View {
                                 .labelsHidden()
                                 Text(viewModel.deliveryPreference.explanation
                                      + ". Text is typed as synthetic keystrokes, which no keyboard layout "
-                                     + "changes and which leaves the clipboard alone. A virtual machine or a "
-                                     + "remote desktop never receives that text — it rebuilds characters from "
-                                     + "key codes under a layout of its own — so those get the transcript "
-                                     + "through the clipboard instead, and whatever was in the clipboard is put "
-                                     + "back afterwards.")
+                                     + "changes and which leaves the clipboard alone. A Citrix session, a "
+                                     + "virtual machine or a remote desktop may never read that text — "
+                                     + "measured on the Citrix client, its viewer links no Unicode-payload "
+                                     + "reader at all — so those get the transcript through the clipboard "
+                                     + "instead, and what was in the clipboard is written to disk (readable "
+                                     + "by you alone) and put back 1.5 s later, or on the next launch if "
+                                     + "the app does not survive that long. Keystrokes only turns the "
+                                     + "clipboard path off.")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
+
+                                if viewModel.deliveryPreference == .automatic {
+                                    HStack(alignment: .top) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Paste into other apps from these vendors")
+                                                .font(.subheadline)
+                                            Text("The exact Citrix, Parallels and Screen Sharing bundles are "
+                                                 + "recognised from measurements on this Mac. Any other bundle "
+                                                 + "from those vendors is a guess, so it is typed into unless "
+                                                 + "you ask for the clipboard here.")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        Spacer()
+                                        Toggle("", isOn: $viewModel.pasteIntoRecognisedVendors)
+                                            .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
+                                            .labelsHidden()
+                                    }
+                                }
                             }
                         }
                     }

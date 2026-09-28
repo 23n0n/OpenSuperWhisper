@@ -284,6 +284,69 @@ final class DictationInjectionTests: XCTestCase {
         XCTAssertEqual(rows.map(\.transcription), ["typed nowhere"])
     }
 
+    /// The clipboard path's failure mode is invisible from this side: a session
+    /// whose clipboard is not shared receives nothing at all, and nothing this app
+    /// can observe says so. So the first dictation that goes through the clipboard
+    /// says what happened, why, and where the switch is — once, not on every
+    /// dictation.
+    func testTheFirstClipboardDeliveryIsAnnouncedAndOnlyTheFirst() async throws {
+        let store = try makeStore()
+        let sources = makeSourceFiles(count: 2)
+        var injected: [String] = []
+
+        let restoreAutoPaste = pinAutoPasteOn()
+        defer { restoreAutoPaste() }
+        let explainedBefore = AppPreferences.shared.clipboardDeliveryExplained
+        AppPreferences.shared.clipboardDeliveryExplained = false
+        defer { AppPreferences.shared.clipboardDeliveryExplained = explainedBefore }
+
+        let viewModel = IndicatorViewModel(
+            transcriptionService: TranscriptionService(
+                engine: ScriptedTranscriptionEngine(transcripts: ["first", "second"])
+            ),
+            recordingStore: store,
+            stopRecording: {
+                guard let url = sources.next() else { return nil }
+                return RecordedAudio(url: url, samples: [])
+            },
+            cancelAudioRecording: {},
+            injectText: { text in
+                injected.append(text)
+                return KeyboardSimulator.InjectionResult(trusted: true,
+                                                        eventsPosted: 2,
+                                                        mechanism: .clipboardPaste)
+            },
+            transformText: Self.passthroughTransform
+        )
+        defer { viewModel.cleanup() }
+        AppErrorCenter.shared.issue = nil
+
+        try await dictate(viewModel)
+        try await waitForInjections(1, { injected })
+
+        let issue = try XCTUnwrap(
+            AppErrorCenter.shared.issue,
+            "the first dictation through the clipboard has to say so: its failure mode is silent"
+        )
+        XCTAssertTrue(issue.title.contains("clipboard"), "unexpected title: \(issue.title)")
+        XCTAssertTrue(
+            issue.message.contains("Keystrokes only"),
+            "the notice has to name the switch that turns the clipboard path off: \(issue.message)"
+        )
+        XCTAssertEqual(AppPreferences.shared.clipboardDeliveryExplained, true)
+
+        // The second delivery says nothing more: the switch and the record carry
+        // it from here.
+        AppErrorCenter.shared.issue = nil
+        try await dictate(viewModel)
+        try await waitForInjections(2, { injected })
+        XCTAssertNil(AppErrorCenter.shared.issue, "the notice is once per install, not per dictation")
+
+        let rows = try await store.fetchRecordings(limit: 10, offset: 0)
+        temporaryFiles.append(contentsOf: rows.map(\.url))
+        XCTAssertEqual(rows.count, 2)
+    }
+
     /// An interference that stopped the delivery has to reach the user the same
     /// way the untrusted case does — which interference ended it and how much of
     /// the dictation got through — instead of leaving a truncated paste with no

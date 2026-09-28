@@ -482,7 +482,9 @@ class IndicatorViewModel: ObservableObject {
                 eventsPosted: result.eventsPosted,
                 deliveredCharacters: result.deliveredCharacters,
                 interruptedBy: result.interruptedBy,
-                mechanism: result.mechanism
+                mechanism: result.mechanism,
+                target: result.targetBundleIdentifier,
+                match: result.targetMatch
             )
             if !result.trusted {
                 reportInjectionWithoutAccessibilityTrust()
@@ -502,6 +504,11 @@ class IndicatorViewModel: ObservableObject {
                 // per-dictation record cannot show the user, so it is said out
                 // loud rather than left to look delivered.
                 reportInjectionThatPostedNothing(result.mechanism)
+            } else if result.mechanism == .clipboardPaste {
+                // Last, because it is information and not a failure: a delivery
+                // that reached nobody must report that instead, not the notice
+                // that would explain a delivery that worked.
+                reportClipboardDeliveryOnce()
             }
         } else {
             KeyboardSimulator.logDictation(
@@ -542,6 +549,33 @@ class IndicatorViewModel: ObservableObject {
             message: "\(whatHappened)\n\n"
                 + "Typing stopped after \(delivered) of the dictation's \(total) characters, and nothing "
                 + "else was typed. The whole transcription is in the History tab."
+        )
+    }
+
+    /// A dictation that went through the clipboard is said out loud, once.
+    ///
+    /// The paste path is the default for the applications the measurement
+    /// recognised, and its failure mode is invisible from here: if the
+    /// application's clipboard is not shared with the session, the paste lands
+    /// nowhere and this app cannot tell — the user would simply see nothing,
+    /// which is worse than seeing something wrong. So the first delivery through
+    /// the clipboard says what happened, why, where the switch is, and what to
+    /// look at if the text did not appear. Once per install: after that it is in
+    /// the Settings copy and in every dictation's record.
+    private func reportClipboardDeliveryOnce() {
+        guard !AppPreferences.shared.clipboardDeliveryExplained else { return }
+        AppPreferences.shared.clipboardDeliveryExplained = true
+        AppErrorCenter.shared.report(
+            "This dictation went through the clipboard",
+            message: "The app in front is one that reads key codes rather than the text "
+                + "OpenSuperWhisper types (a Citrix session, a virtual machine or a remote "
+                + "desktop), so the transcription was put on the clipboard and pasted with "
+                + "⌘V — and what was on the clipboard was written to disk and put back "
+                + "afterwards.\n\n"
+                + "If the text does not appear there, that application's clipboard is not "
+                + "shared with the session, and nothing this app can see says so. "
+                + "Settings → Transcription → Delivery switches to Keystrokes only.\n\n"
+                + "This notice is shown once."
         )
     }
 

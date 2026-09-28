@@ -36,14 +36,18 @@ enum DeliveryPreference: String, CaseIterable, Equatable {
         }
     }
 
+    /// One line per choice, naming what actually happens — which targets get
+    /// which mechanism, and what the clipboard path costs.
     var explanation: String {
         switch self {
         case .automatic:
-            return "Keystrokes, and the clipboard for virtual machines and remote desktops"
+            return "Keystrokes everywhere except Citrix, virtual machines and remote desktops, "
+                + "which get the clipboard"
         case .keystrokes:
-            return "Never touches the clipboard"
+            return "Never touches the clipboard, and cannot deliver into a Citrix session "
+                + "or a remote desktop"
         case .clipboardPaste:
-            return "Pastes through the clipboard, which is restored afterwards"
+            return "Pastes through the clipboard for every target, restoring it afterwards"
         }
     }
 }
@@ -112,14 +116,50 @@ enum DeliveryPreference: String, CaseIterable, Equatable {
 ///   clipboard is still the transcript it wrote.
 ///
 ///   An independent judgment (Jev, on this same evidence) put the clipboard
-///   paste at 0.96 for the guest against 0.03 for a heuristic ladder, 0.01 for
-///   the fixed Unicode events and 0.00 for per-character key codes. The ladder
-///   below still exists because its guest branch *is* that paste: what the
-///   heuristic decides is when the clipboard gets written, and the alternative —
-///   pasting into every target, native ones included, whose keystrokes are
-///   already known to arrive — would spend the user's clipboard on every
-///   dictation to fix a case that only concerns some of them. A user who wants
-///   the paste everywhere can say so: `DeliveryPreference.clipboardPaste`.
+///   paste at 0.96 for a redirected target against 0.03 for a heuristic ladder,
+///   0.01 for the fixed Unicode events and 0.00 for per-character key codes. The
+///   ladder below still exists because its redirected-target branch *is* that
+///   paste: what the target-aware rule decides is when the clipboard gets
+///   written, and the alternative — pasting into every target, native ones
+///   included, whose keystrokes are already known to arrive — would spend the
+///   user's clipboard on every dictation to fix a case that only concerns some
+///   of them. A user who wants the paste everywhere can say so:
+///   `DeliveryPreference.clipboardPaste`.
+///
+///   **The restore is not a solution, and the code below says so rather than
+///   implying otherwise.** Save-and-restore was judged sufficient at 0.22. What
+///   has been measured on this side, and what it leaves open:
+///
+///   * *A target that services the paste late gets the wrong text.* The restore
+///     runs on a timer (`ClipboardUtil.clipboardRestoreDelay`, 1.5 s). A target
+///     that services the synthesized ⌘V after that — browsers, Electron apps and
+///     remote sessions are exactly the slow consumers the delay exists for —
+///     pastes whatever the clipboard holds *then*: the user's previous clipboard
+///     contents, put into their document in place of the dictation. The measured
+///     case in `TextDeliveryTests` demonstrates it rather than asserting it away.
+///     There is no fix in this design: the app cannot know when the target
+///     serviced the paste, and the clipboard cannot hold the transcript
+///     indefinitely either.
+///   * *An empty clipboard used to keep the transcript.* There was nothing to
+///     save, so nothing was scheduled to put the clipboard back and the
+///     dictation stayed there with no way off. `ClipboardUtil` now clears the
+///     clipboard in that case, under the same changeCount guard, which is
+///     measured too.
+///   * *The app dying between the copy and the restore* leaves the transcript on
+///     the clipboard with nothing scheduled to take it off. There is no
+///     mitigation in this code: the restore is an in-process block with no
+///     checkpoint, so a crash inside that 1.5 s window leaves the user's words in
+///     a clipboard any application can read, and whatever they had copied gone.
+///
+///   What keeps this from being a silent default is the visibility, not the
+///   design: `DeliveryPreference` is a control in Settings, its caption names
+///   the target classes that get the clipboard, every dictation's log line
+///   records `mechanism=clipboard-paste`, and "Keystrokes only" turns the path
+///   off entirely. An independent judgment leaned the same way (0.63) — the
+///   paste would ideally be opt-in per target family rather than switched on by
+///   detection — which is not what ships: the captain's own case is a session
+///   that gets no text at all without it, so the default fixes the reported
+///   failure and the off-switch is one click away.
 /// - **A ladder that prefers keystrokes and falls back at run time.** There is
 ///   nothing for a fallback to trigger on. Whether a target reconstructs from
 ///   key codes or takes the Unicode payload is a property of the target, and the
@@ -152,56 +192,121 @@ enum DeliveryPreference: String, CaseIterable, Equatable {
 ///
 /// Keystrokes by default, because that is the path that reaches every native
 /// macOS application and keeps the clipboard untouched. The clipboard paste for
-/// an application that forwards input to a machine this one does not control,
-/// which is what `hidForwardingHostBundleIDs` names. The list is a heuristic —
-/// a bundle identifier is the only thing the app can see about the application
-/// in front — and both directions are cheap: a host that is not on the list is
-/// typed into exactly as before, which is right for every native application and
-/// wrong only for a forwarder the list has never heard of, and a host on the
-/// list that would have accepted keystrokes gets a paste instead, carrying the
-/// same text at the cost of one clipboard write that is restored.
+/// an application that redirects the input it receives into a session or another
+/// machine — and this app can see that application: the frontmost bundle
+/// identifier is read at delivery time, the same moment the interference watch
+/// captures its target. That is what makes this a decision about a target rather
+/// than a guess.
+///
+/// The rule has two tiers, and the difference between them is written down
+/// because one of them is measured and the other is not: the bundle identifiers
+/// measured on this machine (`verifiedRemoteClientBundleIdentifiers`) switch the
+/// mechanism, while a vendor-prefix match (`remoteClientVendorPrefixes`) is a
+/// judgement that an independent reading put at 0.36 and therefore does not
+/// switch anything unless the user asks for it. `DeliveryPreference` overrides
+/// the outcome either way.
 enum TextDelivery {
 
-    /// Applications that pass the input they receive on to a machine this app
-    /// cannot see.
+    /// The bundle identifiers measured on **this machine**, each one an
+    /// application that redirects the input it receives into a session or another
+    /// machine. A match here is what switches the mechanism.
     ///
-    /// They are here because what a guest does with a forwarded event cannot be
-    /// observed from this side and cannot be relied on: the Unicode string on a
-    /// synthetic event is an Apple extension nothing obliges a guest to read,
-    /// and the key code travelling with it is 0. The clipboard is the only one of
-    /// the two mechanisms whose transport is the text itself, so those
-    /// applications get that one.
+    /// These were read out of the installed applications and out of the live
+    /// running ones (see `DeliveryMeasurementTests` and the Readme): Citrix
+    /// Workspace ships the Viewer that draws and drives the session
+    /// (`com.citrix.receiver.icaviewer.mac` — measured in front, `active=true`,
+    /// while a session was up), the Workspace UI (`com.citrix.receiver.nomas`) and
+    /// the engine beside them (`com.citrix.HdxRtcEngine`), all three running and
+    /// visible to `NSWorkspace` at once.
+    static let verifiedRemoteClientBundleIdentifiers: Set<String> = [
+        "com.citrix.receiver.icaviewer.mac",  // Citrix Viewer: the session window itself
+        "com.citrix.receiver.nomas",          // Citrix Workspace UI
+        "com.citrix.HdxRtcEngine",            // the engine the client runs beside the session
+        "com.parallels.desktop.console",      // Parallels Desktop
+        "com.apple.ScreenSharing",            // macOS Screen Sharing
+    ]
+
+    /// Vendor prefixes of the same clients' *families*.
     ///
-    /// A bundle identifier that is wrong here costs a momentary clipboard write
-    /// and a paste that carries the same text; it does not cost text. So the
-    /// list is allowed to be generous. The user's `DeliveryPreference` overrides
-    /// it either way.
-    static let hidForwardingHostBundleIDs: Set<String> = [
+    /// A client ships more bundles than anyone can enumerate in advance, and the
+    /// one in front during a session is not predictable from outside it, so a
+    /// prefix is the only way to recognise "some other bundle from a client we
+    /// know". It is **not trusted on its own**, and the reason is written here
+    /// rather than left to the reader:
+    ///
+    /// * an independent judgment put "a prefix rule is safe" at 0.36 — it leans
+    ///   against;
+    /// * a prefix that matches too much costs a clipboard write and a paste into
+    ///   an application that did not need one (an updater, an uninstaller, a
+    ///   helper window), which is exactly the cost this design exists to avoid;
+    /// * a prefix that matches too little leaves the keystroke path in a session,
+    ///   which is the case that is broken.
+    ///
+    /// So a prefix-only match **fails toward the safer behaviour**: it does not
+    /// paste unless the user has asked for it
+    /// (`AppPreferences.shared.pasteIntoRecognisedVendors`), and the delivery
+    /// record says which kind of match it was, so a session that is not being
+    /// reached by a keystroke delivery can be seen in the log instead of guessed
+    /// at. The exact list above is the part that is measured; this is the part
+    /// that is a judgement, and it is labelled as one.
+    static let remoteClientVendorPrefixes: [String] = [
+        // Citrix: Workspace UI, Viewer, helper, session manager, overlay, engine.
+        "com.citrix.",
         // Virtual machines.
-        "com.parallels.desktop.console",     // Parallels Desktop
+        "com.parallels.",                    // Parallels Desktop and its helpers
         "com.vmware.fusion",                 // VMware Fusion
-        "org.virtualbox.app.VirtualBoxVM",   // VirtualBox
-        "com.utmapp.UTM",                    // UTM
+        "org.virtualbox.app.",               // VirtualBox
+        "com.utmapp.",                       // UTM
         "com.apple.qemu",                    // QEMU
-        // Remote desktops and screen sharing, which forward key codes the same
-        // way. The ones with a Unicode channel of their own (RDP, Citrix) would
-        // accept either mechanism; they are not worth a second list.
+        // Remote desktops and screen sharing, which deliver key codes the same
+        // way. The ones with a Unicode channel of their own (RDP, Citrix HDX in
+        // its Unicode mode) would accept either mechanism; they are not worth a
+        // second list.
         "com.apple.ScreenSharing",           // macOS Screen Sharing
-        "com.microsoft.rdc.macos",           // Microsoft Remote Desktop
-        "com.citrix.receiver.icaviewer.mac", // Citrix Workspace
-        "com.p5sys.jump.mac.viewer",         // Jump Desktop
-        "com.p5sys.jump.connect",
-        "com.edovia.screens4.mac",           // Screens
-        "com.edovia.screens.connect",
-        "com.realvnc.vncviewer",             // RealVNC
-        "com.tigervnc.tigervnc",             // TigerVNC
-        "com.teamviewer.TeamViewer",         // TeamViewer
+        "com.microsoft.rdc",                 // Microsoft Remote Desktop
+        "com.p5sys.jump",                    // Jump Desktop
+        "com.edovia.screens",                // Screens
+        "com.realvnc.",                      // RealVNC
+        "com.tigervnc.",                     // TigerVNC
+        "com.teamviewer.",                   // TeamViewer
         "com.philandro.anydesk",             // AnyDesk
-        "com.parsecgaming.parsec",           // Parsec
+        "com.parsecgaming.",                 // Parsec
         "com.carriez.rustdesk",              // RustDesk
         "com.google.chrome.remote_desktop",  // Chrome Remote Desktop
-        "com.nomachine.nxplayer",            // NoMachine
+        "com.nomachine.",                    // NoMachine
     ]
+
+    /// How well the application in front is known to redirect its input.
+    enum TargetMatch: Equatable {
+        /// One of the bundle identifiers measured on this machine.
+        case verifiedClient
+        /// A vendor's family, from a prefix — a judgement, not a measurement.
+        case vendorFamily
+        /// Not a client: a native macOS application, or something unreadable.
+        case notAClient
+    }
+
+    /// What is known about `bundleIdentifier` as a target.
+    static func targetMatch(_ bundleIdentifier: String?) -> TargetMatch {
+        guard let bundleIdentifier else { return .notAClient }
+        if verifiedRemoteClientBundleIdentifiers.contains(bundleIdentifier) { return .verifiedClient }
+        if remoteClientVendorPrefixes.contains(where: { bundleIdentifier.hasPrefix($0) }) { return .vendorFamily }
+        return .notAClient
+    }
+
+    /// Whether an application redirects the input it receives elsewhere, given
+    /// the user's answer on the part of the rule that is a judgement.
+    ///
+    /// Kept for the callers that only need the yes/no — the delivery uses
+    /// `targetMatch` so it can record which kind of match it acted on.
+    static func redirectsInput(_ bundleIdentifier: String,
+                               pasteIntoRecognisedVendors: Bool = AppPreferences.shared.pasteIntoRecognisedVendors) -> Bool {
+        switch targetMatch(bundleIdentifier) {
+        case .verifiedClient: return true
+        case .vendorFamily: return pasteIntoRecognisedVendors
+        case .notAClient: return false
+        }
+    }
 
     /// The bundle identifier of the application a delivery would go to now.
     static func currentFrontmostBundleIdentifier() -> String? {
@@ -212,7 +317,8 @@ enum TextDelivery {
     /// in front.
     static func mechanism(
         preference: DeliveryPreference,
-        frontmostBundleIdentifier: String?
+        frontmostBundleIdentifier: String?,
+        pasteIntoRecognisedVendors: Bool = AppPreferences.shared.pasteIntoRecognisedVendors
     ) -> DeliveryMechanism {
         switch preference {
         case .keystrokes:
@@ -220,10 +326,16 @@ enum TextDelivery {
         case .clipboardPaste:
             return .clipboardPaste
         case .automatic:
-            guard let frontmostBundleIdentifier else { return .keystrokes }
-            return hidForwardingHostBundleIDs.contains(frontmostBundleIdentifier)
-                ? .clipboardPaste
-                : .keystrokes
+            switch targetMatch(frontmostBundleIdentifier) {
+            case .verifiedClient:
+                return .clipboardPaste
+            case .vendorFamily:
+                // The match is a judgement, so it pastes only when the user has
+                // said so; otherwise the target is typed into as before.
+                return pasteIntoRecognisedVendors ? .clipboardPaste : .keystrokes
+            case .notAClient:
+                return .keystrokes
+            }
         }
     }
 
@@ -249,24 +361,34 @@ enum TextDelivery {
         trusted: Bool = KeyboardSimulator.isTrustedForInjection,
         preference: DeliveryPreference = AppPreferences.shared.deliveryPreference,
         frontmostBundleIdentifier: String? = TextDelivery.currentFrontmostBundleIdentifier(),
+        pasteIntoRecognisedVendors: Bool = AppPreferences.shared.pasteIntoRecognisedVendors,
         watch: KeyboardSimulator.DeliveryWatch? = nil,
         pasteboard: NSPasteboard = .general,
         post: (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) }
     ) -> KeyboardSimulator.InjectionResult {
+        let match = targetMatch(frontmostBundleIdentifier)
         let mechanism = mechanism(preference: preference,
-                                  frontmostBundleIdentifier: frontmostBundleIdentifier)
+                                  frontmostBundleIdentifier: frontmostBundleIdentifier,
+                                  pasteIntoRecognisedVendors: pasteIntoRecognisedVendors)
+
+        func described(_ result: KeyboardSimulator.InjectionResult) -> KeyboardSimulator.InjectionResult {
+            var result = result
+            result.targetBundleIdentifier = frontmostBundleIdentifier
+            result.targetMatch = match
+            return result
+        }
 
         guard !text.isEmpty else {
-            return KeyboardSimulator.InjectionResult(trusted: trusted,
-                                                    eventsPosted: 0,
-                                                    mechanism: mechanism)
+            return described(KeyboardSimulator.InjectionResult(trusted: trusted,
+                                                              eventsPosted: 0,
+                                                              mechanism: mechanism))
         }
 
         switch mechanism {
         case .keystrokes:
-            return KeyboardSimulator.typeText(text, trusted: trusted, watch: watch, post: post)
+            return described(KeyboardSimulator.typeText(text, trusted: trusted, watch: watch, post: post))
         case .clipboardPaste:
-            return paste(text, trusted: trusted, watch: watch, pasteboard: pasteboard, post: post)
+            return described(paste(text, trusted: trusted, watch: watch, pasteboard: pasteboard, post: post))
         }
     }
 

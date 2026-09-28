@@ -298,6 +298,22 @@ final class AppPreferences {
         set { deliveryPreferenceRaw = newValue.rawValue }
     }
 
+    /// Whether a *vendor-prefix* match is enough to send a delivery through the
+    /// clipboard.
+    ///
+    /// Defaults to `false`, because that half of the target rule is a judgement
+    /// and an independent reading put it at 0.36: the exact bundle identifiers
+    /// measured on this machine are what pastes on their own, and a bare family
+    /// match only does so when the user says it should. See `TextDelivery`.
+    @UserDefault(key: "pasteIntoRecognisedVendors", defaultValue: false)
+    var pasteIntoRecognisedVendors: Bool
+
+    /// Whether the user has already been told that a dictation went through the
+    /// clipboard. The notice is shown once: after that the Settings control and
+    /// the delivery record carry it. See `IndicatorViewModel.insertText`.
+    @UserDefault(key: "clipboardDeliveryExplained", defaultValue: false)
+    var clipboardDeliveryExplained: Bool
+
     // Tone and clean-up settings
     //
     // The translation feature is gone, and so are the preferences that

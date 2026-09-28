@@ -43,6 +43,17 @@ enum KeyboardSimulator {
         /// caller logs it, so a dictation that arrived wrong can be traced to
         /// the path it took.
         var mechanism: DeliveryMechanism = .keystrokes
+        /// The bundle identifier of the application the delivery was aimed at,
+        /// when the caller can see it. Logged with the rest: which application
+        /// was in front is the first thing a delivery that went wrong has to be
+        /// asked about, and the answer is not recoverable afterwards.
+        var targetBundleIdentifier: String?
+        /// How well that application was known to redirect its input — the
+        /// difference between a bundle identifier measured on this machine and a
+        /// vendor-prefix guess. Logged, because the guess is the weak part of the
+        /// target rule and a session that keeps receiving keystrokes has to be
+        /// visible in the record rather than inferred from a wrong transcript.
+        var targetMatch: TextDelivery.TargetMatch?
 
         /// Whether any keystroke was actually handed to the system.
         var injected: Bool { eventsPosted > 0 }
@@ -172,7 +183,9 @@ enum KeyboardSimulator {
         eventsPosted: Int,
         deliveredCharacters: Int = 0,
         interruptedBy: DeliveryInterruption? = nil,
-        mechanism: DeliveryMechanism? = nil
+        mechanism: DeliveryMechanism? = nil,
+        target: String? = nil,
+        match: TextDelivery.TargetMatch? = nil
     ) {
         log.notice("""
             dictation-injection trusted=\(trusted ? 1 : 0, privacy: .public) \
@@ -181,8 +194,19 @@ enum KeyboardSimulator {
             events=\(eventsPosted, privacy: .public) \
             delivered=\(deliveredCharacters, privacy: .public) \
             interrupted=\(interruptedBy?.description ?? "none", privacy: .public) \
-            mechanism=\(mechanism?.logToken ?? "none", privacy: .public)
+            mechanism=\(mechanism?.logToken ?? "none", privacy: .public) \
+            target=\(target ?? "unknown", privacy: .public) \
+            match=\(match.map(Self.token(for:)) ?? "unknown", privacy: .public)
             """)
+    }
+
+    /// The token the one-line dictation record carries for a target match.
+    static func token(for match: TextDelivery.TargetMatch) -> String {
+        switch match {
+        case .verifiedClient: return "verified-client"
+        case .vendorFamily: return "vendor-family"
+        case .notAClient: return "not-a-client"
+        }
     }
 
     /// Virtual key code for Return.
@@ -190,6 +214,53 @@ enum KeyboardSimulator {
 
     /// Virtual key code for Tab.
     static let tabKeyCode: CGKeyCode = 0x30
+
+    /// A key code the system defines no key for.
+    ///
+    /// Used for a chunk the active layout has no key for. 0x7F is past the end of
+    /// the defined key codes: measured on this machine, an event carrying it
+    /// still delivers its Unicode payload to a local text view, and with the
+    /// Unicode field cleared it reads back as length zero, so nothing derives a
+    /// character from it. A function key would not do: measured the same way, an
+    /// event with F13's key code inserts *nothing* — AppKit treats a function key
+    /// as a function key and ignores the Unicode payload on it.
+    static let unmappedKeyCode: CGKeyCode = 0x7F
+
+    /// The key code a text-carrying event is posted with, for `chunk`.
+    ///
+    /// Key code 0 is not "no key": it is the `A` key on ANSI layouts, and a target
+    /// that rebuilds characters from key codes instead of reading the Unicode
+    /// string types `a` for it. Key code 0 was therefore the worst possible
+    /// choice for a chunk whose text is only in the Unicode field: measured on
+    /// this machine with the app's own events, a Citrix client taps the events,
+    /// reads key codes and modifier flags, and links no Unicode-payload reader at
+    /// all, so every chunk arrived as a key code it read as `a`.
+    ///
+    /// So the key code comes from the active layout, for the chunk's *first*
+    /// character — one event carries up to `maxUTF16PerEvent` characters and can
+    /// only have one key code, so the first character is the honest choice:
+    ///
+    /// * the layout has a key for it (the common case: most Polish text is base
+    ///   letters with diacritics between them) — that key's code;
+    /// * it does not (every one of `ą ć ę ł ń ó ś ź ż` is an Option combination
+    ///   on this machine's layout, and CJK, Cyrillic and emoji have no key at
+    ///   all) — `unmappedKeyCode`, which no target can turn into a character.
+    ///
+    /// The layout's *modifiers* are deliberately not sent with it: they would
+    /// make the event an Option-modified key for every local application (a menu
+    /// key equivalent can match before any text is inserted), and a target that
+    /// re-reads the modifier under its own layout gets a different character
+    /// anyway, which is exactly the per-character-key-code approach that cannot
+    /// work across two unknown layouts.
+    ///
+    /// The Unicode field still carries the whole chunk, so a target that reads
+    /// the field — every native macOS target — is unaffected by this choice.
+    static func keyCode(for chunk: String) -> CGKeyCode {
+        guard let first = chunk.first,
+              let layoutKey = ClipboardUtil.findKeycodeForCharacter(first)
+        else { return unmappedKeyCode }
+        return layoutKey
+    }
 
     /// Types `text` by posting synthetic key events.
     ///
@@ -386,8 +457,9 @@ enum KeyboardSimulator {
         guard let source = CGEventSource(stateID: .combinedSessionState) else { return [] }
 
         let utf16 = Array(chunk.utf16)
-        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
+        let keyCode = keyCode(for: chunk)
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         else { return [] }
 
         // Clear inherited modifier flags so a still-held hotkey cannot turn

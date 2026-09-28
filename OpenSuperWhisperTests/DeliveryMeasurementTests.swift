@@ -20,61 +20,19 @@ import XCTest
 @MainActor
 final class DeliveryMeasurementTests: XCTestCase {
 
-    private static let backupURL = URL(fileURLWithPath: "/tmp/osw-clipboard-measurement-backup.plist")
+    private var savedRecordURL: URL!
 
-    // MARK: - Clipboard capture, kept out of the log
-
-    private struct ClipboardContents {
-        let items: [(type: NSPasteboard.PasteboardType, data: Data)]
-        /// Read with the contents, so a report of the *before* state cannot end
-        /// up quoting a changeCount taken later.
-        let changeCount: Int
-
-        /// Types, byte counts and digests — everything a person needs to see the
-        /// measurement, and nothing of what the user actually had copied.
-        var description: String {
-            let parts = items.map { "\($0.type.rawValue):\(Self.digest($0.data))(\($0.data.count)B)" }
-            return "changeCount=\(changeCount) types=\(items.map(\.type.rawValue)) digests=[\(parts.joined(separator: " "))]"
-        }
-
-        func text() -> String? {
-            items.first { $0.type == .string }.flatMap { String(data: $0.data, encoding: .utf8) }
-        }
-
-        static func digest(_ data: Data) -> String {
-            SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined().prefix(16).description
-        }
+    override func setUp() {
+        super.setUp()
+        savedRecordURL = ClipboardRecovery.recordURL
+        ClipboardRecovery.recordURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("osw-measurement-record-\(UUID().uuidString).plist")
     }
 
-    private func capture(_ pasteboard: NSPasteboard) -> ClipboardContents {
-        let items = (pasteboard.types ?? []).compactMap { type in
-            pasteboard.data(forType: type).map { (type: type, data: $0) }
-        }
-        return ClipboardContents(items: items, changeCount: pasteboard.changeCount)
-    }
-
-    private func putBack(_ contents: ClipboardContents, to pasteboard: NSPasteboard) {
-        pasteboard.clearContents()
-        guard !contents.items.isEmpty else { return }
-        pasteboard.declareTypes(contents.items.map(\.type), owner: nil)
-        for item in contents.items {
-            pasteboard.setData(item.data, forType: item.type)
-        }
-    }
-
-    /// Captures the real clipboard, writes a copy of it to disk as a backup the
-    /// user could restore by hand, and hands the case a restorer that always
-    /// runs. The backup is the belt to `defer`'s braces: a crash inside the case
-    /// still leaves the clipboard recoverable.
-    private func withTheRealClipboardPreserved(_ body: (NSPasteboard, ClipboardContents) throws -> Void) rethrows {
-        let pasteboard = NSPasteboard.general
-        let before = capture(pasteboard)
-        let backup = Dictionary(uniqueKeysWithValues: before.items.map { ($0.type.rawValue, $0.data) })
-        try? (backup as NSDictionary).write(to: Self.backupURL)
-        TestFixtures.report("[clipboard] backup of the real clipboard written to \(Self.backupURL.path) "
-                            + "(\(before.items.count) types)")
-        defer { putBack(before, to: pasteboard) }
-        try body(pasteboard, before)
+    override func tearDown() {
+        ClipboardRecovery.clear()
+        ClipboardRecovery.recordURL = savedRecordURL
+        super.tearDown()
     }
 
     /// Waits until the pasteboard stops holding what was written to it, or the
@@ -94,7 +52,7 @@ final class DeliveryMeasurementTests: XCTestCase {
     /// controlled payload through the app's own paste step, waits out the restore
     /// delay, and compares. Reports both states hashed.
     func testTheRealClipboardComesBackByteIdenticalAfterAPasteRoundTrip() {
-        withTheRealClipboardPreserved { pasteboard, before in
+        TestFixtures.withTheRealClipboardPreserved { pasteboard, before in
             TestFixtures.report("[clipboard] BEFORE          \(before.description)")
 
             // A controlled payload: nothing the user copied is involved.
@@ -102,16 +60,16 @@ final class DeliveryMeasurementTests: XCTestCase {
             var posted: [CGEvent] = []
             ClipboardUtil.insertText(payload, postEvent: { posted.append($0) }, pasteboard: pasteboard)
 
-            let during = capture(pasteboard)
+            let during = TestFixtures.snapshotClipboard(pasteboard)
             TestFixtures.report("[clipboard] DURING THE PASTE \(during.description)")
             XCTAssertEqual(posted.map(\.type), [.keyDown, .keyUp], "the paste step posts a key pair")
-            XCTAssertEqual(during.text(), payload, "the payload is on the clipboard while the paste is being made")
+            XCTAssertEqual(during.text, payload, "the payload is on the clipboard while the paste is being made")
 
             waitForThePasteboardToMove(on: pasteboard.changeCount,
                                        pasteboard,
                                        timeout: ClipboardUtil.clipboardRestoreDelay + 5)
 
-            let after = capture(pasteboard)
+            let after = TestFixtures.snapshotClipboard(pasteboard)
             TestFixtures.report("[clipboard] AFTER RESTORE   \(after.description)")
             XCTAssertEqual(after.items.map(\.type), before.items.map(\.type),
                            "the restore has to bring back the same types")
@@ -123,7 +81,7 @@ final class DeliveryMeasurementTests: XCTestCase {
     /// Does a third party's clipboard write survive the restore? (The guard the
     /// restore is documented to have.)
     func testAClipboardTakenDuringThePasteIsNotOverwrittenByTheRestore() {
-        withTheRealClipboardPreserved { pasteboard, _ in
+        TestFixtures.withTheRealClipboardPreserved { pasteboard, _ in
             let payload = "OpenSuperWhisper interference measurement \(UUID().uuidString)"
             ClipboardUtil.insertText(payload, postEvent: { _ in }, pasteboard: pasteboard)
 
@@ -155,7 +113,7 @@ final class DeliveryMeasurementTests: XCTestCase {
     func testAProcessThatDiesBetweenCopyAndRestoreLeavesTheTranscriptionOnTheClipboard() throws {
         let helper = try Self.buildDeathHelper()
 
-        withTheRealClipboardPreserved { pasteboard, before in
+        TestFixtures.withTheRealClipboardPreserved { pasteboard, before in
             let payload = "OpenSuperWhisper death measurement \(UUID().uuidString)"
             let child = Process()
             child.executableURL = helper
@@ -170,11 +128,11 @@ final class DeliveryMeasurementTests: XCTestCase {
                                 + "\(child.terminationStatus) (9 = SIGKILL), it reported: "
                                 + String(decoding: output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
 
-            let after = capture(pasteboard)
+            let after = TestFixtures.snapshotClipboard(pasteboard)
             TestFixtures.report("[clipboard] AFTER THE DEATH   \(after.description)")
             TestFixtures.report("[clipboard] BEFORE THE DEATH  \(before.description)")
 
-            XCTAssertEqual(after.text(), payload,
+            XCTAssertEqual(after.text, payload,
                            "with the process gone there is nothing to restore, so the transcription stays")
             XCTAssertNotEqual(after.items.map(\.data), before.items.map(\.data),
                               "…and the user's own clipboard contents are gone")
@@ -257,16 +215,14 @@ final class DeliveryMeasurementTests: XCTestCase {
         let identifiers = running.compactMap(\.bundleIdentifier).sorted()
         TestFixtures.report("[target] \(running.count) running applications, bundle identifiers: \(identifiers)")
 
-        let exact = identifiers.filter { TextDelivery.hidForwardingHostBundleIDs.contains($0) }
-        TestFixtures.report("[target] matched by the branch's current exact list: \(exact)")
+        let exact = identifiers.filter { TextDelivery.verifiedRemoteClientBundleIdentifiers.contains($0) }
+        TestFixtures.report("[target] matched by the measured exact list: \(exact)")
 
-        let naiveFamilies = ["com.citrix.", "com.parallels.", "com.vmware.fusion", "org.virtualbox.app.",
-                             "com.utmapp.", "com.apple.qemu", "com.apple.ScreenSharing", "com.microsoft.rdc",
-                             "com.p5sys.jump", "com.edovia.screens", "com.realvnc.", "com.tigervnc.",
-                             "com.teamviewer.", "com.philandro.anydesk", "com.parsecgaming.",
-                             "com.carriez.rustdesk", "com.google.chrome.remote_desktop", "com.nomachine."]
-        let byFamily = identifiers.filter { id in naiveFamilies.contains { id.hasPrefix($0) } }
-        TestFixtures.report("[target] matched by a naive vendor-prefix family filter: \(byFamily)")
+        let byFamily = identifiers.filter { id in
+            TextDelivery.remoteClientVendorPrefixes.contains { id.hasPrefix($0) }
+        }
+        TestFixtures.report("[target] matched by the vendor-prefix family rule (a judgement, not a measurement): "
+                            + "\(byFamily)")
 
         // The Citrix family specifically: the client ships many bundles, and which
         // one is in front during a session is the whole question.
