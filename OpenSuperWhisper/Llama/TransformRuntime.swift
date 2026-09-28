@@ -34,12 +34,13 @@ final class CancellationFlag {
 /// after `idleUnloadInterval` without a request, so the weights it holds are
 /// only resident while the feature is actually in use.
 ///
-/// One model at a time, by design: the transcript keeps the language it was
-/// spoken in, so a dictation runs on the model its job and that language resolve
-/// to (`TransformModelManager.model(for:)`) — and the runtime holds exactly that
-/// one, swapping it (unload, then load) when a dictation needs a different one.
-/// Holding both would cost the 8B's 5.3 GB *and* the 1.5B's 1.1 GB wired for a
-/// switch the user makes between dictations.
+/// One model at a time, by design: a dictation runs on the model its language
+/// resolves to (`TransformModelManager.model(for:)`) — and the runtime holds
+/// exactly that one, swapping it (unload, then load) when a dictation needs a
+/// different one. Holding more than one would cost S1-mini's 0.9 GB *and* the
+/// floor's 1.1 GB wired for a switch the user makes between dictations. Polish
+/// reaches no model at all, so in practice the resident backend is the English
+/// one.
 final class TransformRuntime {
     static let shared = TransformRuntime()
 
@@ -129,15 +130,14 @@ final class TransformRuntime {
     /// app must never hold a multi-gigabyte model for a feature that is off.
     ///
     /// Which language the next dictation will be in cannot be known before the
-    /// speech is in — and the language is what picks the model for clean-up
-    /// alone — so this does not choose a language. It keeps the backend the last
-    /// dictation used (the best predictor there is, and its weights are already
-    /// paid for), and otherwise warms the model the current switches imply,
-    /// resolved through the same `model(for:)` the dictation path uses: **tone
-    /// runs on the larger model in both languages**, so a tone install warms the
-    /// 8B when it is present, and a clean-up-only install warms the shipped
-    /// model every language can run on. Warming the shipped model while tone was
-    /// on is what used to make the first dictation pay the 8B's cold load anyway.
+    /// speech is in, and the language is what picks the model — so this does not
+    /// choose a language. It keeps the backend the last dictation used (the best
+    /// predictor there is, and its weights are already paid for), and otherwise
+    /// warms the model the current switches imply, resolved through the same
+    /// `model(for:)` the dictation path uses. English stands in for the language
+    /// the speech has not revealed, which is the backend almost every dictation
+    /// uses: S1-mini where it is installed, and the shipped floor where it is
+    /// not. A Polish dictation is delivered raw, so nothing is warmed for it.
     func warmUpIfEnabled() {
         let prefs = AppPreferences.shared
         guard prefs.toneEnabled || prefs.cleanUpEnabled else { return }
@@ -151,11 +151,10 @@ final class TransformRuntime {
     /// Which job the warm-up prepares for — the switches only, because no
     /// language is known yet.
     ///
-    /// The register does not matter: a tone rewrite resolves to one model in
-    /// both languages, so `.english` stands in for the language the speech has
-    /// not revealed. Clean-up alone is the one job whose model still depends on
-    /// the language, and the shipped model is what English always uses and what
-    /// Polish falls back to, so that is the floor this warms.
+    /// The register and the job do not matter: every English policy resolves to
+    /// the same model, so `.english` stands in for the language the speech has
+    /// not revealed, and the switches only decide whether anything is warmed at
+    /// all.
     static func warmUpPolicy(toneEnabled: Bool, toneMode: ToneMode) -> TransformPolicy {
         toneEnabled ? .tone(language: .english, tone: toneMode) : .cleanUp(language: .english)
     }
@@ -163,7 +162,7 @@ final class TransformRuntime {
     /// Loads `model`'s weights and runs one throwaway decode, so the first
     /// dictation does not pay for Metal pipeline creation and the weight
     /// mapping. The llama.cpp counterpart of
-    /// `TranscriptionService.prepareForRecording()` — and what hides the 8B's
+    /// `TranscriptionService.prepareForRecording()` — and what hides a model's
     /// ~3.2 s cold load behind the user's own speech.
     ///
     /// A no-op when that model is not installed, and never throws: a failure
@@ -176,7 +175,12 @@ final class TransformRuntime {
             }
             do {
                 let loaded = try loadedModel(for: model)
-                _ = try loaded.complete(systemPrompt: "You are a helpful assistant.", userText: "Hi")
+                _ = try loaded.complete(
+                    systemPrompt: "You are a helpful assistant.",
+                    userText: "Hi",
+                    assistantPrefix: model.style.assistantPrefix,
+                    greedy: model.style.isGreedy
+                )
                 lastUse = Date()
                 scheduleIdleUnload()
                 print("[TransformRuntime] warmed up \(model.id)")
@@ -219,6 +223,12 @@ final class TransformRuntime {
         let output = try loaded.complete(
             systemPrompt: systemPrompt,
             userText: userText,
+            // The model's own input contract, not the app's preference: the
+            // normalizer's assistant turn opens with its empty think block and
+            // its answers are decoded greedily, and an instruct model takes
+            // neither.
+            assistantPrefix: model.style.assistantPrefix,
+            greedy: model.style.isGreedy,
             isCancelled: isCancelled
         )
         lastUse = Date()

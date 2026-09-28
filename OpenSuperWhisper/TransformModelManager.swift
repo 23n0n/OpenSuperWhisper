@@ -25,12 +25,66 @@ enum TransformModelError: Error, LocalizedError {
     }
 }
 
+/// The input contract a backend was trained on.
+///
+/// The catalogue's entries are not interchangeable: the two Qwen models are
+/// instruction followers that take the app's own system instruction and the
+/// dictation, while S1-mini is not one at all — its card states it "is not a
+/// chat model and will not follow general instructions", that it takes one exact
+/// system prompt and a control line, and that rewording either makes it
+/// "hallucinate or produce garbled output". So its prompt is composed by a
+/// different builder (`TransformService.normalizerSystemPrompt` /
+/// `normalizerUserPrompt`) and its answers are decoded greedily.
+enum TransformPromptStyle: Equatable {
+    /// The app's instruction prompt, for an instruct model.
+    case instruction
+    /// Superwhisper S1-mini: the card's exact system prompt, then a control
+    /// line, then the raw transcript, and nothing else.
+    case normalizer
+
+    /// The literal the normalizer's assistant turn has to open with.
+    ///
+    /// The card requires the template be applied with thinking disabled and
+    /// gives the literal that means: the assistant turn, then an empty think
+    /// block — two newlines inside it, two after it. llama.cpp's server does it
+    /// with `--chat-template-kwargs '{"enable_thinking":false}'`, but the C API
+    /// this app drives (`llama_chat_apply_template`, `include/llama.h`) takes no
+    /// template kwargs at all, and the card warns against the two substitutes a
+    /// server offers. So the app writes the block into the prompt string it
+    /// sends, byte for byte, and this is that block.
+    ///
+    /// Built from Unicode scalars, for the same reason
+    /// `TransformService.stripReasoning` builds its tags that way: the source
+    /// then carries no literal angle brackets that an editor or a patch can
+    /// corrupt.
+    var assistantPrefix: String {
+        switch self {
+        case .instruction: return ""
+        case .normalizer: return "\u{3C}think\u{3E}\n\n\u{3C}/think\u{3E}\n\n"
+        }
+    }
+
+    /// Whether this backend's answers are decoded greedily.
+    ///
+    /// The card: "Decode greedily. `generation_config.json` already ships
+    /// `do_sample: false` … If you override the config, use temperature 0." The
+    /// GGUF's own metadata (temp 0.6, top_p 0.95, top_k 20, inherited from
+    /// Qwen3-0.6B) and the app's established chain (top_k 40, top_p 0.95, min_p
+    /// 0.05, temp 0.2) are both wrong for it, so the sampler follows this and
+    /// neither of those.
+    var isGreedy: Bool { self == .normalizer }
+}
+
 /// One downloadable transform model.
 struct TransformModel: Equatable, Identifiable {
     /// The id the built-in runtime loads this entry for. It is the file's stem.
     let id: String
     let displayName: String
     let fileName: String
+    /// The input contract these weights were trained on. It decides how the
+    /// prompt is composed and how the answer is decoded — it is a fact about the
+    /// model, not a preference.
+    let style: TransformPromptStyle
     let downloadURL: URL
     /// Pinned by the repository, and the only place the digest lives: the
     /// download, the install and every later use are all checked against this
@@ -66,47 +120,96 @@ struct TransformModel: Equatable, Identifiable {
 /// is the wrong trade for a menu-bar utility). They live in
 /// `~/Library/Application Support/<bundle id>/transform-models/`, exactly like
 /// the whisper models next door, so uninstalling the app removes them and
-/// reinstalling fetches them again. The catalogue holds the shipped model every
-/// language can run on, plus the larger one every tone rewrite prefers and
-/// Polish clean-up prefers; `model(for:)` is what the runtime asks it for,
-/// because the job is part of the choice.
+/// reinstalling fetches them again. The catalogue holds the English backend
+/// every transform prefers, the floor English falls back to, and the larger
+/// instruction-follower that no longer resolves a job; `model(for:)` is what the
+/// runtime asks it for, because the language is part of the choice.
 final class TransformModelManager {
     static let shared = TransformModelManager()
 
-    /// The model every language can run on, and the one the app ships: English
-    /// always runs on it, and Polish runs on it whenever the optional larger one
-    /// is not installed.
+    /// The floor every language can run on, and the one the app ships: an
+    /// English transform runs on it while S1-mini is not installed, and Polish
+    /// runs on it whenever the optional 8B is not installed.
     static let defaultModelID = "qwen2.5-1.5b-instruct-q4_k_m"
 
-    /// **The preferred** backend: every tone rewrite runs on it in both
-    /// languages when it is installed, and Polish clean-up prefers it. The
-    /// language the shipped 1.5B was measured unreliable on is the tone rewrite:
-    /// it added acknowledgements, preambles and invented nouns to it
-    /// (`fm-20260924-10`), and its 4/15 clean on translation work against this
-    /// model's 11/15 is the earlier measurement that pointed the same way
-    /// (`fm-20260923-24/raw/verdicts.json`; a second scorer called the small
-    /// model 1/15). It is 5×
-    /// the weights and 5× the wired memory, so it is only loaded when a rewrite
-    /// is actually happening — and it is a *preference*: when it is not
-    /// installed, that work runs on the shipped model instead of being refused.
+    /// The English backend: `superwhisper/s1-mini`, a 0.6B text normalizer
+    /// trained for exactly this job — it takes a raw ASR transcript and returns
+    /// clean written text, fillers and false starts resolved, punctuation and
+    /// capitalisation applied, spoken numbers, dates, times, currency and email
+    /// addresses written out. Every English transform runs on it when it is
+    /// installed, on both switches, and the shipped 1.5B does that work while it
+    /// is not: a *preference*, never a requirement.
+    ///
+    /// It is not an instruct model and cannot be given the app's prompt: its
+    /// card states it "is not a chat model and will not follow general
+    /// instructions", and that rewriting the system prompt, dropping the control
+    /// line or sending values outside the trained sets makes it "hallucinate or
+    /// produce garbled output". Hence `TransformPromptStyle.normalizer`, its own
+    /// prompt builder and its own greedy sampler.
+    ///
+    /// One thing the app used to give the English transform that this one cannot
+    /// take: the reference list of names and jargon. The normalizer's input is
+    /// the system prompt, a control line and the transcript, in that order, with
+    /// nothing else — there is no slot for it, and inventing one is what the
+    /// card forbids. The list still rides the prompt of the shipped model.
+    static let normalizerModelID = "s1-mini-q4_k_m"
+
+    /// The Polish backend: **no job since the transform became English-only**
+    /// (`TransformPolicy.resolve` sends a Polish dictation straight to the
+    /// keypad). It is the larger instruction-follower the Polish clean-up and
+    /// every tone rewrite preferred when it was installed, and it is kept in the
+    /// catalogue for two reasons that are both about the user rather than about
+    /// routing: the 5 GB file is already in the app's own directory on a machine
+    /// that has downloaded it, and a catalogue entry is the only thing that can
+    /// show that file — and remove it — from Settings; and Polish's row of
+    /// `model(forSpokenLanguage:)` is the table a flip back reads.
     static let polishOutputModelID = "qwen3-8b-q4_k_m"
 
-    /// The id of the model a dictation in `language` prefers for clean-up alone.
+    /// The id of the model a dictation in `language` prefers.
     ///
     /// Test-facing: it names the preference without consulting the disk, so the
     /// transform path does not read it — the service asks `model(for:)`, which
-    /// resolves the same preference against what is actually installed (and
-    /// which is also where tone's model comes from). It is kept because the
-    /// preference table is pinned through it.
+    /// resolves the same preference against what is actually installed. It is
+    /// kept because the preference table is pinned through it.
     static func modelID(forSpokenLanguage language: TransformLanguage) -> String {
-        language == .polish ? polishOutputModelID : defaultModelID
+        switch language {
+        case .english: return normalizerModelID
+        case .polish: return polishOutputModelID
+        }
     }
 
+    /// The catalogue, in the order Settings lists it: the English backend, the
+    /// floor every language can run on, then the larger instruction-follower no
+    /// job resolves to any more.
     static let availableModels: [TransformModel] = [
+        TransformModel(
+            id: "s1-mini-q4_k_m",
+            displayName: "S1-mini by Superwhisper (Q4_K_M)",
+            fileName: "s1-mini-q4_k_m.gguf",
+            style: .normalizer,
+            downloadURL: URL(string: "https://huggingface.co/superwhisper/s1-mini-GGUF/resolve/main/s1-mini-q4_k_m.gguf")!,
+            sha256: "3b41ebe2502cbd03e811d5d16b022f5ab551eda58d62597d152f89535003c634",
+            sizeBytes: 484_219_808,
+            // The engine's own breakdown for these weights at this app's
+            // 4096-token context, every layer on the GPU (llama.cpp's
+            // `common_memory_breakdown_print`): 456 MiB weights + 448 MiB KV +
+            // 50 MiB compute = 954 MiB. A wired step was not measurable in
+            // process on this machine — the suite's instrument reported 0.00 GB
+            // across the load — so this is the engine's accounting rather than
+            // the wired figure the other two entries carry.
+            memoryBytes: 1_000_341_504,
+            // Apache-2.0 with one additional term, quoted in the report this
+            // entry was added from: any use "must continue to identify it by its
+            // original name, \"S1-mini\" by \"Superwhisper\", using that exact
+            // capitalization". The display name is where this app does that.
+            licence: "Apache-2.0 plus a naming clause: it keeps the name \"S1-mini\" by \"Superwhisper\"",
+            source: "superwhisper/s1-mini-GGUF on Hugging Face"
+        ),
         TransformModel(
             id: "qwen2.5-1.5b-instruct-q4_k_m",
             displayName: "Qwen2.5 1.5B Instruct (Q4_K_M)",
             fileName: "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+            style: .instruction,
             downloadURL: URL(string: "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf")!,
             sha256: "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370",
             sizeBytes: 986_048_768,
@@ -119,6 +222,7 @@ final class TransformModelManager {
             id: "qwen3-8b-q4_k_m",
             displayName: "Qwen3 8B (Q4_K_M)",
             fileName: "qwen3-8b-q4_k_m.gguf",
+            style: .instruction,
             downloadURL: URL(string: "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf")!,
             sha256: "d98cdcbd03e17ce47681435b5150e34c1417f50b5c0019dd560e4882c5745785",
             sizeBytes: 5_027_783_488,
@@ -174,51 +278,66 @@ final class TransformModelManager {
         catalogue.first { $0.id == Self.defaultModelID } ?? catalogue[0]
     }
 
-    /// The optional larger backend Polish prefers.
+    /// The English backend: the normalizer every English transform runs on when
+    /// it is installed.
+    var normalizerModel: TransformModel {
+        catalogue.first { $0.id == Self.normalizerModelID } ?? defaultModel
+    }
+
+    /// Whether the English backend is installed and its bytes verified. False is
+    /// a normal state, not a problem: the English work then runs on
+    /// `defaultModel` and nothing is refused.
+    var isNormalizerInstalled: Bool {
+        verifiedPath(for: normalizerModel) != nil
+    }
+
+    /// The optional larger instruction-follower. It resolves no job any more —
+    /// see `polishOutputModelID` — and its installed state is what the card
+    /// reports about the file on disk.
     var polishModel: TransformModel {
         catalogue.first { $0.id == Self.polishOutputModelID } ?? defaultModel
     }
 
-    /// Whether the optional Polish backend is installed and its bytes verified.
-    /// False is a normal state, not a problem: Polish work then runs on
-    /// `defaultModel` and nothing is refused.
+    /// Whether the larger instruction-follower is installed and its bytes
+    /// verified.
     var isPolishModelInstalled: Bool {
         verifiedPath(for: polishModel) != nil
     }
 
-    /// The backend **clean-up alone** runs on for a dictation in `language`.
+    /// The backend a dictation in `language` runs on — the transform's one
+    /// language-based choice.
     ///
     /// A **preference**, resolved from the catalogue and from what is on disk:
-    /// Polish prefers the larger model for grammar repair and uses the shipped
-    /// one when that is not installed, and English always uses the shipped one.
-    /// Tone is a different job and does not come through here — it prefers the
-    /// larger model in both languages, which is `model(for:)`. Nothing is
-    /// refused for a missing optional model, and nothing is substituted
-    /// silently — the caller is handed the model it will really run on, so
-    /// Settings can say so.
-    func model(forSpokenLanguage language: TransformLanguage) -> TransformModel {
-        guard language == .polish else { return defaultModel }
-        return isPolishModelInstalled ? polishModel : defaultModel
-    }
-
-    /// The backend a *policy* runs on.
+    /// English prefers S1-mini and uses the shipped 1.5B while it is not
+    /// installed. Nothing is refused for a missing optional model, and nothing
+    /// is substituted silently — the caller is handed the model it will really
+    /// run on, so Settings can say so.
     ///
-    /// A tone rewrite is a different job from grammar repair: it is the one that
-    /// has to hold content still while it moves the register, and the shipped
-    /// 1.5B was measured adding acknowledgements, preambles and invented nouns
-    /// to it (`fm-20260924-10`). So tone — `.tone` and `.cleanUpWithTone`, in
-    /// *both* languages — runs on the larger model whenever it is installed and
-    /// on the shipped model when it is not; clean-up alone keeps the
-    /// language-based preference, because repairing grammar does not need the
-    /// larger model. Nothing is refused, and the caller is handed the model that
-    /// will really run, so Settings can say which.
-    func model(for policy: TransformPolicy) -> TransformModel {
-        switch policy {
-        case .cleanUp(let language):
-            return model(forSpokenLanguage: language)
-        case .tone, .cleanUpWithTone:
+    /// Polish's row is kept whole (the 8B when it is installed, the shipped
+    /// model otherwise) although no Polish dictation reaches a model any more:
+    /// that is the table a flip back reads, and the change that made the
+    /// transform English-only was required to leave Polish exactly as it was.
+    func model(forSpokenLanguage language: TransformLanguage) -> TransformModel {
+        switch language {
+        case .english:
+            return isNormalizerInstalled ? normalizerModel : defaultModel
+        case .polish:
             return isPolishModelInstalled ? polishModel : defaultModel
         }
+    }
+
+    /// The backend a *policy* runs on: the **language** decides and the job does
+    /// not.
+    ///
+    /// The job used to decide — a tone rewrite took the larger instruction-follower
+    /// in both languages, clean-up alone stayed on the language's own preference.
+    /// Since the transform is English-only and English has one backend, both jobs
+    /// resolve the same way, which leaves this function a single honest line: the
+    /// policy carries the language, and the language carries the model. Nothing is
+    /// refused, and the caller is handed the model that will really run, so
+    /// Settings can say which.
+    func model(for policy: TransformPolicy) -> TransformModel {
+        model(forSpokenLanguage: policy.language)
     }
 
     func fileURL(for model: TransformModel) -> URL {

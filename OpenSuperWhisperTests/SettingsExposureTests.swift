@@ -44,18 +44,21 @@ final class SettingsExposureTests: XCTestCase {
     /// catalogue entries (same ids, same shape, bytes instead of gigabytes), so
     /// what the card says is decided by this test's staging and nothing here
     /// touches the user's Application Support.
-    private func card() throws -> (SettingsViewModel, TransformModelManager, URL, TransformModel, TransformModel) {
+    private func card() throws -> (SettingsViewModel, TransformModelManager, URL, TransformModel, TransformModel,
+                                   TransformModel) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("osw-card-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         let payload = Data(repeating: 0x5A, count: 512)
         let digest = SHA256.hash(data: payload).map { String(format: "%02x", $0) }.joined()
-        func entry(_ id: String, _ name: String, _ file: String) -> TransformModel {
+        func entry(_ id: String, _ name: String, _ file: String,
+                   style: TransformPromptStyle) -> TransformModel {
             TransformModel(
                 id: id,
                 displayName: name,
                 fileName: file,
+                style: style,
                 downloadURL: URL(string: "https://example.invalid/\(file)")!,
                 sha256: digest,
                 sizeBytes: Int64(payload.count),
@@ -64,12 +67,17 @@ final class SettingsExposureTests: XCTestCase {
                 source: "test"
             )
         }
-        let shipped = entry(TransformModelManager.defaultModelID, "Shipped Test Model", "shipped.gguf")
-        let eightBee = entry(TransformModelManager.polishOutputModelID, "Eight Bee Test Model", "8b.gguf")
+        let shipped = entry(TransformModelManager.defaultModelID, "Shipped Test Model", "shipped.gguf",
+                            style: .instruction)
+        let eightBee = entry(TransformModelManager.polishOutputModelID, "Eight Bee Test Model", "8b.gguf",
+                             style: .instruction)
+        let normalizer = entry(TransformModelManager.normalizerModelID, "S1-mini Test Model", "s1-mini.gguf",
+                               style: .normalizer)
 
-        let manager = TransformModelManager(directory: directory, catalogue: [shipped, eightBee])
+        let manager = TransformModelManager(directory: directory,
+                                           catalogue: [normalizer, shipped, eightBee])
         let model = SettingsViewModel(transformModelManager: manager)
-        return (model, manager, directory, shipped, eightBee)
+        return (model, manager, directory, shipped, eightBee, normalizer)
     }
 
     /// Stages `model`'s bytes in the manager's own directory, so the card's
@@ -81,81 +89,89 @@ final class SettingsExposureTests: XCTestCase {
         try manager.install(fileAt: source, model: model)
     }
 
-    /// The card says which model each language uses — and states, rather than
-    /// warns, that Polish runs on the shipped model while the optional 8B is not
-    /// installed. Nothing is refused for a missing 8B.
+    /// The card says which model the work uses — and states, rather than warns,
+    /// that English runs on the floor while S1-mini is not installed, and that a
+    /// Polish dictation is delivered as transcribed. Nothing is refused for a
+    /// missing optional model.
     ///
     /// What is asserted is the model the card is built from: `model(for:)` is
     /// what the description reads, so pinning the resolution pins the claim
     /// without pinning the sentence that carries it.
-    func testTheCardSaysWhichModelEachLanguageUses() throws {
-        let (model, manager, directory, shipped, eightBee) = try card()
+    func testTheCardSaysWhichModelTheEnglishWorkUses() throws {
+        let (model, manager, directory, shipped, eightBee, _) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         model.installedTransformModelIDs = [shipped.id]
 
         let description = model.transformLanguageModelDescription
-        XCTAssertTrue(description.contains("Polish runs on \(shipped.displayName)"), description)
-        XCTAssertTrue(description.contains("English runs on \(shipped.displayName)"), description)
-        XCTAssertTrue(description.contains("The 8B is not installed"), description)
+        XCTAssertTrue(description.contains("runs on \(shipped.displayName)"), description)
+        XCTAssertTrue(description.contains("Polish dictation is delivered as transcribed"), description)
+        XCTAssertTrue(description.contains("S1-mini is not installed"), description)
         XCTAssertTrue(description.contains("nothing is refused"), description)
-        // Tone runs on the shipped model for both languages while the 8B is
-        // absent — the resolution behind the card's sentence.
+        // English falls back to the floor for every job while S1-mini is absent
+        // — the resolution behind the card's sentence.
         XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .neutral)).id, shipped.id)
-        XCTAssertEqual(manager.model(for: .tone(language: .polish, tone: .neutral)).id, shipped.id)
+        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, shipped.id)
 
-        // The shipped model is the only requirement; the 8B is never a warning.
+        // The floor is the only requirement; neither optional model is a warning.
         XCTAssertNil(model.transformMissingNotice(for: eightBee),
                      "a missing optional model is not a problem: \(model.transformModelRoleDescription(eightBee))")
         XCTAssertNil(model.transformMissingNotice(for: shipped), "the shipped model is installed here")
     }
 
-    /// With the 8B installed the card says Polish runs on it — and the shipped
-    /// model still serves English. The tone routing is asserted against the
-    /// resolution, not against the sentence.
-    func testWithTheEightBeeInstalledPolishRunsOnIt() throws {
-        let (model, manager, directory, shipped, eightBee) = try card()
+    /// With the English backend installed every English job runs on it — tone and
+    /// clean-up alike — and the card says so.
+    func testWithTheEnglishBackendInstalledEveryEnglishJobRunsOnIt() throws {
+        let (model, manager, directory, shipped, _, normalizer) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        try stage(eightBee, in: manager, directory: directory)
-        model.installedTransformModelIDs = [shipped.id, eightBee.id]
+        try stage(normalizer, in: manager, directory: directory)
+        model.installedTransformModelIDs = [shipped.id, normalizer.id]
 
         let description = model.transformLanguageModelDescription
-        XCTAssertTrue(description.contains("Polish runs on \(eightBee.displayName)"), description)
-        XCTAssertTrue(description.contains("The 8B is installed"), description)
-        XCTAssertTrue(description.contains("English runs on \(shipped.displayName)"), description)
-        // A tone rewrite runs on the 8B in both languages, not only in Polish.
-        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .neutral)).id, eightBee.id)
-        XCTAssertEqual(manager.model(for: .tone(language: .polish, tone: .neutral)).id, eightBee.id)
+        XCTAssertTrue(description.contains("runs on \(normalizer.displayName)"), description)
+        XCTAssertTrue(description.contains("S1-mini is installed"), description)
+        TestFixtures.report("[settings] the card with the English backend installed: \(description)")
+
+        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .neutral)).id, normalizer.id)
+        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, normalizer.id)
+        XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .casual)).id, normalizer.id)
     }
 
-    /// The shipped model missing is the one real problem: it is the model every
-    /// language runs on, and the card says what waits for it.
-    func testTheShippedModelMissingIsTheOnlyWarning() throws {
-        let (model, _, directory, shipped, _) = try card()
+    /// The floor missing is the one real problem: it is what every English
+    /// transform falls back to while S1-mini is absent, and the card says what
+    /// waits for it.
+    func testTheFloorMissingIsTheOnlyWarning() throws {
+        let (model, _, directory, shipped, _, _) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         model.installedTransformModelIDs = []
         let notice = try XCTUnwrap(model.transformMissingNotice(for: shipped))
-        XCTAssertTrue(notice.contains("every language runs on"), notice)
-        XCTAssertTrue(notice.contains("8B is optional"), notice)
+        XCTAssertTrue(notice.contains("every English transform falls back to"), notice)
+        XCTAssertTrue(notice.contains("S1-mini is optional"), notice)
+        TestFixtures.report("[settings] the floor missing: \(notice)")
     }
 
-    /// Every row states what its model costs before it is paid, and the routing
-    /// its role sentence describes is asserted as the resolution itself — the
-    /// sentence cannot fail, the routing can.
-    func testEachRowStatesItsLanguagesAndItsCost() throws {
-        let (model, _, directory, shipped, eightBee) = try card()
+    /// Every row states its job and what its model costs before it is paid, and
+    /// the routing its role sentence describes is asserted as the resolution
+    /// itself — the sentence cannot fail, the routing can.
+    func testEachRowStatesItsJobAndItsCost() throws {
+        let (model, _, directory, shipped, eightBee, normalizer) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        XCTAssertTrue(model.transformModelRoleDescription(shipped).contains("English clean-up always"),
+        XCTAssertTrue(model.transformModelRoleDescription(normalizer).contains("Every English transform"),
+                      model.transformModelRoleDescription(normalizer))
+        XCTAssertTrue(model.transformModelRoleDescription(shipped).contains("The floor"),
                       model.transformModelRoleDescription(shipped))
+        XCTAssertTrue(model.transformModelRoleDescription(eightBee).contains("No job"),
+                      "the row whose model resolves nothing has to say so: "
+                          + model.transformModelRoleDescription(eightBee))
         XCTAssertEqual(model.transformModelManager.model(for: .tone(language: .english, tone: .casual)).id,
-                       shipped.id, "without the 8B installed, tone runs on the shipped model")
+                       shipped.id, "without S1-mini installed, tone runs on the floor")
         XCTAssertEqual(model.transformModelManager.model(for: .cleanUp(language: .english)).id, shipped.id,
-                       "English clean-up is the job that never moves off the shipped model")
+                       "and so does clean-up")
 
-        for entry in [shipped, eightBee] {
+        for entry in [normalizer, shipped, eightBee] {
             let state = model.transformModelStateDescription(entry)
             XCTAssertTrue(state.hasPrefix("Not downloaded"), state)
             XCTAssertTrue(state.contains(entry.memoryDescription), state)

@@ -3,15 +3,15 @@ import Foundation
 import XCTest
 @testable import OpenSuperWhisper
 
-/// The transform, driven against real weights, in both languages.
+/// The transform, driven against real weights.
 ///
 /// Skipped when this machine does not have the files, exactly like
 /// `LlamaRuntimeIntegrationTests`: CI stays hermetic, and a machine that has
-/// them proves the product's one promise — **the transcript keeps the language
-/// it was spoken in** — that Polish prefers the 8B when it is installed and runs
-/// on the shipped 1.5B when it is not, that nothing is refused for a missing
-/// optional model, that both switches off is zero model calls, and what the 8B
-/// costs in wired memory and first-utterance latency.
+/// them proves the product's promise — **English dictation is transformed, and
+/// every other language is delivered as it was transcribed** — that English runs
+/// on S1-mini through the app's own prompt when it is installed and on the
+/// shipped 1.5B when it is not, that a Polish dictation never reaches a model at
+/// all, and what the English backend costs in wired memory and warm-up latency.
 ///
 /// The weights are hard-linked into a staging directory, so nothing here copies
 /// 5 GB and nothing here can write to the files in `~/models`.
@@ -20,6 +20,7 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
     private static var home: URL { FileManager.default.homeDirectoryForCurrentUser }
     private static var smallWeights: URL { home.appendingPathComponent("models/qwen2.5-1.5b-instruct-q4_k_m.gguf") }
     private static var polishWeights: URL { home.appendingPathComponent("models/Qwen3-8B-Q4_K_M.gguf") }
+    private static var normalizerWeights: URL { home.appendingPathComponent("models/s1-mini-q4_k_m.gguf") }
 
     private var directory: URL!
     private var manager: TransformModelManager!
@@ -66,6 +67,11 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         return Self.polishWeights
     }
 
+    private func stagedNormalizerWeights() throws -> URL {
+        try stage(manager.normalizerModel, from: Self.normalizerWeights)
+        return Self.normalizerWeights
+    }
+
     /// A `TransformService` whose built-in runtime is this test's runtime — the
     /// production wiring, pointing at staged weights instead of the user's
     /// Application Support. `calls` records every model call the service makes.
@@ -90,10 +96,6 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
             modelForPolicy: { self.manager.model(for: $0) },
             gateSettings: { settings }
         )
-    }
-
-    private func hasPolishDiacritics(_ text: String) -> Bool {
-        text.rangeOfCharacter(from: CharacterSet(charactersIn: "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")) != nil
     }
 
     /// The system's wired page count. The instrument `fm-20260923-24` validated
@@ -129,71 +131,82 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
 
     // MARK: - The contract, end to end, against real weights
 
-    /// Polish in, Polish out — and English in, English out. The output is judged
-    /// by the app's own detector, which is the same signal the gate acts on: if
-    /// it no longer reads as the language that was spoken, the product's one
-    /// promise is broken.
-    func testPolishStaysPolishAndEnglishStaysEnglish() async throws {
-        try shippedWeights()
-        try polishWeights()
+    /// **English in, English out, through the app's own prompt**: the card's
+    /// input format, composed by `TransformService`, run on the real weights by
+    /// the real runtime, with the answer judged by the app's own detector.
+    ///
+    /// The dictation is the kind the model was built for — fillers, a repeated
+    /// word, and a self-correction the speaker resolved — and the assertions are
+    /// the properties the card promises: the answer is English, it carries what
+    /// was said, and the fillers are gone. The raw input and output are reported
+    /// so a drift in quality is visible instead of hidden behind a green run.
+    func testEnglishRunsOnTheNormalizerThroughTheRealWeights() async throws {
+        _ = try stagedNormalizerWeights()
 
-        // A tone has to have something to do: this is *casual* Polish asked for a
-        // *formal* register. (An already-formal sentence made this case vacuous —
-        // the 8B returned it byte for byte, and the case could not tell that from
-        // a rewrite that happened to match.)
-        let polishInput = "no hej, sluchaj, musimy przelozyc to spotkanie z klientem na przyszly tydzien, ok?"
-        let englishInput = "Please send the report to the client today, and copy me on the reply."
-
-        // Polish → Polish, tone on: the register is rewritten, the language is
-        // not.
-        let polishCalls = CallCounter()
-        let polishService = service(
-            settings: GateSettings(tone: true, cleanUp: false, toneMode: .formal),
-            calls: polishCalls
-        )
-        let polishStart = Date()
-        let polishOutcome = await polishService.transformDetailed(polishInput, sourceLanguage: "pl")
-        TestFixtures.report("[same-language] pl→pl: model \(polishCalls.models.joined(separator: ", ")) "
-                    + "| policy \(polishOutcome.policy?.summary ?? "none") | didRunModel \(polishOutcome.didRunModel) "
-                    + "| \(seconds(Date().timeIntervalSince(polishStart)))")
-        TestFixtures.report("[same-language] pl→pl input:  \(polishInput)")
-        TestFixtures.report("[same-language] pl→pl output: \(polishOutcome.text)")
-
-        XCTAssertTrue(polishOutcome.didRunModel, "the model must have answered")
-        XCTAssertEqual(polishOutcome.policy, .tone(language: .polish, tone: .formal))
-        XCTAssertEqual(LanguageDetector.detect(polishOutcome.text), .polish,
-                       "Polish in must be Polish out: \(polishOutcome.text)")
-        XCTAssertNotEqual(polishOutcome.text, polishInput, "the tone switch has to rewrite something")
-        XCTAssertNotNil(
-            polishOutcome.text.range(of: "spotkanie"),
-            "the rewrite keeps what was said: \(polishOutcome.text)"
+        let input = "so um i need to like send the the report by uh friday no wait make that thursday"
+        let calls = CallCounter()
+        let subject = service(
+            settings: GateSettings(tone: true, cleanUp: true, toneMode: .neutral),
+            calls: calls
         )
 
-        // English → English, tone on: the same rule, the other language.
-        let englishCalls = CallCounter()
-        let englishService = service(
-            settings: GateSettings(tone: true, cleanUp: false, toneMode: .casual),
-            calls: englishCalls
-        )
-        let englishOutcome = await englishService.transformDetailed(englishInput, sourceLanguage: "en")
-        TestFixtures.report("[same-language] en→en: model \(englishCalls.models.joined(separator: ", ")) "
-                    + "| policy \(englishOutcome.policy?.summary ?? "none") | didRunModel \(englishOutcome.didRunModel)")
-        TestFixtures.report("[same-language] en→en input:  \(englishInput)")
-        TestFixtures.report("[same-language] en→en output: \(englishOutcome.text)")
+        let started = Date()
+        let outcome = await subject.transformDetailed(input, sourceLanguage: "en")
+        TestFixtures.report("[s1-mini] model \(calls.models.joined(separator: ", ")) "
+                    + "| policy \(outcome.policy?.summary ?? "none") | didRunModel \(outcome.didRunModel) "
+                    + "| \(seconds(Date().timeIntervalSince(started)))")
+        TestFixtures.report("[s1-mini] input:  \(input)")
+        TestFixtures.report("[s1-mini] output: \(outcome.text)")
 
-        XCTAssertTrue(englishOutcome.didRunModel)
-        XCTAssertEqual(englishOutcome.policy, .tone(language: .english, tone: .casual))
-        XCTAssertEqual(LanguageDetector.detect(englishOutcome.text), .english,
-                       "English in must be English out: \(englishOutcome.text)")
-        XCTAssertFalse(hasPolishDiacritics(englishOutcome.text),
-                       "English output must not come back Polish: \(englishOutcome.text)")
+        XCTAssertEqual(calls.models, [TransformModelManager.normalizerModelID],
+                       "English runs on the normalizer once it is installed")
+        XCTAssertTrue(outcome.didRunModel)
+        XCTAssertFalse(outcome.text.isEmpty, "the model produced nothing")
+        XCTAssertNil(outcome.guardRejection, "a legitimate normalizer answer must survive the guard")
+        XCTAssertFalse(outcome.text.contains("<|im_start|>"),
+                       "the chat template must not leak into the answer: \(outcome.text)")
+        XCTAssertFalse(outcome.text.lowercased().contains("think"),
+                       "the empty think block belongs to the prompt, not the answer: \(outcome.text)")
+        XCTAssertEqual(LanguageDetector.detect(outcome.text), .english,
+                       "English in must be English out: \(outcome.text)")
+        XCTAssertNotNil(outcome.text.range(of: "thursday", options: .caseInsensitive),
+                        "the self-correction must resolve to what the speaker landed on: \(outcome.text)")
+        XCTAssertFalse(outcome.text.lowercased().contains("the the"),
+                       "the repeated word is the model's job: \(outcome.text)")
     }
 
-    /// The clean-up switch alone: the same language, repaired rather than
-    /// re-registered — and it is one call, in the spoken language.
-    func testCleanUpAloneRepairsTheDictationInItsOwnLanguage() async throws {
-        try shippedWeights()
+    /// **Polish is delivered as it was transcribed.** No prompt, no policy, no
+    /// model call, no weights loaded — with every model installed and whatever
+    /// the switches say.
+    func testPolishIsDeliveredAsTranscribedWithNoModelCall() async throws {
+        _ = try stagedNormalizerWeights()
+        try polishWeights()
 
+        let input = "no hej, sluchaj, musimy przelozyc to spotkanie z klientem na przyszly tydzien, ok?"
+        let settingses = [
+            GateSettings(tone: true, cleanUp: false, toneMode: .formal),
+            GateSettings(tone: false, cleanUp: true, toneMode: .neutral),
+            GateSettings(tone: true, cleanUp: true, toneMode: .casual),
+        ]
+        for settings in settingses {
+            let calls = CallCounter()
+            let subject = service(settings: settings, calls: calls)
+
+            let outcome = await subject.transformDetailed(input, sourceLanguage: "pl")
+
+            XCTAssertEqual(outcome.text, input, "the transcript is delivered unchanged")
+            XCTAssertNil(outcome.policy, "Polish has no policy: the transform is English-only")
+            XCTAssertFalse(outcome.didRunModel)
+            XCTAssertEqual(calls.calls, 0, "no model may be asked for a Polish dictation")
+            XCTAssertNil(runtime.loadedModelID, "and no weights may be loaded for it")
+            TestFixtures.report("[s1-mini] Polish, tone \(settings.tone) / clean-up \(settings.cleanUp): "
+                        + "policy none, calls \(calls.calls), text unchanged \(outcome.text == input)")
+        }
+    }
+
+    /// The engine reported no language, so the app's own detector places the
+    /// text — and Polish it places is delivered raw just the same.
+    func testPolishTheDetectorPlacesIsAlsoDeliveredRaw() async throws {
         let input = "no więc ja myślę że trzeba wysłać ten raport do klienta jutro rano"
         let calls = CallCounter()
         let subject = service(
@@ -201,20 +214,59 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
             calls: calls
         )
 
-        let outcome = await subject.transformDetailed(input, sourceLanguage: "pl")
-        TestFixtures.report("[same-language] pl clean-up: model \(calls.models.joined(separator: ", ")) "
-                    + "| didRunModel \(outcome.didRunModel)")
-        TestFixtures.report("[same-language] pl clean-up output: \(outcome.text)")
+        let outcome = await subject.transformDetailed(input, sourceLanguage: nil)
+        TestFixtures.report("[s1-mini] Polish with no engine language: policy "
+                    + "\(outcome.policy.map(String.init(describing:)) ?? "none"), calls \(calls.calls)")
 
-        XCTAssertTrue(outcome.didRunModel)
-        XCTAssertEqual(outcome.policy, .cleanUp(language: .polish))
-        XCTAssertNotEqual(outcome.text, input, "the clean-up call exists to repair the dictation")
-        XCTAssertNotNil(outcome.text.range(of: "raport"),
-                        "the repair keeps what was said: \(outcome.text)")
-        XCTAssertEqual(LanguageDetector.detect(outcome.text), .polish,
-                       "the clean-up may not change the language: \(outcome.text)")
+        XCTAssertNil(outcome.policy, "the detector's Polish is not transformed either")
+        XCTAssertEqual(outcome.text, input)
+        XCTAssertEqual(calls.calls, 0)
+    }
+
+    /// English clean-up and tone still run on the **floor** while S1-mini is not
+    /// installed — the app's own instruction prompt, the shipped 1.5B, and no
+    /// refusal for the missing optional model.
+    func testEnglishStillRunsOnTheShippedFloorWithoutTheNormalizer() async throws {
+        try shippedWeights()
+        XCTAssertFalse(manager.isNormalizerInstalled, "precondition: only the floor is staged")
+
+        let input = "please send the report to the client today and copy me on the reply"
+        let calls = CallCounter()
+        let subject = service(
+            settings: GateSettings(tone: false, cleanUp: true, toneMode: .neutral),
+            calls: calls
+        )
+
+        let outcome = await subject.transformDetailed(input, sourceLanguage: "en")
+        TestFixtures.report("[s1-mini] English on the floor: model \(calls.models.joined(separator: ", ")) "
+                    + "| didRunModel \(outcome.didRunModel) | output \(outcome.text)")
+
         XCTAssertEqual(calls.models, [TransformModelManager.defaultModelID],
-                       "Polish without the 8B installed runs on the shipped model")
+                       "English falls back to the floor for a missing optional model")
+        XCTAssertTrue(outcome.didRunModel, "and nothing is refused")
+        XCTAssertEqual(outcome.policy, .cleanUp(language: .english))
+        XCTAssertFalse(outcome.text.isEmpty)
+    }
+
+    /// Nothing installed is the one case where English cannot be transformed: the
+    /// transcript is still delivered, the attempt is reported, and nothing
+    /// pretends to have run.
+    func testNothingInstalledStillDeliversTheTranscript() async throws {
+        let calls = CallCounter()
+        let subject = service(
+            settings: GateSettings(tone: true, cleanUp: true, toneMode: .formal),
+            calls: calls
+        )
+        let input = "Please send the report to the client today."
+
+        let outcome = await subject.transformDetailed(input, sourceLanguage: "en")
+
+        XCTAssertEqual(outcome.text, input)
+        XCTAssertFalse(outcome.didRunModel)
+        XCTAssertEqual(calls.models, [TransformModelManager.defaultModelID],
+                       "the model it would have used is what is attempted")
+        TestFixtures.report("[s1-mini] no weights staged: delivered the raw transcript, "
+                    + "didRunModel \(outcome.didRunModel)")
     }
 
     /// Both switches off: zero model calls, the transcript bit-for-bit what the
@@ -242,96 +294,84 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         XCTAssertNil(runtime.loadedModelID, "nothing may be loaded for a dictation that asked for nothing")
     }
 
-    /// The 8B is a preference, not a requirement: with only the shipped model
-    /// installed, Polish work runs on it, says so, and is not refused.
+    /// The card says which model the English work runs on — the floor while
+    /// S1-mini is missing, S1-mini once it is installed — and that a Polish
+    /// dictation is not transformed at all.
     @MainActor
-    func testPolishWithoutTheEightBeeRunsOnTheShippedModelAndSaysSo() async throws {
+    func testTheCardSaysWhichModelTheEnglishWorkRunsOn() async throws {
         try shippedWeights()
-        XCTAssertFalse(manager.isPolishModelInstalled, "precondition: only the shipped model is staged")
+        XCTAssertFalse(manager.isNormalizerInstalled, "precondition: only the floor is staged")
 
-        let resolved = manager.model(forSpokenLanguage: .polish)
-        XCTAssertEqual(resolved.id, TransformModelManager.defaultModelID,
-                       "Polish falls back to the shipped model rather than refusing")
-
-        let calls = CallCounter()
-        let subject = service(
-            settings: GateSettings(tone: true, cleanUp: false, toneMode: .formal),
-            calls: calls
-        )
-        let outcome = await subject.transformDetailed("Cześć, jak się masz dzisiaj rano?", sourceLanguage: "pl")
-
-        TestFixtures.report("[same-language] Polish without the 8B: model \(calls.models.joined(separator: ", ")) "
-                    + "| didRunModel \(outcome.didRunModel) | output \(outcome.text)")
-
-        XCTAssertEqual(calls.models, [TransformModelManager.defaultModelID])
-        XCTAssertTrue(outcome.didRunModel, "Polish must not be refused for a missing optional model")
-        XCTAssertTrue(LanguageDetector.detect(outcome.text) == .polish,
-                      "the shipped model writes Polish too: \(outcome.text)")
-
-        // And the card says which model Polish uses and whether the 8B is there.
         let card = SettingsViewModel(transformModelManager: manager)
-        card.installedTransformModelIDs = [TransformModelManager.defaultModelID]
-        let description = card.transformLanguageModelDescription
-        TestFixtures.report("[same-language] card: \(description)")
-        XCTAssertTrue(description.contains("Polish runs on \(manager.defaultModel.displayName)"), description)
-        XCTAssertTrue(description.contains("The 8B is not installed"), description)
+        card.refreshTransformModelState()
+        try await waitForInstalledCount(of: card, toBe: 1)
+
+        let without = card.transformLanguageModelDescription
+        TestFixtures.report("[s1-mini] card without the English backend: \(without)")
+        XCTAssertTrue(without.contains("runs on \(manager.defaultModel.displayName)"), without)
+        XCTAssertTrue(without.contains("Polish dictation is delivered as transcribed"), without)
+        XCTAssertTrue(without.contains("S1-mini is not installed"), without)
+        XCTAssertTrue(without.contains("nothing is refused"), without)
+        XCTAssertNil(card.transformMissingNotice(for: manager.normalizerModel),
+                     "a missing optional model is never a warning: nothing is refused for it")
         XCTAssertNil(card.transformMissingNotice(for: manager.polishModel),
-                     "a missing 8B is never a warning: nothing is refused for it")
+                     "the idle larger model is not a warning either")
+
+        _ = try stagedNormalizerWeights()
+        card.refreshTransformModelState()
+        try await waitForInstalledCount(of: card, toBe: 2)
+
+        let with = card.transformLanguageModelDescription
+        TestFixtures.report("[s1-mini] card with the English backend installed: \(with)")
+        XCTAssertTrue(with.contains("runs on \(manager.normalizerModel.displayName)"), with)
+        XCTAssertTrue(with.contains("S1-mini is installed"), with)
+
+        // The row whose model resolves no job says so, and the English backend's
+        // row says what it takes over.
+        let idleRow = card.transformModelRoleDescription(manager.polishModel)
+        TestFixtures.report("[s1-mini] the idle row: \(idleRow)")
+        XCTAssertTrue(idleRow.contains("No job"), idleRow)
+        XCTAssertTrue(card.transformModelRoleDescription(manager.normalizerModel).contains("English transform"),
+                      card.transformModelRoleDescription(manager.normalizerModel))
     }
 
-    /// Nothing installed is the one case that cannot work: the transcript is
-    /// still delivered, and nothing pretends to have run.
-    func testNothingInstalledStillDeliversTheTranscript() async throws {
-        let calls = CallCounter()
-        let subject = service(
-            settings: GateSettings(tone: true, cleanUp: true, toneMode: .formal),
-            calls: calls
-        )
-        let input = "Cześć, jak się masz?"
+    // MARK: - One model at a time, and what the English backend costs
 
-        let outcome = await subject.transformDetailed(input, sourceLanguage: "pl")
-
-        XCTAssertEqual(outcome.text, input)
-        XCTAssertFalse(outcome.didRunModel)
-        XCTAssertEqual(calls.models, [TransformModelManager.defaultModelID],
-                       "the model it would have used is what is attempted")
-        TestFixtures.report("[same-language] no weights staged: delivered the raw transcript, "
-                    + "didRunModel \(outcome.didRunModel)")
-    }
-
-    // MARK: - One model at a time, and what the 8B costs
-
-    /// The wired-memory step of the 8B in this process, and the one-at-a-time
-    /// contract: asking for the other language's model evicts it rather than
-    /// adding to it.
-    func testOnlyOneModelIsResidentAndTheEightBeeStepIsMeasured() async throws {
+    /// The wired-memory step of the English backend in this process, and the
+    /// one-at-a-time contract: asking for the other model evicts it rather than
+    /// adding to it. The step is what the catalogue pins as `memoryBytes`.
+    func testTheEnglishBackendIsTheOnlyResidentModelAndItsWiredStepIsMeasured() async throws {
         try shippedWeights()
-        try polishWeights()
+        _ = try stagedNormalizerWeights()
+        let normalizer = manager.normalizerModel
+        let floor = manager.defaultModel
 
         let baseline = wiredBytes()
         _ = try await runtime.transform(
-            systemPrompt: TransformService.systemPrompt(for: .cleanUp(language: .polish), cleanUp: true),
-            userText: "Cześć, jak się masz?",
-            model: manager.polishModel
+            systemPrompt: TransformService.normalizerSystemPrompt,
+            userText: TransformService.normalizerUserPrompt(for: "please send the report", tone: nil),
+            model: normalizer
         )
-        XCTAssertEqual(runtime.loadedModelID, manager.polishModel.id)
-        report("with the 8B resident", wiredSince: baseline)
-        let residentWith8B = wiredBytes()
+        XCTAssertEqual(runtime.loadedModelID, normalizer.id)
+        report("with S1-mini resident", wiredSince: baseline)
+        let residentWithNormalizer = wiredBytes()
 
         _ = try await runtime.transform(
             systemPrompt: TransformService.systemPrompt(for: .cleanUp(language: .english), cleanUp: true),
             userText: "Please send the report.",
-            model: manager.defaultModel
+            model: floor
         )
-        XCTAssertEqual(runtime.loadedModelID, manager.defaultModel.id,
-                       "the language change must swap the resident model")
-        report("with the 1.5B resident (the 8B was evicted)", wiredSince: baseline)
+        XCTAssertEqual(runtime.loadedModelID, floor.id,
+                       "the other model must be evicted, not held beside it")
+        report("with the floor resident (S1-mini evicted)", wiredSince: baseline)
 
         runtime.unload()
         XCTAssertNil(runtime.loadedModelID)
         report("after unload", wiredSince: baseline)
-        TestFixtures.report("[same-language] wired: baseline \(gigabytes(baseline)), 8B \(gigabytes(residentWith8B)), "
-                    + "8B step \(gigabytes(residentWith8B &- min(residentWith8B, baseline)))")
+        TestFixtures.report("[s1-mini] wired: baseline \(gigabytes(baseline)), S1-mini "
+                    + "\(gigabytes(residentWithNormalizer)), step "
+                    + "\(gigabytes(residentWithNormalizer &- min(residentWithNormalizer, baseline))) "
+                    + "against a pinned \(normalizer.memoryBytes) bytes")
     }
 
     /// The warm-up carries the cold load, and a dictation that arrives while the
@@ -435,7 +475,7 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
                     + "\(polish.sizeBytes) bytes, \(polish.sha256)")
     }
 
-    // MARK: - The idle-unload contract and the card's words
+    // MARK: - The idle-unload contract
 
     /// The fleet's 10-minute contract: the timer is armed by a transform and by a
     /// warm-up, and after a whole interval with no request it releases the
@@ -468,50 +508,28 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         XCTAssertNil(shortLived.loadedModelID, "and clear the resident model with them")
     }
 
-    /// What the Settings card says follows the directory: with the 8B staged,
-    /// Polish is stated to run on it; without it, the card says Polish runs on
-    /// the shipped model and that the 8B is not installed — and the 8B's row
-    /// carries no warning, because nothing is refused for it.
+    /// The shipped model is the one requirement: if it is missing, the card says
+    /// so. It is staged everywhere else in this suite, so this asserts the
+    /// notice's own words against a directory that really has nothing in it.
     @MainActor
-    func testTheCardSaysWhichModelEachLanguageUses() async throws {
-        let eightBee = manager.polishModel
-        let shipped = manager.defaultModel
-        _ = try shippedWeights()
+    func testTheCardWarnsOnlyWhenTheFloorIsMissing() async throws {
+        let empty = FileManager.default.temporaryDirectory
+            .appendingPathComponent("osw-card-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: empty) }
+        let card = SettingsViewModel(
+            transformModelManager: TransformModelManager(directory: empty,
+                                                        catalogue: TransformModelManager.availableModels)
+        )
 
-        let card = SettingsViewModel(transformModelManager: manager)
-        card.refreshTransformModelState()
-        try await waitForInstalledCount(of: card, toBe: 1)
-
-        XCTAssertEqual(card.installedTransformModelIDs, [shipped.id])
-        let withoutEightBee = card.transformLanguageModelDescription
-        TestFixtures.report("[same-language] card with the 8B missing: \(withoutEightBee)")
-        XCTAssertTrue(withoutEightBee.contains("Polish runs on \(shipped.displayName)"), withoutEightBee)
-        XCTAssertTrue(withoutEightBee.contains("English runs on \(shipped.displayName)"), withoutEightBee)
-        XCTAssertTrue(withoutEightBee.contains("The 8B is not installed"), withoutEightBee)
-        XCTAssertTrue(withoutEightBee.contains("nothing is refused"), withoutEightBee)
-        XCTAssertNil(card.transformMissingNotice(for: eightBee),
-                     "the optional model has nothing to warn about")
-        XCTAssertNil(card.transformMissingNotice(for: shipped),
-                     "the shipped model is installed, so its row is quiet")
-        XCTAssertTrue(card.transformModelStateDescription(shipped).hasPrefix("Installed"),
-                      card.transformModelStateDescription(shipped))
-
-        _ = try polishWeights()
-        card.refreshTransformModelState()
-        try await waitForInstalledCount(of: card, toBe: 2)
-
-        let withEightBee = card.transformLanguageModelDescription
-        TestFixtures.report("[same-language] card with the 8B installed: \(withEightBee)")
-        XCTAssertEqual(card.installedTransformModelIDs, [shipped.id, eightBee.id])
-        XCTAssertTrue(withEightBee.contains("Polish runs on \(eightBee.displayName)"), withEightBee)
-        XCTAssertTrue(withEightBee.contains("The 8B is installed"), withEightBee)
-
-        // The shipped model is the one requirement: if it is missing, the card
-        // says what stops.
-        card.installedTransformModelIDs = [eightBee.id]
-        let notice = try XCTUnwrap(card.transformMissingNotice(for: shipped),
-                                   "a missing shipped model is a real problem and has to be said")
-        XCTAssertTrue(notice.contains("every language"), notice)
+        let notice = try XCTUnwrap(card.transformMissingNotice(for: card.shippedTransformModel),
+                                   "a missing floor is a real problem and has to be said")
+        XCTAssertTrue(notice.contains("every English transform falls back to"), notice)
+        XCTAssertNil(card.transformMissingNotice(for: card.englishTransformModel),
+                     "the optional English backend has nothing to warn about")
+        XCTAssertNil(card.transformMissingNotice(for: card.idleTransformModel),
+                     "nor does the idle one")
+        TestFixtures.report("[s1-mini] the floor missing: \(notice)")
     }
 
     /// The card refreshes off the main thread (`refreshTransformModelState`), so

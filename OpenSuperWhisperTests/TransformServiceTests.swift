@@ -1,8 +1,8 @@
 import XCTest
 @testable import OpenSuperWhisper
 
-/// The transform gate and the prompt it composes: the transcript is rewritten in
-/// the language it was spoken in, and nothing else happens to it.
+/// The transform gate and the prompt it composes: English dictation is rewritten,
+/// and a dictation in any other language is delivered as it was transcribed.
 ///
 /// Every test drives an injected local transform, so no test here loads any
 /// weights and no test here can reach the network — the endpoint path is gone
@@ -83,56 +83,54 @@ final class TransformServiceTests: XCTestCase {
     private func policyRows() -> [PolicyRow] {
         let polish = "Cześć, jak się masz?"
         let english = "Please send the report to the client today."
-        // Same-language rewrites of both fixtures, with enough words for the
-        // guard and no frame, label or language flip to reject.
-        let polishAnswer = "Cześć, jak się masz dzisiaj?"
+        // A same-language rewrite of the English fixture, with enough words for
+        // the guard and no frame, label or language flip to reject.
         let englishAnswer = "Send the report to the client today."
         return [
             // Nothing switched on: nothing happens, and the language is not
             // even looked up.
             PolicyRow(name: "both off, Polish", tone: false, cleanUp: false,
-                      language: "pl", text: polish, expectedPolicy: nil, answer: polishAnswer),
+                      language: "pl", text: polish, expectedPolicy: nil, answer: ""),
             PolicyRow(name: "both off, no engine language", tone: false, cleanUp: false,
-                      language: nil, text: polish, expectedPolicy: nil, answer: polishAnswer),
+                      language: nil, text: polish, expectedPolicy: nil, answer: ""),
 
-            // Tone alone: a same-language rewrite, in both languages.
-            PolicyRow(name: "tone on, Polish", tone: true, cleanUp: false,
-                      language: "pl", text: polish,
-                      expectedPolicy: .tone(language: .polish, tone: .formal), answer: polishAnswer),
+            // Tone alone: a rewrite, in English — the transform's only language.
             PolicyRow(name: "tone on, English", tone: true, cleanUp: false,
                       language: "en", text: english,
                       expectedPolicy: .tone(language: .english, tone: .formal), answer: englishAnswer),
 
             // Clean-up alone: the same language, repaired.
-            PolicyRow(name: "clean-up only, Polish", tone: false, cleanUp: true,
-                      language: "pl", text: polish,
-                      expectedPolicy: .cleanUp(language: .polish), answer: polishAnswer),
             PolicyRow(name: "clean-up only, English", tone: false, cleanUp: true,
                       language: "en", text: english,
                       expectedPolicy: .cleanUp(language: .english), answer: englishAnswer),
 
             // Both: one call, one prompt, both wordings.
-            PolicyRow(name: "tone and clean-up, Polish", tone: true, cleanUp: true,
-                      language: "pl", text: polish,
-                      expectedPolicy: .cleanUpWithTone(language: .polish, tone: .formal),
-                      answer: polishAnswer),
             PolicyRow(name: "tone and clean-up, English", tone: true, cleanUp: true,
                       language: "en", text: english,
                       expectedPolicy: .cleanUpWithTone(language: .english, tone: .formal),
                       answer: englishAnswer),
 
             // No engine signal: the transcript heuristic decides, exactly as it
-            // does for a third language the engine could not place.
-            PolicyRow(name: "no engine language, Polish text, tone on", tone: true, cleanUp: false,
-                      language: nil, text: polish,
-                      expectedPolicy: .tone(language: .polish, tone: .formal), answer: polishAnswer),
+            // did for a third language the engine could not place.
             PolicyRow(name: "no engine language, English text, clean-up on", tone: false, cleanUp: true,
                       language: nil, text: english,
                       expectedPolicy: .cleanUp(language: .english), answer: englishAnswer),
 
+            // **The transform is English-only**: a Polish dictation is delivered
+            // exactly as it was transcribed, whatever the switches say — no
+            // request, no model call, and no prompt that has to name a language
+            // the model would have to keep.
+            PolicyRow(name: "tone on, Polish", tone: true, cleanUp: false,
+                      language: "pl", text: polish, expectedPolicy: nil, answer: ""),
+            PolicyRow(name: "clean-up only, Polish", tone: false, cleanUp: true,
+                      language: "pl", text: polish, expectedPolicy: nil, answer: ""),
+            PolicyRow(name: "tone and clean-up, Polish", tone: true, cleanUp: true,
+                      language: "pl", text: polish, expectedPolicy: nil, answer: ""),
+            PolicyRow(name: "no engine language, Polish text, tone on", tone: true, cleanUp: false,
+                      language: nil, text: polish, expectedPolicy: nil, answer: ""),
+
             // Nothing can place this text — too short for the heuristic, and no
-            // engine signal — so no prompt can name the language to keep and
-            // nothing is sent to a model.
+            // engine signal — so nothing is sent to a model.
             PolicyRow(name: "unplaceable text, both switches on", tone: true, cleanUp: true,
                       language: nil, text: "Do it", expectedPolicy: nil, answer: ""),
 
@@ -177,11 +175,11 @@ final class TransformServiceTests: XCTestCase {
                 )
             }
 
-            // Whatever the row, the language of the text never changed hands: the
-            // prompt pins the language that went in, each language in its own
-            // words. A Polish dictation is instructed in Polish, so it pins
-            // Polish as "polski na wejściu, polski na wyjściu"; clean-up alone
-            // keeps the wording it has always had ("it stays in Polish").
+            // Whatever the row, the prompt pins the language that went in, in
+            // that language's own words. Every row that reaches a model is
+            // English now, and each of those prompts says so: a tone rewrite
+            // pins "English in, English out", clean-up alone keeps the wording
+            // it has always had ("it stays in English").
             for prompt in local.systemPrompts {
                 XCTAssertFalse(
                     prompt.contains("Translate the user's"),
@@ -206,13 +204,13 @@ final class TransformServiceTests: XCTestCase {
         }
     }
 
-    /// The language the engine measured is what the prompt keeps and what picks
-    /// the model: the same text, reported as two languages, produces the two
-    /// prompts — and never a language change.
-    func testTheEngineLanguageDecidesThePromptAndTheModel() async {
-        let polish = "Cześć, jak się masz?"
+    /// The engine's language decides everything: an English dictation gets the
+    /// English prompt and the English model, and a Polish one is delivered as it
+    /// was transcribed — no prompt, no model, no call.
+    func testTheEngineLanguageDecidesWhetherTheModelIsAskedAtAll() async {
+        let english = "Please send the report to the client today."
         let local = LocalRecorder()
-        local.result = .success("Cześć, jak się masz?")
+        local.result = .success(english)
         let models = ModelSpy()
         let service = makeService(
             local: local,
@@ -220,25 +218,20 @@ final class TransformServiceTests: XCTestCase {
             model: { models.record($0) }
         )
 
-        _ = await service.transformDetailed(polish, sourceLanguage: "pl")
-        // The Polish turn is composed in Polish and pins Polish in and out; it
-        // must not carry the English instruction.
-        XCTAssertTrue(local.systemPrompts[0].contains("Użytkownik podyktował tekst po polsku"),
+        _ = await service.transformDetailed(english, sourceLanguage: "en")
+        XCTAssertTrue(local.systemPrompts[0].contains("You rewrite dictated text"),
                       local.systemPrompts[0])
-        XCTAssertTrue(local.systemPrompts[0].contains("polski na wejściu, polski na wyjściu"),
-                      local.systemPrompts[0])
-        XCTAssertFalse(local.systemPrompts[0].contains("You rewrite dictated text"),
-                       "the Polish prompt is not the English prompt: \(local.systemPrompts[0])")
-        XCTAssertTrue(local.userTexts[0].contains("język (polski)"), local.userTexts[0])
-        XCTAssertEqual(models.policies.map(\.language), [.polish])
+        XCTAssertTrue(local.systemPrompts[0].contains("English in, English out"), local.systemPrompts[0])
+        XCTAssertTrue(local.userTexts[0].contains("Keep its language (English)"), local.userTexts[0])
+        XCTAssertEqual(models.policies.map(\.language), [.english])
 
-        let englishText = "Please send the report."
-        local.result = .success(englishText)
-        _ = await service.transformDetailed(englishText, sourceLanguage: "en")
-        XCTAssertTrue(local.systemPrompts[1].contains("English text"))
-        XCTAssertTrue(local.systemPrompts[1].contains("in English"), local.systemPrompts[1])
-        XCTAssertTrue(local.userTexts[1].contains("Keep its language (English)"), local.userTexts[1])
-        XCTAssertEqual(models.policies.map(\.language), [.polish, .english], "each language resolves its own model")
+        let polish = "Cześć, jak się masz?"
+        let outcome = await service.transformDetailed(polish, sourceLanguage: "pl")
+        XCTAssertEqual(outcome.text, polish, "a Polish dictation is delivered as transcribed")
+        XCTAssertNil(outcome.policy, "the transform is English-only, so Polish has no policy")
+        XCTAssertFalse(outcome.didRunModel)
+        XCTAssertEqual(local.calls, 1, "the Polish dictation must not add a call")
+        XCTAssertEqual(models.policies.map(\.language), [.english], "and must resolve no model")
     }
 
     private final class ModelSpy {
@@ -561,10 +554,11 @@ final class TransformServiceTests: XCTestCase {
         local.result = .failure(TransformModelError.notInstalled("Test Model"))
         let service = makeService(local: local, settings: GateSettings(tone: true, cleanUp: false, toneMode: .formal))
 
-        let outcome = await service.transformDetailed("Cześć", sourceLanguage: "pl")
+        let outcome = await service.transformDetailed("Please send the report to the client today.",
+                                                      sourceLanguage: "en")
 
-        XCTAssertEqual(outcome.text, "Cześć")
-        XCTAssertEqual(outcome.policy, .tone(language: .polish, tone: .formal))
+        XCTAssertEqual(outcome.text, "Please send the report to the client today.")
+        XCTAssertEqual(outcome.policy, .tone(language: .english, tone: .formal))
         XCTAssertFalse(outcome.didRunModel)
         XCTAssertEqual(local.calls, 1, "the call was attempted; the failure is reported, not hidden")
     }
@@ -574,45 +568,131 @@ final class TransformServiceTests: XCTestCase {
         local.result = .failure(CancellationError())
         let service = makeService(local: local, settings: GateSettings(tone: false, cleanUp: true, toneMode: .formal))
 
-        let outcome = await service.transformDetailed("Cześć", sourceLanguage: "pl")
+        let outcome = await service.transformDetailed("Please send the report to the client today",
+                                                      sourceLanguage: "en")
 
-        XCTAssertEqual(outcome.text, "Cześć")
+        XCTAssertEqual(outcome.text, "Please send the report to the client today")
         XCTAssertFalse(outcome.didRunModel)
     }
 
     func testReasoningTraces_areStrippedFromTheAnswer() async {
         let local = LocalRecorder()
-        local.result = .success(openThinkTag + "let me think" + closeThinkTag + "Cześć.")
+        local.result = .success(openThinkTag + "let me think" + closeThinkTag
+                                + "Please send the report to the client today.")
         let service = makeService(local: local, settings: GateSettings(tone: false, cleanUp: true, toneMode: .formal))
 
-        let outcome = await service.transformDetailed("Cześć", sourceLanguage: "pl")
+        let outcome = await service.transformDetailed("please send the report to the client today",
+                                                      sourceLanguage: "en")
 
-        XCTAssertEqual(outcome.text, "Cześć.")
+        XCTAssertEqual(outcome.text, "Please send the report to the client today.")
         XCTAssertTrue(outcome.didRunModel)
     }
 
     /// An answer that is nothing but reasoning is not an answer: the transcript
-    /// is kept rather than replaced with an empty string.
+    /// is kept rather than replaced with an empty string. (The normalizer's
+    /// empty answer is the other case, and it is the answer —
+    /// `testAnEmptyNormalizerAnswerIsDeliveredAsNothing`.)
     func testAnEmptyAnswer_isRejectedAndTheTranscriptKept() async {
         let local = LocalRecorder()
         local.result = .success(openThinkTag + "nothing useful" + closeThinkTag)
         let service = makeService(local: local, settings: GateSettings(tone: true, cleanUp: true, toneMode: .formal))
 
-        let outcome = await service.transformDetailed("Cześć", sourceLanguage: "pl")
+        let outcome = await service.transformDetailed("Please send the report to the client today.",
+                                                      sourceLanguage: "en")
 
-        XCTAssertEqual(outcome.text, "Cześć")
+        XCTAssertEqual(outcome.text, "Please send the report to the client today.")
         XCTAssertFalse(outcome.didRunModel)
     }
 
     func testTransformIfEnabled_returnsTheModelAnswer() async {
         let local = LocalRecorder()
-        local.result = .success("Cześć, jak się masz?")
+        local.result = .success("Please send the report to the client today.")
         let service = makeService(local: local, settings: GateSettings(tone: false, cleanUp: true, toneMode: .formal))
 
-        let text = await service.transformIfEnabled("Czesc jak sie masz", sourceLanguage: "pl")
+        let text = await service.transformIfEnabled("please send the report to the client today",
+                                                    sourceLanguage: "en")
 
-        XCTAssertEqual(text, "Cześć, jak się masz?")
-        XCTAssertEqual(local.userTexts, ["Czesc jak sie masz"], "the model is handed the transcript itself")
+        XCTAssertEqual(text, "Please send the report to the client today.")
+        XCTAssertEqual(local.userTexts, ["please send the report to the client today"],
+                       "the model is handed the transcript itself")
+    }
+
+    // MARK: - The normalizer's path
+
+    /// A normalizer model is handed its own input format, verbatim: the card's
+    /// system prompt, then the control line, then the transcript. None of the
+    /// app's instruction prompt reaches it — not the register wording, not the
+    /// `<<<TRANSCRIPT` frame, not the `/no_think` line — because the card states
+    /// that changing the system prompt's wording, or leaving the control line
+    /// out, makes the model "hallucinate or produce garbled output".
+    func testTheNormalizerGetsItsOwnInputFormatAndNotTheAppInstruction() async {
+        let local = LocalRecorder()
+        local.result = .success("Please send the report to the client today.")
+        let service = makeService(
+            local: local,
+            settings: GateSettings(tone: true, cleanUp: true, toneMode: .formal),
+            model: { _ in TransformModelManager.shared.normalizerModel }
+        )
+
+        _ = await service.transformDetailed("please send the report to the client today",
+                                            sourceLanguage: "en")
+
+        XCTAssertEqual(
+            local.systemPrompts,
+            ["You are a text normalizer for speech-to-text transcripts. The input begins with a "
+             + "control line specifying the styling, structure, and context settings; clean the "
+             + "transcript to match those settings and output only the cleaned text."],
+            "the normalizer's system prompt is the card's, word for word"
+        )
+        XCTAssertEqual(
+            local.userTexts,
+            ["[Styling: formal] [Structure: prose] [Context: general]\n"
+             + "please send the report to the client today"],
+            "the user turn is the control line, a newline, and the raw transcript"
+        )
+        for forbidden in ["/no_think", "<<<TRANSCRIPT", "You rewrite dictated text", "register"] {
+            XCTAssertFalse(local.systemPrompts[0].contains(forbidden),
+                           "the instruction prompt must not reach the normalizer: \(forbidden)")
+            XCTAssertFalse(local.userTexts[0].contains(forbidden),
+                           "the framed user turn must not reach the normalizer: \(forbidden)")
+        }
+    }
+
+    /// The app's tone modes land on the normalizer's own Styling values, one to
+    /// one, and nothing else on the control line moves: Structure stays `prose`
+    /// — `lists` is the value that may turn enumerable content into bullets, and
+    /// the app's contract forbids that restructuring — and Context stays
+    /// `general`, because the app has no email mode.
+    func testTheControlLineMapsTheToneOntoTheModelsStylingAxis() {
+        XCTAssertEqual(TransformService.normalizerControlLine(tone: nil),
+                       "[Styling: semi-formal] [Structure: prose] [Context: general]",
+                       "clean-up with no tone asks for the register the app's own wording asks for")
+        XCTAssertEqual(TransformService.normalizerControlLine(tone: .neutral),
+                       "[Styling: semi-formal] [Structure: prose] [Context: general]")
+        XCTAssertEqual(TransformService.normalizerControlLine(tone: .casual),
+                       "[Styling: casual] [Structure: prose] [Context: general]")
+        XCTAssertEqual(TransformService.normalizerControlLine(tone: .formal),
+                       "[Styling: formal] [Structure: prose] [Context: general]")
+    }
+
+    /// The normalizer's empty answer is an answer. Its card: "When the input is
+    /// nothing but filler or noise, the correct output is an empty string, and
+    /// that is what you get" — so the app delivers it rather than treating the
+    /// call as failed and pasting the raw transcript.
+    func testAnEmptyNormalizerAnswerIsDeliveredAsNothing() async {
+        let local = LocalRecorder()
+        local.result = .success("")
+        let service = makeService(
+            local: local,
+            settings: GateSettings(tone: false, cleanUp: true, toneMode: .formal),
+            model: { _ in TransformModelManager.shared.normalizerModel }
+        )
+
+        let outcome = await service.transformDetailed("um, like, you know", sourceLanguage: "en")
+
+        XCTAssertEqual(outcome.text, "", "the model answered, and its answer is empty")
+        XCTAssertTrue(outcome.didRunModel, "the call happened; it was not a failure")
+        XCTAssertEqual(outcome.policy, .cleanUp(language: .english))
     }
 
     // MARK: - stripReasoning

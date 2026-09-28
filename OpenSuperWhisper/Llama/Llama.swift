@@ -119,11 +119,20 @@ final class LlamaModel {
 
     /// Runs one chat completion and returns the raw generated text.
     ///
+    /// `assistantPrefix` is what the model's own input contract requires the
+    /// assistant turn to open with — S1-mini's empty think block, the one thing
+    /// this build cannot ask for through a template kwarg (see
+    /// `TransformPromptStyle.assistantPrefix`) — and `greedy` selects the
+    /// deterministic chain such a model was trained for. Both are empty/false for
+    /// the instruct models, whose prompt is the app's own.
+    ///
     /// `isCancelled` is consulted between tokens, so a cancelled dictation stops
     /// generating immediately instead of finishing the rewrite.
     func complete(
         systemPrompt: String,
         userText: String,
+        assistantPrefix: String = "",
+        greedy: Bool = false,
         isCancelled: () -> Bool = { false }
     ) throws -> String {
         guard let model, let context else {
@@ -137,7 +146,8 @@ final class LlamaModel {
         let prompt = try Self.chatPrompt(
             model: model,
             systemPrompt: systemPrompt,
-            userText: userText
+            userText: userText,
+            assistantPrefix: assistantPrefix
         )
 
         var promptTokens = Self.tokenize(vocab: vocab, text: prompt)
@@ -155,7 +165,7 @@ final class LlamaModel {
         // previous dictation's tokens must not still be in the cache.
         llama_memory_clear(llama_get_memory(context), true)
 
-        let sampler = Self.makeSampler()
+        let sampler = Self.makeSampler(greedy: greedy)
         defer { llama_sampler_free(sampler) }
 
         try Self.decode(context: context, tokens: &promptTokens)
@@ -195,7 +205,18 @@ final class LlamaModel {
     /// the HTTP path). A model whose template llama.cpp cannot detect falls back
     /// to ChatML, which is what `llama-server` uses when it has no template at
     /// all; only a failure of both is an error.
-    static func chatPrompt(model: OpaquePointer, systemPrompt: String, userText: String) throws -> String {
+    ///
+    /// `assistantPrefix` is appended after the assistant header the template
+    /// ends with. A model that needs its assistant turn to open with a literal
+    /// gets it here, because this build has no way to pass a template kwarg:
+    /// `llama_chat_apply_template` (`include/llama.h`) takes a template, the
+    /// messages and `add_ass`, and nothing else.
+    static func chatPrompt(
+        model: OpaquePointer,
+        systemPrompt: String,
+        userText: String,
+        assistantPrefix: String = ""
+    ) throws -> String {
         let systemRole = strdup("system")!
         let userRole = strdup("user")!
         let systemContent = strdup(systemPrompt)!
@@ -212,15 +233,20 @@ final class LlamaModel {
             llama_chat_message(role: userRole, content: userContent)
         ]
 
+        let applied: String
         if let template = llama_model_chat_template(model, nil),
            let formatted = try? applyChatTemplate(template, messages: &messages) {
-            return formatted
+            applied = formatted
+        } else if let formatted = try? applyChatTemplate(nil, messages: &messages) {
+            // `nil` selects llama.cpp's built-in ChatML.
+            applied = formatted
+        } else {
+            throw LlamaError.chatTemplateFailed
         }
-        // `nil` selects llama.cpp's built-in ChatML.
-        if let formatted = try? applyChatTemplate(nil, messages: &messages) {
-            return formatted
-        }
-        throw LlamaError.chatTemplateFailed
+        // `add_ass` is always true here, so the formatted prompt ends with the
+        // assistant header — which makes appending the prefix the same thing as
+        // "the assistant turn opens with this".
+        return applied + assistantPrefix
     }
 
     private static func applyChatTemplate(
@@ -267,8 +293,18 @@ final class LlamaModel {
     /// top-p 0.95, min-p 0.05, then the app's established temperature (0.2) and
     /// a distance sampler. Repeat penalty stays at the server default of 1.0
     /// (disabled), which is why it is not in the chain.
-    static func makeSampler() -> UnsafeMutablePointer<llama_sampler>? {
+    ///
+    /// `greedy` is the chain a normalizer's card requires instead of that one:
+    /// "normalization is a deterministic transformation, and sampling only adds
+    /// variance". Nothing is being overridden by doing that — llama.cpp does not
+    /// read the file's own metadata either, so the temp 0.6 / top_p 0.95 / top_k
+    /// 20 it carries are inert here, exactly as the app's 0.2 was.
+    static func makeSampler(greedy: Bool = false) -> UnsafeMutablePointer<llama_sampler>? {
         let sampler = llama_sampler_chain_init(llama_sampler_chain_default_params())
+        if greedy {
+            llama_sampler_chain_add(sampler, llama_sampler_init_greedy())
+            return sampler
+        }
         llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40))
         llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.95, 1))
         llama_sampler_chain_add(sampler, llama_sampler_init_min_p(0.05, 1))

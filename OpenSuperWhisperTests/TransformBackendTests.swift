@@ -13,7 +13,7 @@ final class TransformBackendTests: XCTestCase {
         /// The model each call was routed to, so a test can assert which one a
         /// language resolved to — by name, without loading any weights.
         var models: [TransformModel] = []
-        var result: Result<String, Error> = .success("Cześć, jak się masz?")
+        var result: Result<String, Error> = .success("Please send the report.")
         var calls: Int { systemPrompts.count }
     }
 
@@ -42,17 +42,17 @@ final class TransformBackendTests: XCTestCase {
         let local = LocalRecorder()
         let subject = service(local: local)
 
-        let result = await subject.transformIfEnabled("Cześć, jak się masz?", sourceLanguage: "pl")
+        let result = await subject.transformIfEnabled("Please send the report.", sourceLanguage: "en")
 
-        XCTAssertEqual(result, "Cześć, jak się masz?")
+        XCTAssertEqual(result, "Please send the report.")
         // A tone turn is framed and delimited — the transcript is handed over
         // inside the delimiters, not as a bare request the model could obey.
         // That framing is the invariant here; the sentences themselves are
         // `TransformServiceTests`' business, not a copy pinned twice.
         let userTurn = local.userTexts.first ?? ""
         XCTAssertEqual(local.calls, 1)
-        XCTAssertNotEqual(userTurn, "Cześć, jak się masz?", "the transcript is not sent as it was dictated")
-        XCTAssertTrue(userTurn.contains("<<<TRANSCRIPT\nCześć, jak się masz?\nTRANSCRIPT>>>"), userTurn)
+        XCTAssertNotEqual(userTurn, "Please send the report.", "the transcript is not sent as it was dictated")
+        XCTAssertTrue(userTurn.contains("<<<TRANSCRIPT\nPlease send the report.\nTRANSCRIPT>>>"), userTurn)
     }
 
     // MARK: - Response handling
@@ -62,9 +62,10 @@ final class TransformBackendTests: XCTestCase {
         local.result = .failure(TransformModelError.notInstalled("Test Model"))
         let subject = service(local: local)
 
-        let result = await subject.transformIfEnabled("Cześć", sourceLanguage: "pl")
+        let result = await subject.transformIfEnabled("Please send the report.", sourceLanguage: "en")
 
-        XCTAssertEqual(result, "Cześć", "a missing or broken model must still paste what was said")
+        XCTAssertEqual(result, "Please send the report.",
+                       "a missing or broken model must still paste what was said")
     }
 
     func testCancellation_returnsTheRawTranscript() async {
@@ -72,19 +73,19 @@ final class TransformBackendTests: XCTestCase {
         local.result = .failure(CancellationError())
         let subject = service(local: local)
 
-        let result = await subject.transformIfEnabled("Cześć", sourceLanguage: "pl")
+        let result = await subject.transformIfEnabled("Please send the report.", sourceLanguage: "en")
 
-        XCTAssertEqual(result, "Cześć")
+        XCTAssertEqual(result, "Please send the report.")
     }
 
     func testReasoningTracesAreStripped() async {
         let local = LocalRecorder()
-        local.result = .success("<think>let me think</think>Cześć.")
+        local.result = .success("<think>let me think</think>Please send it.")
         let subject = service(local: local)
 
-        let result = await subject.transformIfEnabled("Cześć", sourceLanguage: "pl")
+        let result = await subject.transformIfEnabled("Please send the report.", sourceLanguage: "en")
 
-        XCTAssertEqual(result, "Cześć.")
+        XCTAssertEqual(result, "Please send it.")
     }
 
     func testAnEmptyAnswerIsRejected() async {
@@ -92,9 +93,9 @@ final class TransformBackendTests: XCTestCase {
         local.result = .success("<think>nothing useful</think>")
         let subject = service(local: local)
 
-        let result = await subject.transformIfEnabled("Cześć", sourceLanguage: "pl")
+        let result = await subject.transformIfEnabled("Please send the report.", sourceLanguage: "en")
 
-        XCTAssertEqual(result, "Cześć")
+        XCTAssertEqual(result, "Please send the report.")
     }
 
     /// Both switches off is the default install: no model is resolved at all, so
@@ -121,15 +122,12 @@ final class TransformBackendTests: XCTestCase {
 
     // MARK: - Which model a language runs on
 
-    /// The model choice is a **preference**, resolved from what is on disk:
-    /// Polish takes the 8B when it is installed and the shipped model when it is
-    /// not, and English always takes the shipped model. Nothing is refused for a
-    /// missing 8B, and nothing is substituted silently.
-    ///
-    /// The record-start warm-up asks the same function for the job the switches
-    /// imply, so its model is asserted here too — with tone on it must be the
-    /// 8B, not the shipped model the old warm-up loaded unconditionally.
-    func testPolishPrefersTheEightBeeAndUsesTheShippedModelWithoutIt() throws {
+    /// The model choice is a **preference**, resolved from what is on disk, and
+    /// **the language is what makes it**: English takes S1-mini while it is
+    /// installed and the floor while it is not, and the job — tone, clean-up, or
+    /// both — does not change the answer. Nothing is refused for a missing
+    /// optional model, and nothing is substituted silently.
+    func testEnglishPrefersTheNormalizerAndTheFloorWithoutIt() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("osw-preference-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -140,6 +138,7 @@ final class TransformBackendTests: XCTestCase {
             id: TransformModelManager.defaultModelID,
             displayName: "Shipped",
             fileName: "shipped.gguf",
+            style: .instruction,
             downloadURL: URL(string: "https://example.invalid/shipped.gguf")!,
             sha256: sha256(payload),
             sizeBytes: Int64(payload.count),
@@ -147,86 +146,103 @@ final class TransformBackendTests: XCTestCase {
             licence: "Apache-2.0",
             source: "test"
         )
-        let eightBee = TransformModel(
-            id: TransformModelManager.polishOutputModelID,
-            displayName: "Eight Bee",
-            fileName: "8b.gguf",
-            downloadURL: URL(string: "https://example.invalid/8b.gguf")!,
+        let normalizer = TransformModel(
+            id: TransformModelManager.normalizerModelID,
+            displayName: "S1-mini",
+            fileName: "s1-mini.gguf",
+            style: .normalizer,
+            downloadURL: URL(string: "https://example.invalid/s1-mini.gguf")!,
             sha256: sha256(payload),
             sizeBytes: Int64(payload.count),
             memoryBytes: 5,
             licence: "Apache-2.0",
             source: "test"
         )
-        let manager = TransformModelManager(directory: directory, catalogue: [shipped, eightBee])
+        let manager = TransformModelManager(directory: directory, catalogue: [shipped, normalizer])
 
-        // Neither installed: Polish has to use the shipped model. Nothing is
-        // refused, and the caller is told which model it will really run on.
-        XCTAssertFalse(manager.isPolishModelInstalled)
-        XCTAssertEqual(manager.model(forSpokenLanguage: .polish).id, shipped.id)
+        // Neither installed: English runs on the floor, whatever the switches
+        // asked for. Nothing is refused for a missing optional model, and the
+        // caller is told which model it will really run on.
+        XCTAssertFalse(manager.isNormalizerInstalled)
         XCTAssertEqual(manager.model(forSpokenLanguage: .english).id, shipped.id)
-        // A tone rewrite prefers the larger model in BOTH languages while it is
-        // absent, and falls back to the shipped one — nothing is refused.
+        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, shipped.id)
         XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, shipped.id)
-        XCTAssertEqual(manager.model(for: .tone(language: .polish, tone: .casual)).id, shipped.id)
         XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .neutral)).id, shipped.id)
 
-        // Install the 8B: Polish now prefers it, English does not move.
-        let source = directory.appendingPathComponent("downloaded.gguf")
-        try payload.write(to: source)
-        try manager.install(fileAt: source, model: eightBee)
-        XCTAssertTrue(manager.isPolishModelInstalled)
-        XCTAssertEqual(manager.model(forSpokenLanguage: .polish).id, eightBee.id)
-        XCTAssertEqual(manager.model(forSpokenLanguage: .english).id, shipped.id)
-        // Tone now runs on the 8B in both languages, clean-up alone does not move.
-        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, eightBee.id,
-                       "an English tone rewrite runs on the 8B when it is installed")
-        XCTAssertEqual(manager.model(for: .tone(language: .polish, tone: .formal)).id, eightBee.id)
-        XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .formal)).id, eightBee.id)
-        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, shipped.id,
-                       "English clean-up alone stays on the shipped model")
-
-        // The record-start warm-up resolves the model through the same
-        // function, so it warms the model the switches imply rather than the
-        // shipped one unconditionally: with tone on and the 8B installed that
-        // is the 8B, or the first dictation would pay the 8B's cold load anyway
-        // (it warmed the shipped model, which nothing then used).
+        // The record-start warm-up resolves through the same function, so it
+        // warms what the next dictation will use rather than a model nothing
+        // then asks for.
         XCTAssertEqual(
             manager.model(for: TransformRuntime.warmUpPolicy(toneEnabled: true, toneMode: .neutral)).id,
-            eightBee.id,
-            "with tone on and the 8B installed, the recording warm-up warms the 8B"
+            shipped.id,
+            "with the normalizer missing, the warm-up warms the floor"
         )
+
+        // Install the normalizer: **every** English job moves onto it. The job
+        // does not decide — tone alone, clean-up alone and both together all
+        // resolve to the English backend.
+        let source = directory.appendingPathComponent("downloaded.gguf")
+        try payload.write(to: source)
+        try manager.install(fileAt: source, model: normalizer)
+        XCTAssertTrue(manager.isNormalizerInstalled)
+        XCTAssertEqual(manager.model(forSpokenLanguage: .english).id, normalizer.id)
+        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, normalizer.id)
+        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, normalizer.id,
+                       "an English tone rewrite runs on the normalizer when it is installed")
+        XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .casual)).id, normalizer.id)
         XCTAssertEqual(
             manager.model(for: TransformRuntime.warmUpPolicy(toneEnabled: false, toneMode: .neutral)).id,
-            shipped.id,
-            "clean-up alone warms the shipped model, the floor every language can run on"
+            normalizer.id,
+            "clean-up alone warms the same backend: the language is what chooses"
         )
 
-        TestFixtures.report("[transform] model preference: 8B absent → tone (both languages) and Polish "
-                    + "clean-up on \(shipped.id); 8B installed → tone (both languages) and Polish clean-up on "
-                    + "\(eightBee.id), English clean-up always on \(shipped.id); the recording warm-up warms "
-                    + "\(eightBee.id) while tone is on and \(shipped.id) for clean-up alone")
+        TestFixtures.report("[transform] model preference: English runs on \(shipped.id) while the "
+                    + "normalizer is missing and on \(normalizer.id) once it is installed, for tone and "
+                    + "clean-up alike; the warm-up warms the same one")
     }
 
-    /// The service hands the **policy's** model to the runtime, so the
-    /// preference is what the transform actually runs on.
+    /// The English-only gate did not delete Polish's row. `model(forSpokenLanguage:)`
+    /// still answers for Polish — the 8B when it is installed, the floor when it
+    /// is not — so a flip back of the one decision that changed
+    /// (`TransformPolicy.resolve`) finds the rest of the table as it was.
+    func testPolishKeepsItsRowForAFlipBack() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("osw-preference-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let manager = TransformModelManager(
+            directory: directory,
+            catalogue: TransformModelManager.availableModels
+        )
+
+        XCTAssertFalse(manager.isPolishModelInstalled)
+        XCTAssertEqual(manager.model(forSpokenLanguage: .polish).id, TransformModelManager.defaultModelID,
+                       "Polish's row still falls back to the floor rather than being refused")
+        XCTAssertEqual(manager.model(for: .cleanUp(language: .polish)).id, TransformModelManager.defaultModelID)
+        XCTAssertEqual(manager.model(for: .tone(language: .polish, tone: .formal)).id,
+                       TransformModelManager.defaultModelID)
+        TestFixtures.report("[transform] Polish still resolves through the same table: "
+                    + "\(TransformModelManager.defaultModelID) without the 8B, "
+                    + "\(TransformModelManager.polishOutputModelID) with it")
+    }
+
+    /// The service hands the **policy's** model to the runtime, so the preference
+    /// is what the transform actually runs on. The policy carries the language,
+    /// and the language carries the model.
     func testThePreferredModelIsTheOneTheRuntimeIsHanded() async {
-        let eightBee = TransformModelManager.shared.polishModel
+        let normalizer = TransformModelManager.shared.normalizerModel
         let local = LocalRecorder()
         let subject = service(local: local, model: { policy in
-            policy.language == .polish ? eightBee : TransformModelManager.shared.defaultModel
+            policy.language == .english ? normalizer : TransformModelManager.shared.defaultModel
         })
 
-        _ = await subject.transformIfEnabled("Cześć", sourceLanguage: "pl")
-        XCTAssertEqual(local.models.map(\.id), [eightBee.id])
+        _ = await subject.transformIfEnabled("Please send the report.", sourceLanguage: "en")
+        XCTAssertEqual(local.models.map(\.id), [normalizer.id])
 
-        _ = await subject.transformIfEnabled("Report", sourceLanguage: "en")
-        XCTAssertEqual(
-            local.models.map(\.id),
-            [eightBee.id, TransformModelManager.defaultModelID],
-            "the second call is an English tone policy, and the runtime is handed the model that policy "
-                + "resolved to — here the stub's answer for English"
-        )
+        // A Polish dictation is not handed to any model at all.
+        _ = await subject.transformIfEnabled("Cześć", sourceLanguage: "pl")
+        XCTAssertEqual(local.models.map(\.id), [normalizer.id],
+                       "Polish resolves no model, so the runtime is handed nothing more")
     }
 
     private func sha256(_ data: Data) -> String {

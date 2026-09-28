@@ -6,7 +6,8 @@ import Foundation
 /// and runs no second pass, so it cannot itself hallucinate. It exists because
 /// the small shipped model answered a dictation as if it were a chat request and
 /// prefixed the rewrite with an acknowledgement; the prompt makes that rarer,
-/// the 8B makes it rarer still, and this makes the class impossible. The same
+/// the larger instruction-follower made it rarer still, and this makes the
+/// class impossible. The same
 /// reasoning covers the second measured leak: the model returning the prompt's
 /// own `TRANSCRIPT`/`TRANSKRYPCJA` delimiter around a short dictation.
 enum TransformGuardRejection: Equatable {
@@ -55,7 +56,7 @@ enum TransformGuardRejection: Equatable {
 /// class a user actually notices and cannot repair: an assistant frame, the
 /// prompt's own delimiter, a label, a stub, a language flip. What it cannot
 /// catch is subtle content drift (an article dropped, a noun invented); that is
-/// the prompt's and the 8B's job, and it is stated as a limit rather than papered
+/// the prompt's and the model's job, and it is stated as a limit rather than papered
 /// over.
 ///
 /// A frame or a label is judged against the dictation as well as the answer: the

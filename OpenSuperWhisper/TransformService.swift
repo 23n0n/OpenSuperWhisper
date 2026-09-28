@@ -87,9 +87,12 @@ enum ToneMode: String, CaseIterable, Identifiable {
 }
 
 enum TransformError: Error, LocalizedError {
-    /// The model answered with nothing usable (an empty completion, or a
-    /// response that was nothing but a reasoning trace). The caller keeps the
+    /// The instruct model answered with nothing usable (an empty completion, or
+    /// a response that was nothing but a reasoning trace). The caller keeps the
     /// transcript it already has.
+    ///
+    /// Not thrown for the normalizer, whose card defines an empty answer as a
+    /// correct one for a dictation that was nothing but filler.
     case emptyResponse
 
     var errorDescription: String? {
@@ -216,10 +219,13 @@ enum TransformPolicy: Equatable {
     /// * Both switched on ⇒ one call carrying both the tone and the clean-up
     ///   wording.
     /// * One switched on ⇒ that one, in the spoken language.
-    /// * A transcript nothing could place ⇒ `nil`: a prompt has to name the
-    ///   language the answer stays in, so text the engine and the heuristic both
-    ///   failed to place is never sent to a model. (The deterministic scrub is
-    ///   not the gate's business — it already ran before this point.)
+    /// * **Any language but English ⇒ `nil`.** The transform is English-only:
+    ///   the app has one backend, S1-mini, and its card says "it covers English
+    ///   only". A Polish dictation is delivered exactly as it was transcribed —
+    ///   no request, no model call, no substitution — which is also what a
+    ///   transcript nothing could place already got. The two cases are the same
+    ///   answer here on purpose: the raw transcript is what the user asked for in
+    ///   the second case and what the first one is defined as.
     static func resolve(
         tone: Bool,
         cleanUp: Bool,
@@ -229,6 +235,7 @@ enum TransformPolicy: Equatable {
         guard tone || cleanUp else { return nil }
 
         guard let verdict = language.flatMap(LanguageDetector.Verdict.init(languageCode:)),
+              verdict == .english,
               let spoken = TransformLanguage(verdict: verdict) else {
             return nil
         }
@@ -242,22 +249,22 @@ enum TransformPolicy: Equatable {
     }
 }
 
-/// Rewrites dictation in the language it was spoken in: the tone switch and the
-/// clean-up switch, both riding one call to a model that runs inside this app.
+/// Rewrites English dictation: the tone switch and the clean-up switch, both
+/// riding one call to a model that runs inside this app.
 ///
-/// The transcript's language is never changed — Polish stays Polish, English
-/// stays English. What the model is asked for is a rewrite of the user's own
-/// words, and a dictation whose language nothing could place is pasted unchanged
-/// rather than guessed at.
+/// **English only, and the answer stays English.** There is one backend for it —
+/// `superwhisper/s1-mini`, a text normalizer trained for exactly this job — and
+/// a dictation in any other language is delivered as it was transcribed: no
+/// request, no model call, no substitution. The transform's language never
+/// changes hands, and no prompt has to name a language the model would have to
+/// keep.
 ///
 /// One backend, in process: llama.cpp is linked into the app and the weights
 /// live in app-owned storage, so nothing listens on a port and no other process
 /// has to be running. The model is a **preference**, not a requirement
-/// (`TransformModelManager.model(for:)`): a tone rewrite runs on the larger 8B in
-/// both languages when it is installed and on the shipped 1.5B when it is not,
-/// and clean-up alone keeps the language-based preference — Polish prefers the
-/// 8B, English always runs the shipped model. Nothing is refused for a missing
-/// optional model, and nothing is substituted behind the user's back.
+/// (`TransformModelManager.model(for:)`): English runs on S1-mini when it is
+/// installed and on the shipped 1.5B when it is not. Nothing is refused for a
+/// missing optional model, and nothing is substituted behind the user's back.
 final class TransformService {
     static let shared = TransformService()
 
@@ -402,10 +409,19 @@ final class TransformService {
     /// validates the answer. Throws on any failure so the caller can fall back
     /// to the raw transcript.
     ///
-    /// The backend follows the **spoken** language: the rewrite must come back
-    /// in the language of the dictation, so that is the language whose model
-    /// preference applies. A response that is nothing but a reasoning trace (or
-    /// empty) is rejected exactly as it was when the answer was translated.
+    /// The prompt follows the **model's own input contract**, not the app's
+    /// preference: the instruct models take the composed instruction — a tone
+    /// policy framed with its delimiters, clean-up alone the bare transcript it
+    /// was measured with — and the normalizer takes the card's exact system
+    /// prompt and control line, because it understands nothing else. The model
+    /// handed in is the one the language resolved to, so nothing is substituted
+    /// here: a model missing from disk is a miss to report rather than a reason
+    /// to use another.
+    ///
+    /// The reference list rides the instruction prompt only. The normalizer's
+    /// input is the system prompt, a control line and the transcript, and its
+    /// card forbids adding to either of the first two, so there is nowhere to
+    /// put it.
     func performTransform(
         _ text: String,
         policy: TransformPolicy,
@@ -413,22 +429,32 @@ final class TransformService {
         reference: String = ""
     ) async throws -> String {
         let model = modelForPolicy(policy)
-        // A tone policy gets the framed user turn; clean-up alone keeps the bare
-        // transcript, which is what it was measured with.
+
+        let systemPrompt: String
         let userText: String
-        if let tone = policy.promptTone {
-            userText = Self.userPrompt(for: text, language: policy.language, tone: tone)
-        } else {
-            userText = text
+        switch model.style {
+        case .instruction:
+            systemPrompt = Self.systemPrompt(for: policy, cleanUp: cleanUp, reference: reference)
+            if let tone = policy.promptTone {
+                userText = Self.userPrompt(for: text, language: policy.language, tone: tone)
+            } else {
+                userText = text
+            }
+        case .normalizer:
+            systemPrompt = Self.normalizerSystemPrompt
+            userText = Self.normalizerUserPrompt(for: text, tone: policy.promptTone)
         }
-        let raw = try await localTransform(
-            Self.systemPrompt(for: policy, cleanUp: cleanUp, reference: reference),
-            userText,
-            model
-        )
+
+        let raw = try await localTransform(systemPrompt, userText, model)
         let stripped = Self.stripReasoning(from: raw)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !stripped.isEmpty else {
+        // An empty answer means two different things and the model decides
+        // which. The normalizer's card: "When the input is nothing but filler or
+        // noise, the correct output is an empty string, and that is what you
+        // get" — so it is the answer, and the dictation path already knows what
+        // an empty piece of text means. An instruct model that says nothing has
+        // failed, and the user keeps the words they dictated.
+        guard !stripped.isEmpty || model.style == .normalizer else {
             throw TransformError.emptyResponse
         }
         return stripped
@@ -480,6 +506,64 @@ final class TransformService {
         }
         lines.append("/no_think")
         return lines.joined(separator: "\n")
+    }
+
+    // MARK: - The normalizer's input format
+
+    /// The system prompt `superwhisper/s1-mini` was trained with, verbatim from
+    /// its card.
+    ///
+    /// It is quoted rather than composed because the card is explicit that it is
+    /// part of the input format and not a suggestion: "the system prompt and the
+    /// control line are part of the input format the model was trained on. Skip
+    /// either one, change the system prompt's wording, or send values outside the
+    /// trained sets, and the model can hallucinate or produce garbled output.
+    /// Always send both, exactly as shown." So there is no branch here, no
+    /// project-specific wording and no reference block: this is the only system
+    /// prompt the model ever gets from this app.
+    static let normalizerSystemPrompt = "You are a text normalizer for speech-to-text transcripts. "
+        + "The input begins with a control line specifying the styling, structure, and context "
+        + "settings; clean the transcript to match those settings and output only the cleaned text."
+
+    /// The control line the normalizer's input format requires, mapped from the
+    /// app's own tone modes rather than invented — its Styling axis *is* the
+    /// register, and the three values below are the ones the model was trained
+    /// on.
+    ///
+    /// * `casual` → the card's "everything lowercase, apostrophes stripped,
+    ///   colloquialisms kept";
+    /// * `formal` → "like semi-formal, with contractions expanded";
+    /// * neutral — and clean-up with no tone at all — → `semi-formal`, "Standard
+    ///   written English: full capitalization and punctuation, contractions kept
+    ///   … A good default", which is the register the app's clean-up wording has
+    ///   always asked for.
+    ///
+    /// `semi-casual` stays unused: it is the one value that keeps sentence
+    /// starts lowercase and drops the final period, and no tone the app offers
+    /// asks for that.
+    ///
+    /// Structure is always `prose` and Context always `general`. `lists` is the
+    /// one value that may break enumerable content into Markdown bullets, and
+    /// the app's tone contract forbids exactly that restructuring ("Keep the
+    /// dictated line breaks: do not join separate lines, do not split one
+    /// line"); the app has no email mode for `Context: email` to describe.
+    static func normalizerControlLine(tone: ToneMode?) -> String {
+        let styling: String
+        switch tone {
+        case .casual: styling = "casual"
+        case .formal: styling = "formal"
+        case .neutral, nil: styling = "semi-formal"
+        }
+        return "[Styling: \(styling)] [Structure: prose] [Context: general]"
+    }
+
+    /// The normalizer's user turn: the control line, a newline, and the
+    /// transcript — nothing else. Its card: "The model expects the system
+    /// prompt, then a control line, a newline, and one raw ASR transcript, which
+    /// will usually arrive lowercase and unpunctuated. That is the shape it was
+    /// trained on."
+    static func normalizerUserPrompt(for transcript: String, tone: ToneMode?) -> String {
+        "\(normalizerControlLine(tone: tone))\n\(transcript)"
     }
 
     /// The tone half of the prompt: the register defined by what may change,

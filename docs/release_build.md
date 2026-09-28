@@ -14,12 +14,14 @@ native build plus one `xcodebuild` — there is no server process to ship.
 | `/Applications/Uninstall OpenSuperWhisper.command` | `packaging/uninstall.sh`, byte for byte | 10 KB |
 | the same receipt, `ru.starmel.OpenSuperWhisper` | so `pkgutil` and the uninstaller agree what the package owns | — |
 
-The package is ~88 MB compressed and carries no model weights: the speech model (1.62 GB) and
-the 1.5B rewrite weights (986 MB) are downloaded by the app itself, on demand, from the URLs and
-pinned digests it already has (`OpenSuperWhisper/Settings.swift` for the speech model,
-`TransformModelManager.swift` for the weights), into the app's own directory under the user's
-`~/Library/Application Support`. Nothing is shipped that would be re-downloaded or re-shipped by
-every update. The 5 GB 8B rewrite model is a download too, and Settings says which is installed.
+The package is ~88 MB compressed and carries no model weights: the speech model (1.62 GB), the
+English transform weights (462 MB) and the fallback 1.5B (986 MB) are downloaded by the app
+itself, on demand, from the URLs and pinned digests it already has
+(`OpenSuperWhisper/Settings.swift` for the speech model, `TransformModelManager.swift` for the
+weights), into the app's own directory under the user's `~/Library/Application Support`. Nothing
+is shipped that would be re-downloaded or re-shipped by every update. The 5 GB 8B is a download
+too — no job resolves to it since the transform became English-only, and Settings says so while
+keeping it removable.
 
 Nothing in the payload writes into a user's home directory. The recordings, the transcriptions
 database, the settings and the models are all created by the app after install, which is what
@@ -44,11 +46,13 @@ package, unsigned — see [Signing](#signing) below.
 
 The package carries none. The app downloads what it needs on first use, from the URLs and pinned
 digests it already has — `OpenSuperWhisper/Settings.swift` for the speech model
-(`ggml-large-v3-turbo.bin`, 1.62 GB, `sha256 1fc70f77…`) and `TransformModelManager.swift` for
-the 1.5B rewrite weights (`qwen2.5-1.5b-instruct-q4_k_m.gguf`, 986 MB, `sha256 1adf0b11…`) —
-into `~/Library/Application Support/ru.starmel.OpenSuperWhisper/`. The 5 GB 8B rewrite model is a
-download as well. There is nothing to place before a build, and a release ships no weights that
-the next release would ship again.
+(`ggml-large-v3-turbo.bin`, 1.62 GB, `sha256 1fc70f77…`) and `TransformModelManager.swift` for the
+transform weights: the English backend (`s1-mini-q4_k_m.gguf`, 462 MB, `sha256 3b41ebe2…`), the
+floor every English transform falls back to while it is absent
+(`qwen2.5-1.5b-instruct-q4_k_m.gguf`, 986 MB, `sha256 1adf0b11…`) and the 5 GB 8B no job resolves
+to any more (`qwen3-8b-q4_k_m.gguf`, `sha256 d98cdcbd…`) — into
+`~/Library/Application Support/ru.starmel.OpenSuperWhisper/`. There is nothing to place before a
+build, and a release ships no weights that the next release would ship again.
 
 Because the app verifies what it downloads against those digests (`TransformRuntime` refuses a
 transform model whose digest does not match), the digests in the two Swift files are the whole

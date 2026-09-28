@@ -70,14 +70,6 @@ class SettingsViewModel: ObservableObject {
         }
     }
     
-    /// "Speech-Only Filter (VAD)". Off by default; the measurement behind that
-    /// is in `AppPreferences.useVAD`.
-    @Published var useVAD: Bool {
-        didSet {
-            AppPreferences.shared.useVAD = useVAD
-        }
-    }
-    
     @Published var longPausesEndSentences: Bool {
         didSet {
             AppPreferences.shared.longPausesEndSentences = longPausesEndSentences
@@ -249,18 +241,30 @@ class SettingsViewModel: ObservableObject {
     /// against the user's Application Support.
     let transformModelManager: TransformModelManager
 
-    /// Both models, as the card lists them: the shipped one every language can
-    /// run on, then the larger one Polish prefers.
+    /// The catalogue, in the order the card lists it: the English backend, the
+    /// floor it falls back to, and the larger instruction-follower no job
+    /// resolves to any more.
     var transformModels: [TransformModel] { TransformModelManager.availableModels }
 
-    /// The shipped model — the one English always runs on, and the one Polish
-    /// runs on whenever the larger one is not installed.
+    /// The English backend — S1-mini, what every English transform runs on while
+    /// it is installed.
+    var englishTransformModel: TransformModel {
+        transformModelManager.normalizerModel
+    }
+
+    /// The floor: the model every English transform falls back to while S1-mini
+    /// is not installed, and the one Polish clean-up ran on when Polish still ran
+    /// clean-up. Nothing is ever refused for a missing optional model, so this is
+    /// the only row that must be present for the feature to work at all.
     var shippedTransformModel: TransformModel {
         transformModelManager.defaultModel
     }
 
-    /// The larger model Polish prefers when it is installed.
-    var preferredPolishTransformModel: TransformModel {
+    /// The larger instruction-follower. It resolves no job any more — the
+    /// transform is English-only and English runs on S1-mini — and its row is
+    /// kept because it is the only thing that can show, and remove, the weights
+    /// an install of the previous build left in the app's own directory.
+    var idleTransformModel: TransformModel {
         transformModelManager.polishModel
     }
 
@@ -272,12 +276,21 @@ class SettingsViewModel: ObservableObject {
         downloadingTransformModelID == model.id
     }
 
-    /// Which languages run on a row's model. Neither model belongs to a single
-    /// language any more: one is the floor, the other is a preference.
+    /// What a row's model does for the app, in the app's own routing words.
+    ///
+    /// Every row states its job as the code decides it, including the row whose
+    /// job is none: an entry that is offered but never used has to say so, or the
+    /// list is claiming work that does not happen.
     func transformModelRoleDescription(_ model: TransformModel) -> String {
-        model.id == preferredPolishTransformModel.id
-            ? "Preferred for every tone rewrite and for Polish clean-up — used whenever it is installed"
-            : "English clean-up always, and every transform until the 8B is installed"
+        if model.id == englishTransformModel.id {
+            return "Every English transform — tone and clean-up alike — whenever it is installed"
+        }
+        if model.id == idleTransformModel.id {
+            return "No job: the transform is English-only and English runs on S1-mini. Kept so its "
+                + "weights stay visible and removable here"
+        }
+        return "The floor: every English transform while S1-mini is not installed, and every Polish "
+            + "clean-up a previous build ran"
     }
 
     /// What a row says about its model: download state, disk and RAM.
@@ -292,41 +305,39 @@ class SettingsViewModel: ObservableObject {
     /// What stays unchanged while `model` is missing, or `nil` when it is
     /// installed or optional.
     ///
-    /// Only the shipped model is a requirement: it is the one every language can
-    /// run on, and the job with no fallback is English clean-up. The 8B is a
-    /// preference, so a missing 8B is never a warning — the card states which
-    /// model each job uses instead, and nothing is refused.
+    /// Only the floor is a requirement: English runs on it while S1-mini is not
+    /// installed, and that is the one job with no other fallback. Both of the
+    /// others are optional, so neither is ever a warning — the card states which
+    /// model the work really runs on, and nothing is refused.
     func transformMissingNotice(for model: TransformModel) -> String? {
         guard model.id == shippedTransformModel.id, !isTransformModelInstalled(model) else { return nil }
-        return "Without it no dictation can be rewritten at all: it is the model every language runs on — "
-            + "every tone rewrite until the 8B is installed, and English clean-up always. The 8B is "
-            + "optional, and Polish clean-up uses this one only while it is absent."
+        return "Without it no English dictation can be transformed at all: it is the model every "
+            + "English transform falls back to while S1-mini is not installed. S1-mini is optional, "
+            + "and this one does its work only while it is absent."
     }
 
-    /// Which model each job will run on, and whether the 8B is present.
+    /// Which model the work will run on, and whether the English backend is
+    /// present.
     ///
     /// The model choice is a preference, so the card states it rather than
-    /// warning about it. A tone rewrite — the job that has to move the register
-    /// while holding the content still — runs on the larger model whenever it is
-    /// installed, in **both** languages; clean-up alone keeps the language-based
-    /// preference (Polish prefers the 8B, English always runs the shipped one),
-    /// because repairing grammar does not need the larger model. Nothing is
-    /// refused, and nothing has to be downloaded for either job to happen.
+    /// warning about it. English — tone and clean-up alike — runs on S1-mini
+    /// while it is installed and on the shipped model while it is not, and a
+    /// Polish dictation is delivered exactly as it was transcribed. Nothing is
+    /// refused, and nothing has to be downloaded for the feature to work.
     var transformLanguageModelDescription: String {
-        let shipped = shippedTransformModel
-        let polish = transformModelManager.model(forSpokenLanguage: .polish)
-        let tone = transformModelManager.model(for: .tone(language: .english, tone: .neutral))
-        let presence = transformModelManager.isPolishModelInstalled
-            ? "The 8B is installed."
-            : "The 8B is not installed, so the shipped model does the work — nothing is refused, and "
+        let english = transformModelManager.model(forSpokenLanguage: .english)
+        let presence = transformModelManager.isNormalizerInstalled
+            ? "S1-mini is installed."
+            : "S1-mini is not installed, so the shipped model does the work — nothing is refused, and "
                 + "nothing has to be downloaded."
-        return "A tone rewrite runs on \(tone.displayName), in both languages. Clean-up alone: "
-            + "Polish runs on \(polish.displayName). English runs on \(shipped.displayName). \(presence)"
+        return "Every English transform — tone and clean-up alike — runs on \(english.displayName). "
+            + "Polish dictation is delivered as transcribed: no transform runs on it at all. "
+            + presence
     }
 
     /// Recomputes the installed state of every backend off the main thread: the
-    /// first check of a hand-placed file hashes it, which is a 986 MB or 5 GB
-    /// read. The cached stamp means only that first check pays it.
+    /// first check of a hand-placed file hashes it, which is a 462 MB, a 986 MB
+    /// or a 5 GB read. The cached stamp means only that first check pays it.
     func refreshTransformModelState() {
         let catalogue = TransformModelManager.availableModels
         let manager = transformModelManager
@@ -412,7 +423,6 @@ class SettingsViewModel: ObservableObject {
         self.fluidAudioModelVersion = prefs.fluidAudioModelVersion
         self.suppressBlankAudio = prefs.suppressBlankAudio
         self.showTimestamps = prefs.showTimestamps
-        self.useVAD = prefs.useVAD
         self.longPausesEndSentences = prefs.longPausesEndSentences
         self.temperature = prefs.temperature
         self.noSpeechThreshold = prefs.noSpeechThreshold
@@ -1065,9 +1075,6 @@ struct Settings {
     var debugMode: Bool
     var suppressBlankAudio: Bool
     var showTimestamps: Bool
-    /// Whether the silero speech-only pre-filter runs before the decoder. See
-    /// `AppPreferences.useVAD`: off by default, on measurement.
-    var useVAD: Bool
     /// See `PauseBoundaryPolicy`: on, a long pause is kept as a real pause and
     /// closes the sentence; off, upstream's 0.1 s of zeros everywhere.
     var longPausesEndSentences: Bool
@@ -1115,7 +1122,6 @@ struct Settings {
         let prefs = AppPreferences.shared
         self.suppressBlankAudio = prefs.suppressBlankAudio
         self.showTimestamps = prefs.showTimestamps
-        self.useVAD = prefs.useVAD
         self.longPausesEndSentences = prefs.longPausesEndSentences
         self.temperature = prefs.temperature
         self.noSpeechThreshold = prefs.noSpeechThreshold
@@ -1607,41 +1613,7 @@ struct SettingsView: View {
                                 .labelsHidden()
                         }
                         
-                        // Off by default, and the numbers are why. The filter is
-                        // the reason quiet dictations came back missing words:
-                        // it keeps only the speech silero finds, and on a quiet
-                        // recording that is sometimes a fraction of what was
-                        // said. See `AppPreferences.useVAD` for the full
-                        // measurement and `WhisperEngine.vadParams` for why the
-                        // threshold is not a second control.
                         HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Speech-Only Filter (VAD)")
-                                    .font(.subheadline)
-                                Text(
-                                    "Whisper: the silero voice-activity filter finds the speech and "
-                                        + "hands the decoder nothing else. Measured on his own "
-                                        + "recordings it drops speech too — one 8.69 s dictation kept "
-                                        + "0.86 s of it and came out \u{201C}See you later.\u{201D} where "
-                                        + "the same audio without the filter reads \u{201C}All right, I "
-                                        + "gotta go home. See you later and keep up.\u{201D} Across the "
-                                        + "four worst dictations, off recovered 35 words with 0 still "
-                                        + "missing, against 0 recovered and 35 still missing with it "
-                                        + "on; a lower detection threshold (0.15) recovered 29 of the "
-                                        + "35, so the filter's own settings stay internal and this "
-                                        + "switch is off/on only."
-                                )
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer()
-                            Toggle("", isOn: $viewModel.useVAD)
-                                .toggleStyle(SwitchToggleStyle(tint: Color.accentColor))
-                                .labelsHidden()
-                        }
-                        .padding(.top, 4)
-                                                HStack {
                             Text("Suppress Blank Audio")
                                 .font(.subheadline)
                             Spacer()
@@ -1824,7 +1796,7 @@ struct SettingsView: View {
                                     RoundedRectangle(cornerRadius: 8)
                                         .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                                 )
-                            Text("Names, jargon and domain terms you say, one per line — the transform is told to keep these spellings. Optional, and inert while empty.")
+                            Text("Names, jargon and domain terms you say, one per line — the transform is told to keep these spellings. Optional, and inert while empty. S1-mini's input format is fixed and has no slot for a list, so this rides the shipped model's prompt only.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -1837,15 +1809,15 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Transform models")
                                     .font(.subheadline)
-                                Text("The app runs these itself, from its own folder, so uninstalling takes them with it. Every tone rewrite runs on the larger model when it is installed — in both languages — and Polish clean-up prefers it too; English clean-up always runs on the shipped model, which is the floor every language can run on. Nothing has to be downloaded for either job to work.")
+                                Text("The app runs these itself, from its own folder, so uninstalling takes them with it. Every English transform — tone and clean-up alike — runs on S1-mini while it is installed and on the shipped 1.5B while it is not; Polish dictation is delivered as transcribed, so no model is asked for it at all. Nothing has to be downloaded for either job to work.")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
 
-                            // Which model each language uses right now, and
-                            // whether the 8B is present — stated, never warned
-                            // about: the 8B is a preference, not a requirement.
+                            // Which model the English work runs on right now, and
+                            // whether S1-mini is present — stated, never warned
+                            // about: it is a preference, not a requirement.
                             Text(viewModel.transformLanguageModelDescription)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -1918,7 +1890,7 @@ struct SettingsView: View {
                             }
                         }
 
-                        Text("Nothing here changes the language of what you dictated: Polish comes out Polish and English comes out English, always. The tone switch rewrites the dictation in the register you pick, the clean-up switch removes filler and repairs punctuation, articles and word order, and both ride one model call — with both switches off nothing is sent to a model at all. Every dictation reports the detected language and shows the raw transcript beside the cleaned and rewritten text; history always keeps the raw transcript, and recordings transcribed from the list are never rewritten. The language of each utterance is detected automatically, which needs a multilingual whisper model. Polish prefers the larger 8B when it is installed and runs on the shipped 1.5B when it is not; English clean-up always runs on the shipped 1.5B. A tone rewrite runs on the 8B in both languages whenever it is installed, because holding the content still while the register moves is the job the shipped model was measured getting wrong.")
+                        Text("Nothing here changes the language of what you dictated: English comes out English, and Polish dictation is delivered exactly as it was transcribed. The tone switch rewrites the dictation in the register you pick, the clean-up switch removes filler and repairs punctuation, articles and word order, and both ride one model call — with both switches off nothing is sent to a model at all. Every dictation reports the detected language and shows the raw transcript beside the cleaned and rewritten text; history always keeps the raw transcript, and recordings transcribed from the list are never rewritten. The language of each utterance is detected automatically, which needs a multilingual whisper model. Every English transform runs on S1-mini while it is installed and on the shipped 1.5B while it is not; Polish is never sent to a model, so nothing is asked of one for it.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
