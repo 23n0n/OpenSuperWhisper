@@ -4,10 +4,10 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 
 > **This tree is a fork of [Starmel/OpenSuperWhisper](https://github.com/Starmel/OpenSuperWhisper) (MIT).**
 > Everything the original does is still here; on top of it this fork adds local tone and clean-up rewrites for
-> **English dictation** — a Polish dictation is delivered exactly as it was transcribed, with no model call at
-> all — a dictation
-> clean-up pass, keystroke delivery that leaves the clipboard alone (and reaches a Citrix session or a virtual machine through
-> the clipboard, which is restored), and a repaired long-form decode path. Section [What this fork changes](#what-this-fork-changes) describes every difference in detail, and
+> **English dictation** — a Polish dictation reaches no model at all — a deterministic clean-up pass that needs no
+> model and works in any language, keystroke delivery that leaves the clipboard alone (and reaches a Citrix
+> session or a virtual machine through the clipboard, which is restored), and a repaired long-form decode path.
+> Section [What this fork changes](#what-this-fork-changes) describes every difference in detail, and
 > [What is unchanged](#what-is-unchanged) lists what is inherited verbatim.
 >
 > **The `brew install` line and the release links below install the *original* app, not this build.** This fork
@@ -37,9 +37,10 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
   the app (llama.cpp linked in, no server, no port); two independent switches, off by default. The transcript is
   rewritten in place, in English: **the app never changes the language of your dictation**
 - 🇬🇧 **Every English transform runs on S1-mini by Superwhisper (462 MB) when it is installed**, and on the
-  shipped 1.5B while it is not. **A Polish dictation is delivered exactly as it was transcribed — no model is
-  asked for it at all.** The card says which model the work runs on and what it costs in RAM. Nothing is
-  refused, nothing is substituted silently
+  shipped 1.5B while it is not. **A Polish dictation reaches no model at all — the transform is English-only.**
+  With *Clean up dictation* on, Polish still gets the deterministic scrub (§4): fillers, stutters, Polish affixes,
+  casing and diacritics, none of which needs a model. The card says which model the work runs on and what it costs
+  in RAM. Nothing is refused, nothing is substituted silently
 - 🛡️ **A rewrite that answers instead of rewriting never reaches your text** — a deterministic guard rejects an
   assistant frame ("Sure,", "Oczywiście,"), a label line, the prompt's own `TRANSCRIPT`/`TRANSKRYPCJA`
   delimiter, a stub or a language flip, and pastes your own words with a notice instead. It reads text only:
@@ -51,9 +52,17 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
   instead of keeping the invented text; and because fluent English over Polish speech *is* English, the same
   recording is decoded a second time with the decoder prompt flipped, and a transcript the second reading does
   not contain is refused the same non-destructive way (numbers in §3)
-- 🧹 **Dictation clean-up** — filler words, `hmm`, `aaa` and stutters are scrubbed, punctuation, articles and word
-  order repaired, all in the language that was spoken, through the same single transform call
-- 📚 **Reference / glossary field** — names and terms fed into the transform prompt
+- 🧹 **Dictation clean-up, in two halves** — the scrub is deterministic and needs no model: filler words,
+  `hmm`, `aaa`, stutters and repeats are removed, and the sentence's own language is repaired (Polish affixes,
+  casing, diacritics), in whatever language was spoken. The grammar repair — punctuation, articles, word order —
+  is the model's, and rides the *same* single transform call as tone, which makes it English dictation only
+- 📚 **Reference / glossary field** — names and terms fed into the transform prompt. It rides the shipped floor's
+  prompt: S1-mini takes one fixed input with no slot for a list, and the card says so
+- 🧯 **A transform that did not run says so, and offers its fix** — a failed call names the job that did not
+  happen (*Tone rewrite could not run*, *Clean-up could not run*, or both when one call carried them), and for the
+  failures the app can repair — a weight file that was never downloaded, and one that is on disk but does not
+  match its pinned checksum — the notice carries a button that opens the Settings card the weights live on. The
+  transcript is still delivered, and a cancelled dictation stays silent
 - ⌨️ **Keystroke delivery** — the transcript is typed into the focused app as synthetic keystrokes, which no
   keyboard layout changes and which leave the clipboard alone; a Citrix session, a virtual machine or a remote
   desktop, where keystrokes arrive as key codes instead of text, gets it through a clipboard paste that restores
@@ -76,10 +85,11 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 
 ## What this fork changes
 
-Written against the delivery branch `feat/local-translate-tone`, merge tip `319f3a3` (2026-09-24; this section
-is its own commit). Every claim below was
-checked against that tree, and the numbers were produced by running the code, not by reading it. To see the whole
-delta yourself:
+Written against the delivery branch `feat/local-translate-tone`. The plain-language sections were checked against
+that tree at `81bc968` (2026-10-02) — the revision that made the transform English-only, took the 8B out of the
+catalogue and gave a failed transform a notice with its fix; §1 and the list above were rewritten there. Every
+claim below was checked against that tree, and the numbers were produced by running the code, not by reading it.
+To see the whole delta yourself:
 
 ```shell
 git fetch upstream        # upstream = https://github.com/Starmel/OpenSuperWhisper.git, already a remote here
@@ -99,8 +109,9 @@ Paths below are relative to `OpenSuperWhisper/` unless they start with `Scripts/
 Upstream transcribes; it has no notion of tone and no rewriting pass at all. This fork adds two independent
 switches in **Settings → Transcription** ("Apply tone" and "Clean up dictation"), both riding one call to a model
 that runs **inside the app**. The transform is **English-only**: an English dictation is rewritten in place, and
-a dictation in any other language — Polish included — is delivered exactly as it was transcribed, with no
-request and no model call at all. There is no direction change anywhere in the product.
+a dictation in any other language — Polish included — is never sent to a model: no request, no call. What does
+still run on it is the clean-up switch's deterministic scrub, which is a function and not a model (see §4).
+There is no direction change anywhere in the product.
 
 The rewrite is performed **in-process** by one of two models. `S1-mini by Superwhisper` (Q4_K_M, ~462 MB on
 disk, ~0.9 GB of RAM while loaded) is a 0.6B text normalizer trained for exactly this job — raw ASR text in,
@@ -142,7 +153,8 @@ such as Parakeet. `params.language` is always `nil` and `params.detectLanguage` 
 matter:
 
 - **Only an English dictation is transformed.** English is what the app's backend serves; a Polish dictation —
-  and any other — is delivered exactly as it was transcribed, with no request and no model call at all.
+  and any other — is never sent to a model: no request, no call. The clean-up switch's deterministic scrub is not
+  a model call and does run on it.
 - The transcript is rewritten **in its own language**, which for a served dictation means English: there is no
   target language in the product, and no prompt that could move the text into another one.
 - Both switches off is the default install: **no model call at all**, and the transcript is bit-for-bit what the
@@ -617,7 +629,7 @@ Whisper Models — are kept as they are, apart from the notes this fork needed.
 - **The English transform is a preference, not a guarantee.** `S1-mini by Superwhisper` (462 MB) is what
   every English transform runs on while it is installed, and it is not required: with only the shipped 1.5B
   installed, English runs on that instead, and the card says so. The transform is **English-only**: a Polish
-  dictation is delivered exactly as it was transcribed, with no model call at all. The 5 GB 8B that used to be
+  dictation is never sent to a model (the clean-up scrub still applies to it when that switch is on). The 5 GB 8B that used to be
   preferred for tone and Polish clean-up is **not in the app at all**: it resolved no job once the transform
   became English-only, so the row that kept its file visible was removed with it, and the only two models the
   app offers are the two the English work chooses between. A machine that downloaded it still has the file in
