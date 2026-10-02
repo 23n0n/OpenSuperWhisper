@@ -119,6 +119,19 @@ Application Support folder and verified against its pinned checksum before it is
 port and no endpoint override: the transform (`OpenSuperWhisper/TransformService.swift`) is the only way the
 text can be rewritten.
 
+**A transform that did not run says so, and offers its own fix.** A failed call used to leave nothing but a
+`print`: a machine with no weight file downloaded pasted the raw transcript and said nothing, so a rewrite that
+never ran looked exactly like a switch that was off. The failure is now a notice naming the job that did not
+happen — `Tone rewrite could not run`, `Clean-up could not run`, or `Tone rewrite and clean-up could not run`,
+the last because one call carries both jobs and a title naming only the tone would under-report it. Where the
+app recognises the failure it offers the remedy as a button: `TransformModelError.notInstalled` and the new
+`.notVerified` both open **Settings → Transcription**, the card that lists the weights and can download either
+one again — a file that is not there and a file that is there but does not match its pinned checksum are two
+problems (`TransformRuntime` now tells them apart, where `verifiedPath` returned `nil` for both) with one fix.
+Every other failure — a failed load, a failed decode — keeps the plain alert and the runtime's own words rather
+than a fix that would not repair it. The transcript is still delivered, and a cancelled dictation is not a
+failure: it is discarded by the caller and stays silent.
+
 ### 2. The language is auto-detected, and never changed
 
 The decision is a table (`TransformPolicy` in `TransformService.swift`), not a per-call guess, and it is fed by the
