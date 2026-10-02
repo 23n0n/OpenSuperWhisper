@@ -146,17 +146,26 @@ fi
 # and points at whichever nested bundle it was on, which reads like a broken
 # certificate rather than a locked keychain. Scripts/dev-signing-identity.sh
 # already stores the password for this; use it instead of failing the build.
+#
+# The unlock is unconditional, and deliberately not gated on a lock probe:
+# `security show-keychain-info` asks for the keychain's password itself when it
+# is locked, and a build has nobody to type it - the probe never returns, so
+# gating on it hung the whole build (measured: locked keychain, check times out
+# at 8 s with stdin redirected and unredirected alike). Unlocking an already
+# unlocked keychain is a no-op, so the probe bought nothing and cost a hang.
 if [[ -n "$SIGN_KEYCHAIN" && -e "$SIGN_KEYCHAIN" ]]; then
-    if ! security show-keychain-info "$SIGN_KEYCHAIN" >/dev/null 2>&1; then
-        SIGN_STATE_DIR="${DEV_SIGN_STATE_DIR:-$HOME/.opensuperwhisper-dev}"
-        SIGN_PASSWORD_FILE="$SIGN_STATE_DIR/keychain-password"
-        if [[ -f "$SIGN_PASSWORD_FILE" ]]; then
-            echo "Unlocking $SIGN_KEYCHAIN (it relocks when the machine sleeps)..."
-            security unlock-keychain -p "$(cat "$SIGN_PASSWORD_FILE")" "$SIGN_KEYCHAIN"
-        else
-            echo "dev-sign.sh: $SIGN_KEYCHAIN is locked and there is no saved password at" >&2
-            echo "  $SIGN_PASSWORD_FILE - unlock it once by hand, or re-run Scripts/dev-signing-identity.sh" >&2
+    SIGN_STATE_DIR="${DEV_SIGN_STATE_DIR:-$HOME/.opensuperwhisper-dev}"
+    SIGN_PASSWORD_FILE="$SIGN_STATE_DIR/keychain-password"
+    if [[ -f "$SIGN_PASSWORD_FILE" ]]; then
+        echo "Unlocking $SIGN_KEYCHAIN (it relocks when the machine sleeps)..."
+        if ! security unlock-keychain -p "$(cat "$SIGN_PASSWORD_FILE")" "$SIGN_KEYCHAIN" </dev/null; then
+            echo "dev-sign.sh: the saved password did not unlock $SIGN_KEYCHAIN." >&2
+            echo "  Unlock it by hand, or re-run Scripts/dev-signing-identity.sh to store a new one." >&2
         fi
+    else
+        echo "dev-sign.sh: no saved keychain password at" >&2
+        echo "  $SIGN_PASSWORD_FILE - if $SIGN_KEYCHAIN is locked, codesign fails with" >&2
+        echo "  errSecInternalComponent; unlock it by hand, or re-run Scripts/dev-signing-identity.sh" >&2
     fi
 fi
 

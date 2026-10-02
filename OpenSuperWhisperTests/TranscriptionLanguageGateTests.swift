@@ -154,6 +154,16 @@ final class TranscriptionLanguageGateTests: XCTestCase {
                 recorder.texts.append(text)
                 return text
             },
+            // The model decides which prompt shape this call composes, and the
+            // default resolution reads what is installed on the machine running
+            // the suite: with S1-mini downloaded, the normalizer takes every
+            // English transform and its input is a control line rather than the
+            // frame asserted below. Pin the route, so the gate this test is
+            // about reads the same with and without the optional weights - the
+            // rule the suite already runs under (see dev-run.sh's
+            // multilingual-model opt-in, which exports nothing when the machine
+            // has no candidate).
+            modelForPolicy: { _ in TransformModelManager.shared.defaultModel },
             gateSettings: { GateSettings(tone: true, cleanUp: false, toneMode: .formal) }
         )
 
@@ -208,6 +218,11 @@ final class TranscriptionLanguageGateTests: XCTestCase {
                 recorder.prompts.append(prompt)
                 return text
             },
+            // Same pin as in the English/Python gate above: the instruction
+            // model's route is the one these assertions describe, and the
+            // default resolution would take the normalizer's route on a machine
+            // that has S1-mini installed.
+            modelForPolicy: { _ in TransformModelManager.shared.defaultModel },
             gateSettings: { GateSettings(tone: false, cleanUp: true, toneMode: .formal) }
         )
 
