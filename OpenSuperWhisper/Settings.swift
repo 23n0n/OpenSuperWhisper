@@ -1857,7 +1857,7 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Transform models")
                                     .font(.subheadline)
-                                Text("The app runs these itself, from its own folder, so uninstalling takes them with it. Every English transform — tone and clean-up alike — runs on S1-mini while it is installed and on the shipped 1.5B while it is not; Polish dictation is delivered as transcribed, so no model is asked for it at all. Nothing has to be downloaded for either job to work.")
+                                Text("The app runs these itself, from its own folder, so uninstalling takes them with it. Every English transform — tone and clean-up alike — runs on S1-mini while it is installed and on the 1.5B the app falls back to while it is not; Polish dictation is delivered as transcribed, so no model is asked for it at all. Neither weight file ships inside the app: download one here, or the dictation is delivered exactly as it was transcribed and the app says so.")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)

@@ -249,6 +249,20 @@ enum TransformPolicy: Equatable {
     }
 }
 
+/// A transform that did not run, in the words the notice will use.
+///
+/// It exists because the app can fix one of these failures itself: a model
+/// that was never downloaded is a problem whose remedy the app already
+/// knows (the Settings card that lists the weights), and stating a problem
+/// without offering that fix is what left the tone switch looking inert.
+struct TransformFailureNotice {
+    let title: String
+    let message: String
+    /// The label of the fix the alert offers, or `nil` when the only honest
+    /// answer is the error itself.
+    let remedyTitle: String?
+}
+
 /// Rewrites English dictation: the tone switch and the clean-up switch, both
 /// riding one call to a model that runs inside this app.
 ///
@@ -284,6 +298,16 @@ final class TransformService {
     /// resolved to without loading any.
     let modelForPolicy: (TransformPolicy) -> TransformModel
 
+    /// Raises the failure where the user can see it. This used to be a print
+    /// only, and the failure was invisible: a machine with no weights
+    /// downloaded pasted the raw transcript and said nothing, so a transform
+    /// that never ran looked exactly like one that was switched off. The notice
+    /// carries the remedy the alert shows, so the failure that left the tone
+    /// switch looking inert offers its own fix instead of only naming itself.
+    /// Called synchronously; the default hops to the main actor itself, which
+    /// keeps this seam non-isolated so a test can pass a plain recorder.
+    let reportFailure: (TransformFailureNotice) -> Void
+
     typealias LocalTransform = (_ systemPrompt: String, _ userText: String, _ model: TransformModel) async throws -> String
 
     init(
@@ -297,11 +321,34 @@ final class TransformService {
         modelForPolicy: @escaping (TransformPolicy) -> TransformModel = {
             TransformModelManager.shared.model(for: $0)
         },
-        gateSettings: @escaping () -> GateSettings = { .current }
+        gateSettings: @escaping () -> GateSettings = { .current },
+        reportFailure: @escaping (TransformFailureNotice) -> Void = { notice in
+            Task { @MainActor in
+                if let remedyTitle = notice.remedyTitle {
+                    AppErrorCenter.shared.report(
+                        notice.title,
+                        message: notice.message,
+                        remedyTitle: remedyTitle
+                    ) {
+                        NotificationCenter.default.post(
+                            name: .openSettings,
+                            object: nil,
+                            userInfo: [
+                                SettingsDestination.userInfoKey:
+                                    SettingsDestination.transcription.rawValue
+                            ]
+                        )
+                    }
+                } else {
+                    AppErrorCenter.shared.report(notice.title, message: notice.message)
+                }
+            }
+        }
     ) {
         self.localTransform = localTransform
         self.modelForPolicy = modelForPolicy
         self.gateSettings = gateSettings
+        self.reportFailure = reportFailure
     }
 
     // MARK: - Public API
@@ -398,8 +445,18 @@ final class TransformService {
             }
             return TransformOutcome(text: transformed, policy: policy, didRunModel: true)
         } catch {
-            // Surface the failure so a missing or broken model is
-            // distinguishable from the transform simply being switched off.
+            // A real failure is visible (standing ruling 4): the transcript is
+            // still delivered, and the notice says which job did not run and why,
+            // so a missing or unloadable model can never look like a switch that
+            // was off. Cancellation is not a failure - a cancelled dictation is
+            // discarded by the caller - so it stays silent.
+            if !(error is CancellationError) {
+                reportFailure(TransformFailureNotice(
+                    title: Self.noticeTitle(for: policy),
+                    message: error.localizedDescription,
+                    remedyTitle: Self.remedyTitle(for: error)
+                ))
+            }
             print("[TransformService] transform failed, returning raw text: \(error)")
             return TransformOutcome(text: text, policy: policy, didRunModel: false)
         }
@@ -458,6 +515,39 @@ final class TransformService {
             throw TransformError.emptyResponse
         }
         return stripped
+    }
+
+    /// What the failed call was doing, in the notice's own words.
+    ///
+    /// A `cleanUpWithTone` policy rides one call carrying both jobs, so a call
+    /// that failed carried both and a title naming only the tone would
+    /// under-report what did not happen.
+    static func noticeTitle(for policy: TransformPolicy) -> String {
+        switch policy {
+        case .tone: return "Tone rewrite could not run"
+        case .cleanUpWithTone: return "Tone rewrite and clean-up could not run"
+        case .cleanUp: return "Clean-up could not run"
+        }
+    }
+
+    /// The fix the app can offer for a failure it recognises, or `nil` when the
+    /// only honest answer is the error itself.
+    ///
+    /// Two failures are pointed at the Settings card that lists the weights: a
+    /// weight file that was never downloaded, and one that is on disk but
+    /// failed its pinned checksum — the card can download either one again, so
+    /// both get the same door instead of a description of it. Everything else —
+    /// a failed load, a failed decode — keeps the plain alert and is left to
+    /// the runtime's own words rather than dressed in a fix that would not
+    /// repair it.
+    static func remedyTitle(for error: Error) -> String? {
+        guard let modelError = error as? TransformModelError else { return nil }
+        switch modelError {
+        case .notInstalled, .notVerified:
+            return "Open Transform models"
+        default:
+            return nil
+        }
     }
 
     // MARK: - Prompt building

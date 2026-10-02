@@ -7,6 +7,12 @@ enum TransformModelError: Error, LocalizedError {
     /// model's name: the shipped model is the floor for every language, so "the
     /// model is missing" has to say *which* one.
     case notInstalled(String)
+    /// The file is there and is not what it says it is: the size or the
+    /// checksum the catalogue pins does not match the bytes on disk. It is a
+    /// different problem from a file that was never downloaded — one is fixed
+    /// by downloading, the other by downloading again — and the user is told
+    /// which one he has.
+    case notVerified(String)
     case checksumMismatch(expected: String, actual: String)
     case downloadFailed(String)
     case cancellation
@@ -15,6 +21,8 @@ enum TransformModelError: Error, LocalizedError {
         switch self {
         case .notInstalled(let name):
             return "The \(name) transform model is not downloaded yet."
+        case .notVerified(let name):
+            return "The \(name) transform model is on disk but does not match its pinned checksum, so it was not loaded."
         case .checksumMismatch(let expected, let actual):
             return "The downloaded transform model does not match the pinned checksum (expected \(expected.prefix(12))…, got \(actual.prefix(12))…)."
         case .downloadFailed(let reason):

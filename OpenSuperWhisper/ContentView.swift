@@ -320,6 +320,7 @@ struct ContentView: View {
     @StateObject private var permissionsManager = PermissionsManager()
     @Environment(\.colorScheme) private var colorScheme
     @State private var isSettingsPresented = false
+    @State private var settingsTab = 0
     @State private var searchText = ""
     @State private var debouncedSearchText = ""
     @State private var showDeleteConfirmation = false
@@ -760,9 +761,13 @@ struct ContentView: View {
         }
         .fileDropHandler()
         .sheet(isPresented: $isSettingsPresented) {
-            SettingsView()
+            SettingsView(selectedTab: settingsTab)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in
+        // Read the card here, before the sheet exists: `SettingsView` takes its
+        // tab as an initial value, so telling the sheet afterwards would land a
+        // beat late — a remedy button that opens the sheet and then jumps cards.
+        .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { notification in
+            settingsTab = (notification.userInfo?[SettingsDestination.userInfoKey] as? Int) ?? 0
             isSettingsPresented = true
         }
         .onChange(of: viewModel.shouldClearSearch) { _, shouldClear in

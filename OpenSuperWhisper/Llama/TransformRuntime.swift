@@ -249,6 +249,14 @@ final class TransformRuntime {
         }
 
         guard let path = models.verifiedPath(for: requested) else {
+            // `verifiedPath` returns nil for two repairs that look the same and
+            // are not: a weight file that is not there is fixed by downloading
+            // it, and one that is there but does not verify is fixed by
+            // downloading it again. The user's next step differs, so one
+            // sentence cannot carry both.
+            if FileManager.default.fileExists(atPath: models.fileURL(for: requested).path) {
+                throw TransformModelError.notVerified(requested.displayName)
+            }
             throw TransformModelError.notInstalled(requested.displayName)
         }
         let created = try LlamaModel(modelPath: path)

@@ -37,6 +37,14 @@ final class TransformServiceTests: XCTestCase {
         var calls: Int { systemPrompts.count }
     }
 
+    /// The notices the service raised for one call. A class for the same reason
+    /// `LocalRecorder` is one: the seam takes an escaping closure, so a local
+    /// `var` in the test would be captured by reference and could only be read
+    /// safely while every seam is synchronous.
+    private final class NoticeRecorder {
+        var notices: [TransformFailureNotice] = []
+    }
+
     private let gate = GateBox()
 
     private func makeService(
@@ -561,6 +569,140 @@ final class TransformServiceTests: XCTestCase {
         XCTAssertEqual(outcome.policy, .tone(language: .english, tone: .formal))
         XCTAssertFalse(outcome.didRunModel)
         XCTAssertEqual(local.calls, 1, "the call was attempted; the failure is reported, not hidden")
+    }
+
+    /// A tone rewrite that throws used to be a `print` nobody reads: the
+    /// transcript came back untouched and no surface said the tone policy had
+    /// done nothing, so a missing model looked exactly like a switch that was
+    /// off (`fleet/data/jev-tone-20261001`). The failed call now reaches the
+    /// notice centre, naming the job that did not run and the reason the
+    /// runtime gave.
+    func testToneModelFailure_reportsTheFailedCallAndKeepsTheOutcome() async {
+        let text = "Please send the report to the client today."
+        let failure = TransformModelError.notInstalled("Test Model")
+        let local = LocalRecorder()
+        local.result = .failure(failure)
+        let recorder = NoticeRecorder()
+        let service = TransformService(
+            localTransform: { systemPrompt, userText, chosen in
+                local.systemPrompts.append(systemPrompt)
+                local.userTexts.append(userText)
+                local.models.append(chosen)
+                return try local.result.get()
+            },
+            modelForPolicy: { _ in TransformModelManager.shared.defaultModel },
+            gateSettings: { GateSettings(tone: true, cleanUp: false, toneMode: .formal) },
+            reportFailure: { recorder.notices.append($0) }
+        )
+
+        let outcome = await service.transformDetailed(text, sourceLanguage: "en")
+
+        XCTAssertEqual(recorder.notices.count, 1, "the failure is reported once, and only for the job that ran")
+        XCTAssertEqual(recorder.notices.first?.title, "Tone rewrite could not run")
+        XCTAssertEqual(recorder.notices.first?.message, failure.localizedDescription,
+                       "the message is the error's own words, not a paraphrase")
+        XCTAssertEqual(recorder.notices.first?.remedyTitle, "Open Transform models",
+                       "a never-downloaded model is the case the app can fix, so the alert offers the door")
+        XCTAssertEqual(outcome.text, text, "reporting never costs the user the transcript")
+        XCTAssertEqual(outcome.policy, .tone(language: .english, tone: .formal))
+        XCTAssertFalse(outcome.didRunModel)
+    }
+
+    /// A failed call says which jobs it was carrying: a `cleanUpWithTone`
+    /// policy rode one call for both, and a title naming only the tone would
+    /// under-report what did not happen (`fleet/data/jev-tone-20261001`).
+    func testNoticeTitle_namesEveryJobTheFailedCallCarried() {
+        XCTAssertEqual(TransformService.noticeTitle(for: .tone(language: .english, tone: .formal)),
+                       "Tone rewrite could not run",
+                       "a tone-only policy carried one job, so the title names only it")
+        XCTAssertEqual(TransformService.noticeTitle(for: .cleanUpWithTone(language: .english, tone: .casual)),
+                       "Tone rewrite and clean-up could not run",
+                       "a cleanUpWithTone policy rode one call for both jobs, so the title names both")
+        XCTAssertEqual(TransformService.noticeTitle(for: .cleanUp(language: .polish)),
+                       "Clean-up could not run",
+                       "a clean-up-only policy carried one job, so the title names only it")
+        XCTAssertEqual(TransformService.noticeTitle(for: .cleanUp(language: .english)),
+                       "Clean-up could not run",
+                       "the title follows the policy, not the transcript's language")
+    }
+
+    /// Only the two failures the app can repair from the alert get the remedy:
+    /// a model that was never downloaded, and a model whose bytes are on disk
+    /// but do not match the pin. Everything else keeps the plain alert, because
+    /// a button that would not fix the problem would misstate what the app
+    /// knows.
+    func testRemedy_isOfferedForMissingAndUnverifiedModelsAndWithheldForEverythingElse() {
+        XCTAssertEqual(TransformService.remedyTitle(for: TransformModelError.notInstalled("Test Model")),
+                       "Open Transform models",
+                       "a model that was never downloaded is repaired by the models card, so the alert offers it")
+        XCTAssertEqual(TransformService.remedyTitle(for: TransformModelError.notVerified("Test Model")),
+                       "Open Transform models",
+                       "a model on disk that failed its pin is repaired the same way, so it gets the same door")
+        XCTAssertNil(TransformService.remedyTitle(for: TransformError.emptyResponse),
+                     "an empty answer is not a model the app can repair, so no button is offered")
+        XCTAssertNil(TransformService.remedyTitle(for: CancellationError()),
+                     "a cancelled call is not a failure, so it gets no remedy")
+    }
+
+    /// A failure the app cannot repair must not be dressed in a fix: nothing in
+    /// the app can re-download a weight file whose bytes do not match its pinned
+    /// checksum, so the alert is the error's own words with the plain OK button
+    /// and no offer that would not repair it. A button that does nothing is a
+    /// lie about the app knowing what went wrong.
+    func testATransformThatFailsForAnotherReason_offersNoRemedy() async {
+        let text = "Please send the report to the client today."
+        let failure = TransformError.emptyResponse
+        let local = LocalRecorder()
+        local.result = .failure(failure)
+        let recorder = NoticeRecorder()
+        let service = TransformService(
+            localTransform: { systemPrompt, userText, chosen in
+                local.systemPrompts.append(systemPrompt)
+                local.userTexts.append(userText)
+                local.models.append(chosen)
+                return try local.result.get()
+            },
+            modelForPolicy: { _ in TransformModelManager.shared.defaultModel },
+            gateSettings: { GateSettings(tone: true, cleanUp: false, toneMode: .formal) },
+            reportFailure: { recorder.notices.append($0) }
+        )
+
+        let outcome = await service.transformDetailed(text, sourceLanguage: "en")
+
+        XCTAssertEqual(recorder.notices.count, 1, "the failure is still reported; only the remedy is withheld")
+        XCTAssertEqual(recorder.notices.first?.title, "Tone rewrite could not run")
+        XCTAssertEqual(recorder.notices.first?.message, failure.localizedDescription,
+                       "the message is the error's own words, not a paraphrase")
+        XCTAssertNil(recorder.notices.first?.remedyTitle,
+                     "the app does not know how to repair a checksum failure, and a button that would not fix it would be a lie")
+        XCTAssertEqual(outcome.text, text, "reporting never costs the user the transcript")
+        XCTAssertFalse(outcome.didRunModel)
+    }
+
+    /// Cancellation is not a failure: the caller discards a cancelled
+    /// dictation, so an alert about it would be a notice for an outcome that
+    /// has no user. The same wiring must therefore report nothing.
+    func testCancellation_reportsNoNotice() async {
+        let local = LocalRecorder()
+        local.result = .failure(CancellationError())
+        let recorder = NoticeRecorder()
+        let service = TransformService(
+            localTransform: { systemPrompt, userText, chosen in
+                local.systemPrompts.append(systemPrompt)
+                local.userTexts.append(userText)
+                local.models.append(chosen)
+                return try local.result.get()
+            },
+            modelForPolicy: { _ in TransformModelManager.shared.defaultModel },
+            gateSettings: { GateSettings(tone: false, cleanUp: true, toneMode: .formal) },
+            reportFailure: { recorder.notices.append($0) }
+        )
+
+        let outcome = await service.transformDetailed("Please send the report to the client today",
+                                                      sourceLanguage: "en")
+
+        XCTAssertEqual(recorder.notices.count, 0, "a cancelled dictation is not a failure to report")
+        XCTAssertFalse(outcome.didRunModel)
     }
 
     func testCancellation_returnsTheTranscript() async {
