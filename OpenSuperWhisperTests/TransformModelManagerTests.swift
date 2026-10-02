@@ -158,33 +158,30 @@ final class TransformModelManagerTests: XCTestCase {
         XCTAssertNil(manager.model(forID: "nope"), "an id this build does not ship is not a model")
     }
 
-    /// The catalogue holds three entries and the routing knows which is which:
-    /// the English backend, the floor every English transform falls back to, and
-    /// the larger instruction-follower no job resolves to any more. The normalizer
-    /// is the small one — 462 MB against the floor's 986 MB — which is the point
-    /// of moving English onto it.
-    func testTheCatalogueHoldsTheEnglishBackendTheFloorAndTheIdleLargerOne() throws {
+    /// The catalogue holds the two entries the routing knows: the English backend
+    /// and the floor every English transform falls back to while it is not
+    /// installed. The normalizer is the small one — 462 MB against the floor's
+    /// 986 MB — which is the point of moving English onto it, and it is the last
+    /// entry the card lists.
+    func testTheCatalogueHoldsTheEnglishBackendAndTheFloor() throws {
         let normalizer = TransformModelManager.shared.normalizerModel
         let shipped = TransformModelManager.shared.defaultModel
-        let eightBee = TransformModelManager.shared.polishModel
 
         XCTAssertEqual(normalizer.id, TransformModelManager.normalizerModelID)
         XCTAssertEqual(shipped.id, TransformModelManager.defaultModelID)
-        XCTAssertEqual(eightBee.id, TransformModelManager.polishOutputModelID)
-        XCTAssertEqual(Set([normalizer.id, shipped.id, eightBee.id]).count, 3,
-                       "three distinct models, and the card lists them in that order")
+        XCTAssertEqual(normalizer.id, TransformModelManager.availableModels.first?.id,
+                       "the card lists the English backend first")
+        XCTAssertEqual(TransformModelManager.availableModels.map(\.id), [normalizer.id, shipped.id],
+                       "two models, and this is the order the Settings list shows")
         XCTAssertLessThan(normalizer.sizeBytes, shipped.sizeBytes,
                           "the English backend is the smaller model, and the card states that")
-        XCTAssertGreaterThan(eightBee.sizeBytes, shipped.sizeBytes)
-        XCTAssertEqual(TransformModelManager.availableModels.map(\.id),
-                       [normalizer.id, shipped.id, eightBee.id],
-                       "the order the Settings list shows")
+        XCTAssertFalse(TransformModelManager.availableModels.contains { $0.id == "qwen3-8b-q4_k_m" },
+                       "the 8B no job resolved to is gone from the product, not merely unrouted")
 
         // The style is what each entry is: the normalizer is not an instruct
-        // model, and the other two are.
+        // model, and the floor is.
         XCTAssertEqual(normalizer.style, .normalizer)
         XCTAssertEqual(shipped.style, .instruction)
-        XCTAssertEqual(eightBee.style, .instruction)
     }
 
     /// The English backend is pinned by the brief: the URL, the size and the
@@ -218,7 +215,7 @@ final class TransformModelManagerTests: XCTestCase {
         XCTAssertTrue(normalizer.licence.contains("S1-mini"), normalizer.licence)
         XCTAssertTrue(normalizer.licence.contains("Superwhisper"), normalizer.licence)
         TestFixtures.report("[transform] licence line shown for the English backend: "
-                    + normalizer.sourceDescription)
+                    + "\(normalizer.licence) — from \(normalizer.source)")
     }
 
     /// The two facts the runtime reads off the style, both straight from the
@@ -235,21 +232,6 @@ final class TransformModelManagerTests: XCTestCase {
         XCTAssertTrue(TransformPromptStyle.normalizer.isGreedy)
         XCTAssertEqual(TransformPromptStyle.instruction.assistantPrefix, "")
         XCTAssertFalse(TransformPromptStyle.instruction.isGreedy)
-    }
-
-    /// The Polish entry is pinned by the brief: the URL, the size and the
-    /// digest the download is verified against, with no second source of truth.
-    func testTheEightBeeIsPinned() throws {
-        let polish = TransformModelManager.shared.polishModel
-
-        XCTAssertEqual(
-            polish.downloadURL.absoluteString,
-            "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf"
-        )
-        XCTAssertEqual(polish.sha256, "d98cdcbd03e17ce47681435b5150e34c1417f50b5c0019dd560e4882c5745785")
-        XCTAssertEqual(polish.sizeBytes, 5_027_783_488)
-        XCTAssertEqual(polish.fileName, "qwen3-8b-q4_k_m.gguf")
-        XCTAssertEqual(polish.licence, "Apache-2.0")
     }
 
     /// The floor is pinned too: it is what an English transform falls back to
@@ -269,21 +251,11 @@ final class TransformModelManagerTests: XCTestCase {
 
     // MARK: - The model is a preference
 
-    /// The id a language prefers: English the normalizer, Polish the 8B — the
-    /// row the flip back reads. What is *installed* is the caller's business
-    /// (`isNormalizerInstalled`, `isPolishModelInstalled`), because the
-    /// preference is allowed to miss.
-    func testThePreferredModelIDPerLanguage() {
-        XCTAssertEqual(TransformModelManager.modelID(forSpokenLanguage: .english),
-                       TransformModelManager.normalizerModelID,
-                       "English prefers the normalizer")
-        XCTAssertEqual(TransformModelManager.modelID(forSpokenLanguage: .polish), "qwen3-8b-q4_k_m")
-    }
-
-    /// Nothing installed: English runs on the floor rather than being refused,
-    /// and Polish's row still answers with the floor as well — no Polish
-    /// dictation reaches a model, but the table is kept whole for the flip back.
-    func testWithoutTheOptionalModelsEnglishFallsBackToTheFloor() throws {
+    /// Nothing installed: English runs on the floor rather than being refused, and
+    /// a policy that carried another language would resolve to it too — it is the
+    /// only backend left. The catalogue is what makes the second half true, so the
+    /// test states both.
+    func testNothingInstalledResolvesToTheFloorInsteadOfRefusing() throws {
         // The real catalogue, pointed at a directory with nothing in it — so
         // "the optional models are not installed" is this test's fact and not
         // the machine's.
@@ -297,11 +269,10 @@ final class TransformModelManagerTests: XCTestCase {
         )
 
         XCTAssertFalse(manager.isNormalizerInstalled)
-        XCTAssertFalse(manager.isPolishModelInstalled)
-        XCTAssertEqual(manager.model(forSpokenLanguage: .english).id, TransformModelManager.defaultModelID,
+        XCTAssertEqual(manager.preferredTransformModel.id, TransformModelManager.defaultModelID,
                        "English runs on the floor instead of being refused")
-        XCTAssertEqual(manager.model(forSpokenLanguage: .polish).id, TransformModelManager.defaultModelID)
+        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id,
+                       TransformModelManager.defaultModelID)
         XCTAssertNil(manager.verifiedPath(for: manager.normalizerModel), "nothing is staged, so nothing verifies")
-        XCTAssertNil(manager.verifiedPath(for: manager.polishModel))
     }
 }

@@ -44,8 +44,7 @@ final class SettingsExposureTests: XCTestCase {
     /// catalogue entries (same ids, same shape, bytes instead of gigabytes), so
     /// what the card says is decided by this test's staging and nothing here
     /// touches the user's Application Support.
-    private func card() throws -> (SettingsViewModel, TransformModelManager, URL, TransformModel, TransformModel,
-                                   TransformModel) {
+    private func card() throws -> (SettingsViewModel, TransformModelManager, URL, TransformModel, TransformModel) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("osw-card-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -69,15 +68,13 @@ final class SettingsExposureTests: XCTestCase {
         }
         let shipped = entry(TransformModelManager.defaultModelID, "Shipped Test Model", "shipped.gguf",
                             style: .instruction)
-        let eightBee = entry(TransformModelManager.polishOutputModelID, "Eight Bee Test Model", "8b.gguf",
-                             style: .instruction)
         let normalizer = entry(TransformModelManager.normalizerModelID, "S1-mini Test Model", "s1-mini.gguf",
                                style: .normalizer)
 
         let manager = TransformModelManager(directory: directory,
-                                           catalogue: [normalizer, shipped, eightBee])
+                                           catalogue: [normalizer, shipped])
         let model = SettingsViewModel(transformModelManager: manager)
-        return (model, manager, directory, shipped, eightBee, normalizer)
+        return (model, manager, directory, shipped, normalizer)
     }
 
     /// Stages `model`'s bytes in the manager's own directory, so the card's
@@ -98,7 +95,7 @@ final class SettingsExposureTests: XCTestCase {
     /// what the description reads, so pinning the resolution pins the claim
     /// without pinning the sentence that carries it.
     func testTheCardSaysWhichModelTheEnglishWorkUses() throws {
-        let (model, manager, directory, shipped, eightBee, _) = try card()
+        let (model, manager, directory, shipped, normalizer) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         model.installedTransformModelIDs = [shipped.id]
@@ -113,16 +110,18 @@ final class SettingsExposureTests: XCTestCase {
         XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .neutral)).id, shipped.id)
         XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, shipped.id)
 
-        // The floor is the only requirement; neither optional model is a warning.
-        XCTAssertNil(model.transformMissingNotice(for: eightBee),
-                     "a missing optional model is not a problem: \(model.transformModelRoleDescription(eightBee))")
+        // The floor is the only requirement; the optional English backend is not a
+        // warning while it is missing.
+        XCTAssertNil(model.transformMissingNotice(for: normalizer),
+                     "a missing optional model is not a problem: "
+                         + model.transformModelRoleDescription(normalizer))
         XCTAssertNil(model.transformMissingNotice(for: shipped), "the shipped model is installed here")
     }
 
     /// With the English backend installed every English job runs on it — tone and
     /// clean-up alike — and the card says so.
     func testWithTheEnglishBackendInstalledEveryEnglishJobRunsOnIt() throws {
-        let (model, manager, directory, shipped, _, normalizer) = try card()
+        let (model, manager, directory, shipped, normalizer) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         try stage(normalizer, in: manager, directory: directory)
@@ -142,7 +141,7 @@ final class SettingsExposureTests: XCTestCase {
     /// transform falls back to while S1-mini is absent, and the card says what
     /// waits for it.
     func testTheFloorMissingIsTheOnlyWarning() throws {
-        let (model, _, directory, shipped, _, _) = try card()
+        let (model, _, directory, shipped, _) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         model.installedTransformModelIDs = []
@@ -156,22 +155,37 @@ final class SettingsExposureTests: XCTestCase {
     /// the routing its role sentence describes is asserted as the resolution
     /// itself — the sentence cannot fail, the routing can.
     func testEachRowStatesItsJobAndItsCost() throws {
-        let (model, _, directory, shipped, eightBee, normalizer) = try card()
+        let (model, _, directory, shipped, normalizer) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         XCTAssertTrue(model.transformModelRoleDescription(normalizer).contains("Every English transform"),
                       model.transformModelRoleDescription(normalizer))
         XCTAssertTrue(model.transformModelRoleDescription(shipped).contains("The floor"),
                       model.transformModelRoleDescription(shipped))
-        XCTAssertTrue(model.transformModelRoleDescription(eightBee).contains("No job"),
-                      "the row whose model resolves nothing has to say so: "
-                          + model.transformModelRoleDescription(eightBee))
+        // Two entries, two kinds, and the card has to name them: the row whose
+        // text leaves "which one is S1-mini" to be inferred from prose is the
+        // defect this pins. Each row states what its own model *is*.
+        XCTAssertTrue(model.transformModelRoleDescription(normalizer).contains("normalizer"),
+                      model.transformModelRoleDescription(normalizer))
+        XCTAssertTrue(model.transformModelRoleDescription(normalizer).contains("not an instruction follower"),
+                      model.transformModelRoleDescription(normalizer))
+        XCTAssertTrue(model.transformModelRoleDescription(shipped).contains("instruction follower"),
+                      model.transformModelRoleDescription(shipped))
+
+        // And the question the rows cannot answer between them — is it a mistake
+        // to download both? — is answered before them.
+        let header = model.transformModelsHeaderDescription
+        XCTAssertTrue(header.contains("Downloading both is fine"), header)
+        XCTAssertTrue(header.contains("At most one of them is ever resident"), header)
+        XCTAssertTrue(header.contains("never the sum"), header)
+        XCTAssertTrue(header.contains("S1-mini"), header)
+
         XCTAssertEqual(model.transformModelManager.model(for: .tone(language: .english, tone: .casual)).id,
                        shipped.id, "without S1-mini installed, tone runs on the floor")
         XCTAssertEqual(model.transformModelManager.model(for: .cleanUp(language: .english)).id, shipped.id,
                        "and so does clean-up")
 
-        for entry in [normalizer, shipped, eightBee] {
+        for entry in [normalizer, shipped] {
             let state = model.transformModelStateDescription(entry)
             XCTAssertTrue(state.hasPrefix("Not downloaded"), state)
             XCTAssertTrue(state.contains(entry.memoryDescription), state)

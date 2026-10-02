@@ -293,7 +293,7 @@ final class UninstallServiceTests: XCTestCase {
             to: support.appendingPathComponent("whisper-models/ggml-large-v3-turbo-q5_0.bin")
         )
         try Data("downloaded".utf8).write(
-            to: support.appendingPathComponent("transform-models/qwen3-8b-q4_k_m.gguf")
+            to: support.appendingPathComponent("transform-models/s1-mini-q4_k_m.gguf")
         )
         // The user's own data.
         try Data("db".utf8).write(to: support.appendingPathComponent("recordings.sqlite"))

@@ -164,7 +164,7 @@ final class TransformBackendTests: XCTestCase {
         // asked for. Nothing is refused for a missing optional model, and the
         // caller is told which model it will really run on.
         XCTAssertFalse(manager.isNormalizerInstalled)
-        XCTAssertEqual(manager.model(forSpokenLanguage: .english).id, shipped.id)
+        XCTAssertEqual(manager.preferredTransformModel.id, shipped.id)
         XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, shipped.id)
         XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, shipped.id)
         XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .neutral)).id, shipped.id)
@@ -185,7 +185,7 @@ final class TransformBackendTests: XCTestCase {
         try payload.write(to: source)
         try manager.install(fileAt: source, model: normalizer)
         XCTAssertTrue(manager.isNormalizerInstalled)
-        XCTAssertEqual(manager.model(forSpokenLanguage: .english).id, normalizer.id)
+        XCTAssertEqual(manager.preferredTransformModel.id, normalizer.id)
         XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, normalizer.id)
         XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, normalizer.id,
                        "an English tone rewrite runs on the normalizer when it is installed")
@@ -201,11 +201,18 @@ final class TransformBackendTests: XCTestCase {
                     + "clean-up alike; the warm-up warms the same one")
     }
 
-    /// The English-only gate did not delete Polish's row. `model(forSpokenLanguage:)`
-    /// still answers for Polish — the 8B when it is installed, the floor when it
-    /// is not — so a flip back of the one decision that changed
-    /// (`TransformPolicy.resolve`) finds the rest of the table as it was.
-    func testPolishKeepsItsRowForAFlipBack() throws {
+    /// Polish has no backend, and the catalogue says so rather than keeping a row
+    /// nothing resolves to: the transform is English-only, so the only two models
+    /// the app offers are the two the English work chooses between. A policy that
+    /// carried Polish would still be handed the floor — the one model left — and
+    /// `TransformPolicy.resolve` is what keeps such a policy from ever existing.
+    func testPolishHasNoBackendOfItsOwn() throws {
+        XCTAssertEqual(TransformModelManager.availableModels.map(\.id),
+                       [TransformModelManager.normalizerModelID, TransformModelManager.defaultModelID],
+                       "two entries, and neither of them is a Polish model")
+        XCTAssertNil(TransformPolicy.resolve(tone: true, cleanUp: true, language: "pl", toneMode: .formal),
+                     "Polish never reaches a model, so it never resolves a policy either")
+
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("osw-preference-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -215,15 +222,10 @@ final class TransformBackendTests: XCTestCase {
             catalogue: TransformModelManager.availableModels
         )
 
-        XCTAssertFalse(manager.isPolishModelInstalled)
-        XCTAssertEqual(manager.model(forSpokenLanguage: .polish).id, TransformModelManager.defaultModelID,
-                       "Polish's row still falls back to the floor rather than being refused")
-        XCTAssertEqual(manager.model(for: .cleanUp(language: .polish)).id, TransformModelManager.defaultModelID)
-        XCTAssertEqual(manager.model(for: .tone(language: .polish, tone: .formal)).id,
-                       TransformModelManager.defaultModelID)
-        TestFixtures.report("[transform] Polish still resolves through the same table: "
-                    + "\(TransformModelManager.defaultModelID) without the 8B, "
-                    + "\(TransformModelManager.polishOutputModelID) with it")
+        XCTAssertEqual(manager.model(for: .cleanUp(language: .polish)).id, TransformModelManager.defaultModelID,
+                       "if a Polish policy ever existed, the floor is the only model it could run on")
+        TestFixtures.report("[transform] Polish resolves through no backend of its own: the catalogue is "
+                    + "\(TransformModelManager.availableModels.map(\.id).joined(separator: ", "))")
     }
 
     /// The service hands the **policy's** model to the runtime, so the preference

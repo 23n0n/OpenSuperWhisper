@@ -115,11 +115,6 @@ struct TransformModel: Equatable, Identifiable {
     var memoryDescription: String {
         ByteCountFormatter.string(fromByteCount: memoryBytes, countStyle: .memory)
     }
-
-    /// One line naming the weights, their licence and where they come from.
-    var sourceDescription: String {
-        "\(displayName), \(licence), from \(source)"
-    }
 }
 
 /// Owns the transform weights: app-owned storage, pinned hash, atomic install.
@@ -128,16 +123,16 @@ struct TransformModel: Equatable, Identifiable {
 /// is the wrong trade for a menu-bar utility). They live in
 /// `~/Library/Application Support/<bundle id>/transform-models/`, exactly like
 /// the whisper models next door, so uninstalling the app removes them and
-/// reinstalling fetches them again. The catalogue holds the English backend
-/// every transform prefers, the floor English falls back to, and the larger
-/// instruction-follower that no longer resolves a job; `model(for:)` is what the
-/// runtime asks it for, because the language is part of the choice.
+/// reinstalling fetches them again. The catalogue holds the two models the
+/// transform knows: the English backend every English transform prefers, and the
+/// floor it falls back to while that one is not installed. `model(for:)` is what
+/// the runtime asks, and what it hands back is the model that will really run.
 final class TransformModelManager {
     static let shared = TransformModelManager()
 
-    /// The floor every language can run on, and the one the app ships: an
-    /// English transform runs on it while S1-mini is not installed, and Polish
-    /// runs on it whenever the optional 8B is not installed.
+    /// The floor: the one entry that is not optional. An English transform runs
+    /// on it while S1-mini is not installed, which is the only job left that
+    /// falls back here.
     static let defaultModelID = "qwen2.5-1.5b-instruct-q4_k_m"
 
     /// The English backend: `superwhisper/s1-mini`, a 0.6B text normalizer
@@ -162,33 +157,8 @@ final class TransformModelManager {
     /// card forbids. The list still rides the prompt of the shipped model.
     static let normalizerModelID = "s1-mini-q4_k_m"
 
-    /// The Polish backend: **no job since the transform became English-only**
-    /// (`TransformPolicy.resolve` sends a Polish dictation straight to the
-    /// keypad). It is the larger instruction-follower the Polish clean-up and
-    /// every tone rewrite preferred when it was installed, and it is kept in the
-    /// catalogue for two reasons that are both about the user rather than about
-    /// routing: the 5 GB file is already in the app's own directory on a machine
-    /// that has downloaded it, and a catalogue entry is the only thing that can
-    /// show that file — and remove it — from Settings; and Polish's row of
-    /// `model(forSpokenLanguage:)` is the table a flip back reads.
-    static let polishOutputModelID = "qwen3-8b-q4_k_m"
-
-    /// The id of the model a dictation in `language` prefers.
-    ///
-    /// Test-facing: it names the preference without consulting the disk, so the
-    /// transform path does not read it — the service asks `model(for:)`, which
-    /// resolves the same preference against what is actually installed. It is
-    /// kept because the preference table is pinned through it.
-    static func modelID(forSpokenLanguage language: TransformLanguage) -> String {
-        switch language {
-        case .english: return normalizerModelID
-        case .polish: return polishOutputModelID
-        }
-    }
-
-    /// The catalogue, in the order Settings lists it: the English backend, the
-    /// floor every language can run on, then the larger instruction-follower no
-    /// job resolves to any more.
+    /// The catalogue, in the order Settings lists it: the English backend, then
+    /// the floor every English transform falls back to while it is not installed.
     static let availableModels: [TransformModel] = [
         TransformModel(
             id: "s1-mini-q4_k_m",
@@ -225,19 +195,6 @@ final class TransformModelManager {
             memoryBytes: 1_159_641_497,
             licence: "Apache-2.0",
             source: "bartowski/Qwen2.5-1.5B-Instruct-GGUF on Hugging Face"
-        ),
-        TransformModel(
-            id: "qwen3-8b-q4_k_m",
-            displayName: "Qwen3 8B (Q4_K_M)",
-            fileName: "qwen3-8b-q4_k_m.gguf",
-            style: .instruction,
-            downloadURL: URL(string: "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf")!,
-            sha256: "d98cdcbd03e17ce47681435b5150e34c1417f50b5c0019dd560e4882c5745785",
-            sizeBytes: 5_027_783_488,
-            // 4789.19 MiB weights + 576.00 MiB KV (4096 ctx) + 92.01 MiB compute.
-            memoryBytes: 5_723_163_853,
-            licence: "Apache-2.0",
-            source: "Qwen/Qwen3-8B-GGUF on Hugging Face"
         )
     ]
 
@@ -299,53 +256,30 @@ final class TransformModelManager {
         verifiedPath(for: normalizerModel) != nil
     }
 
-    /// The optional larger instruction-follower. It resolves no job any more —
-    /// see `polishOutputModelID` — and its installed state is what the card
-    /// reports about the file on disk.
-    var polishModel: TransformModel {
-        catalogue.first { $0.id == Self.polishOutputModelID } ?? defaultModel
+    /// The backend every transform runs on: S1-mini while it is installed, the
+    /// shipped floor while it is not.
+    ///
+    /// A **preference**, resolved against the catalogue and against what is on
+    /// disk, and the whole of the choice now that the transform is English-only
+    /// and the catalogue is two entries. Nothing is refused for a missing
+    /// optional model, and nothing is substituted silently — the caller is handed
+    /// the model that will really run, so Settings can say which.
+    var preferredTransformModel: TransformModel {
+        isNormalizerInstalled ? normalizerModel : defaultModel
     }
 
-    /// Whether the larger instruction-follower is installed and its bytes
-    /// verified.
-    var isPolishModelInstalled: Bool {
-        verifiedPath(for: polishModel) != nil
-    }
-
-    /// The backend a dictation in `language` runs on — the transform's one
-    /// language-based choice.
+    /// The backend a *policy* runs on.
     ///
-    /// A **preference**, resolved from the catalogue and from what is on disk:
-    /// English prefers S1-mini and uses the shipped 1.5B while it is not
-    /// installed. Nothing is refused for a missing optional model, and nothing
-    /// is substituted silently — the caller is handed the model it will really
-    /// run on, so Settings can say so.
-    ///
-    /// Polish's row is kept whole (the 8B when it is installed, the shipped
-    /// model otherwise) although no Polish dictation reaches a model any more:
-    /// that is the table a flip back reads, and the change that made the
-    /// transform English-only was required to leave Polish exactly as it was.
-    func model(forSpokenLanguage language: TransformLanguage) -> TransformModel {
-        switch language {
-        case .english:
-            return isNormalizerInstalled ? normalizerModel : defaultModel
-        case .polish:
-            return isPolishModelInstalled ? polishModel : defaultModel
-        }
-    }
-
-    /// The backend a *policy* runs on: the **language** decides and the job does
-    /// not.
-    ///
-    /// The job used to decide — a tone rewrite took the larger instruction-follower
-    /// in both languages, clean-up alone stayed on the language's own preference.
-    /// Since the transform is English-only and English has one backend, both jobs
-    /// resolve the same way, which leaves this function a single honest line: the
-    /// policy carries the language, and the language carries the model. Nothing is
-    /// refused, and the caller is handed the model that will really run, so
-    /// Settings can say which.
+    /// The policy is asked and not consulted: since the transform is
+    /// English-only, every policy that exists is English and the job — tone,
+    /// clean-up, or both — decides nothing, which leaves the installed set as the
+    /// only input. The parameter stays because the callers ask per policy, and
+    /// because a policy carrying anything but English would be a bug that shows
+    /// up here (as a resolution with no model of its own) rather than as a
+    /// silently substituted model.
     func model(for policy: TransformPolicy) -> TransformModel {
-        model(forSpokenLanguage: policy.language)
+        guard policy.language == .english else { return defaultModel }
+        return preferredTransformModel
     }
 
     func fileURL(for model: TransformModel) -> URL {

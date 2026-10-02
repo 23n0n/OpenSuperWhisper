@@ -133,7 +133,7 @@ simulate_install() { # root
     # What the app downloaded into the user's own directory, plus the user data
     # that must outlive the uninstall.
     echo downloaded-whisper > "$root$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/whisper-models/ggml-large-v3-turbo-q5_0.bin"
-    echo downloaded-transform > "$root$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/transform-models/qwen3-8b-q4_k_m.gguf"
+    echo downloaded-transform > "$root$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/transform-models/s1-mini-q4_k_m.gguf"
     echo db > "$root$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/recordings.sqlite"
     echo wav > "$root$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/recordings/dictation.wav"
     echo plist > "$root$HOME_FOR_SCRATCH/Library/Preferences/$BUNDLE_ID.plist"
@@ -164,7 +164,7 @@ assert_installed_paths() { # root, label
     check_present "$label: the downloaded whisper model is there" \
         "$root$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/whisper-models/ggml-large-v3-turbo-q5_0.bin"
     check_present "$label: the downloaded transform model is there" \
-        "$root$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/transform-models/qwen3-8b-q4_k_m.gguf"
+        "$root$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/transform-models/s1-mini-q4_k_m.gguf"
     check_present "$label: the recordings are there" \
         "$root$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/recordings/dictation.wav"
     check_present "$label: the transcriptions database is there" \
@@ -490,7 +490,7 @@ if [[ -n "$APP_FOR_PKG" ]]; then
             echo db > "$FROM_PKG$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/recordings.sqlite"
             echo wav > "$FROM_PKG$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/recordings/dictation.wav"
             echo downloaded > "$FROM_PKG$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/whisper-models/ggml-large-v3-turbo-q5_0.bin"
-            echo downloaded > "$FROM_PKG$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/transform-models/qwen3-8b-q4_k_m.gguf"
+            echo downloaded > "$FROM_PKG$HOME_FOR_SCRATCH/Library/Application Support/$BUNDLE_ID/transform-models/s1-mini-q4_k_m.gguf"
             echo plist > "$FROM_PKG$HOME_FOR_SCRATCH/Library/Preferences/$BUNDLE_ID.plist"
             echo KEEP > "$FROM_PKG$HOME_FOR_SCRATCH/models/Qwen3-30B-A3B-Instruct-2507-q4_k_m.gguf"
             echo KEEP > "$FROM_PKG$HOME_FOR_SCRATCH/Library/Application Support/com.example.other/state.json"

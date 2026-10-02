@@ -112,8 +112,8 @@ the three tone modes onto the model's `Styling` values (`[Styling: casual|semi-f
 [Context: general]`) and asking for its answers greedily, as the model's card requires.
 `Qwen2.5-1.5B-Instruct-Q4_K_M` (~986 MB on disk, ~1.1 GB while loaded) is the **floor**: English runs on it
 while S1-mini is not installed, with the app's own instruction prompt, and the card says which one is in use.
-The ~5 GB `Qwen3-8B-Q4_K_M` that an earlier build preferred for tone and Polish clean-up is still listed and
-still removable, and no job resolves to it any more. Each model is downloaded on demand into the app's own
+The two are the whole catalogue: the larger 8B an earlier build preferred for tone and Polish clean-up is gone
+from the app rather than left in the list unrouted. Each model is downloaded on demand into the app's own
 Application Support folder and verified against its pinned checksum before it is used. llama.cpp is vendored as
 `libllama/` and linked into the app exactly like whisper.cpp, so there is no background server, no listening
 port and no endpoint override: the transform (`OpenSuperWhisper/TransformService.swift`) is the only way the
@@ -618,9 +618,12 @@ Whisper Models — are kept as they are, apart from the notes this fork needed.
   every English transform runs on while it is installed, and it is not required: with only the shipped 1.5B
   installed, English runs on that instead, and the card says so. The transform is **English-only**: a Polish
   dictation is delivered exactly as it was transcribed, with no model call at all. The 5 GB 8B that used to be
-  preferred for tone and Polish clean-up no longer resolves any job; it stays in the model list so the file an
-  earlier build downloaded remains visible and removable, and its measured preference is still what the
-  earlier notes below describe.
+  preferred for tone and Polish clean-up is **not in the app at all**: it resolved no job once the transform
+  became English-only, so the row that kept its file visible was removed with it, and the only two models the
+  app offers are the two the English work chooses between. A machine that downloaded it still has the file in
+  the app's own folder (`~/Library/Application Support/ru.starmel.OpenSuperWhisper/transform-models/`), where
+  nothing in the app can see it any more: deleting it there is how the space comes back, and an uninstall takes
+  it with everything else.
 - **The guard catches the class, not the drift.** An assistant frame, a label line, the prompt's own delimiter,
   a stub and a language flip are rejected deterministically; subtle content drift (an article dropped, a noun
   invented) is text the guard cannot judge, and it is the prompt's and the model's job. Nothing here grades
@@ -653,9 +656,8 @@ plus llama.cpp for tone and clean-up) is linked into the app, its Metal
 shaders are embedded in it, and neither needs Homebrew, a background server or a
 listening port. Speech models (and, if you use the tone or clean-up switches, the
 transform models: 462 MB for the English model every English transform runs on,
-plus a fallback ~1 GB for while it is not installed — and the optional ~5 GB 8B an
-earlier build used for tone and Polish) are downloaded by the app into its own
-folder on first use.
+plus a fallback ~1 GB for while it is not installed) are downloaded by the app into
+its own folder on first use.
 
 On first launch macOS asks for the two permissions the app needs:
 
@@ -859,6 +861,14 @@ recording starts — S1-mini while it is installed, the shipped floor otherwise 
 still speaking. (Every English policy resolves to the same model, which is why the warm-up follows the switches
 rather than a language.)
 
+**The card lists two entries, and only one of them does the work at a time.** `S1-mini by Superwhisper (Q4_K_M)`
+is the English backend and `Qwen2.5 1.5B Instruct (Q4_K_M)` is the floor it falls back to: English runs on
+S1-mini while it is installed and on the floor while it is not, and a Polish dictation is never transformed.
+Downloading both changes nothing about that routing; the floor costs its ~1 GB on disk and nothing at run time
+while S1-mini is present, and it is not loaded at all then. Each row states its own name, what the model *is* and
+what it does — S1-mini is a 0.6B normalizer that cannot be instructed at all, the floor is a 1.5B instruction
+follower — and the card says, above them, which model the current switches actually run on.
+
 **The licence, and the name it requires.** `S1-mini by Superwhisper` is Apache-2.0 with one
 additional term, which it inherits from Qwen3-0.6B and writes out in its own `LICENSE`. The term
 covers any use, distribution or integration of the model, "whether unmodified or as part of a
@@ -871,7 +881,7 @@ condition. The Apache-2.0 half brings its own obligations. The licence text and 
 modified model has to say what was changed. This repository carries neither file, because it ships
 no weights: the app downloads `s1-mini-q4_k_m.gguf` from the publisher's own repository
 (`superwhisper/s1-mini-GGUF`), where `LICENSE` and `NOTICE` sit beside it, and verifies the file
-against the pinned digest before using it. Qwen2.5 1.5B and Qwen3 8B are Apache-2.0 alone.
+against the pinned digest before using it. Qwen2.5 1.5B is Apache-2.0 alone.
 
 **And if the rewrite is not a rewrite.** The floor's prompt forbids answering, greeting, acknowledging or
 labelling the dictation, and its user turn is framed and delimited (`<<<TRANSCRIPT … TRANSCRIPT>>>`) so dictated

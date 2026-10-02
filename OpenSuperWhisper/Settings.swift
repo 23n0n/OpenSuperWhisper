@@ -268,14 +268,6 @@ class SettingsViewModel: ObservableObject {
         transformModelManager.defaultModel
     }
 
-    /// The larger instruction-follower. It resolves no job any more — the
-    /// transform is English-only and English runs on S1-mini — and its row is
-    /// kept because it is the only thing that can show, and remove, the weights
-    /// an install of the previous build left in the app's own directory.
-    var idleTransformModel: TransformModel {
-        transformModelManager.polishModel
-    }
-
     func isTransformModelInstalled(_ model: TransformModel) -> Bool {
         installedTransformModelIDs.contains(model.id)
     }
@@ -284,21 +276,48 @@ class SettingsViewModel: ObservableObject {
         downloadingTransformModelID == model.id
     }
 
-    /// What a row's model does for the app, in the app's own routing words.
+    /// What a row's model is and what it does for the app, in the app's own
+    /// routing words.
     ///
-    /// Every row states its job as the code decides it, including the row whose
-    /// job is none: an entry that is offered but never used has to say so, or the
-    /// list is claiming work that does not happen.
+    /// The row's title is the model's own name, so this says what that name is
+    /// for — and what the model *is*, because the two entries differ in kind, not
+    /// only in size: one is a normalizer that cannot be instructed, the other an
+    /// instruction follower, and only the first of them does the work on a machine
+    /// that has it. The floor's row says what it waits for, and the English
+    /// backend's says what it takes over.
     func transformModelRoleDescription(_ model: TransformModel) -> String {
         if model.id == englishTransformModel.id {
-            return "Every English transform — tone and clean-up alike — whenever it is installed"
+            return "The English backend. Every English transform — tone and clean-up alike — runs on it "
+                + "whenever it is installed, and it takes the work over from the fallback below the "
+                + "moment it arrives. A 0.6B normalizer trained on exactly this job — raw transcript in, "
+                + "clean written text out — and not an instruction follower: it takes one fixed prompt "
+                + "and a control line instead of the app's instructions, which is why the reference list "
+                + "above does not reach it."
         }
-        if model.id == idleTransformModel.id {
-            return "No job: the transform is English-only and English runs on S1-mini. Kept so its "
-                + "weights stay visible and removable here"
-        }
-        return "The floor: every English transform while S1-mini is not installed, and every Polish "
-            + "clean-up a previous build ran"
+        return "The floor, and the fallback: every English transform runs on it while S1-mini is not "
+            + "installed, and nothing runs on it while S1-mini is. A 1.5B instruction follower, so it "
+            + "takes the app's own prompt — the reference list included — and it is the one row that has "
+            + "to be present for the switches to do anything at all on a machine without S1-mini."
+    }
+
+    /// The card's opening paragraph: what the weights are, where they live, and
+    /// what downloading both of them does.
+    ///
+    /// The list offers two models and one of them does the work, so the question
+    /// the rows cannot answer between them — is it a mistake to have both? — is
+    /// answered here, before the rows: the routing is decided by what is
+    /// installed, the second file costs nothing at run time, and only the model in
+    /// use is ever resident.
+    var transformModelsHeaderDescription: String {
+        return "The app runs these itself, from its own folder, so uninstalling takes them with it. "
+            + "Every English transform — tone and clean-up alike — runs on S1-mini while it is installed "
+            + "and on the 1.5B fallback while it is not; Polish dictation is delivered as transcribed, so "
+            + "no model is asked for it at all. No weight file ships inside the app: download one here, or "
+            + "the dictation is delivered exactly as it was transcribed and the app says so. Downloading "
+            + "both is fine and changes nothing above: the work still goes to S1-mini, and while S1-mini "
+            + "is here the 1.5B is never loaded at all. At most one of them is ever resident — it is "
+            + "released after ten minutes without a transform — so the cost in RAM is the model in use, "
+            + "never the sum, and the cost on disk is the sum of the rows you have downloaded."
     }
 
     /// What a row says about its model: download state, disk and RAM.
@@ -333,7 +352,7 @@ class SettingsViewModel: ObservableObject {
     /// Polish dictation is delivered exactly as it was transcribed. Nothing is
     /// refused, and nothing has to be downloaded for the feature to work.
     var transformLanguageModelDescription: String {
-        let english = transformModelManager.model(forSpokenLanguage: .english)
+        let english = transformModelManager.preferredTransformModel
         let presence = transformModelManager.isNormalizerInstalled
             ? "S1-mini is installed."
             : "S1-mini is not installed, so the shipped model does the work — nothing is refused, and "
@@ -1857,7 +1876,10 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Transform models")
                                     .font(.subheadline)
-                                Text("The app runs these itself, from its own folder, so uninstalling takes them with it. Every English transform — tone and clean-up alike — runs on S1-mini while it is installed and on the 1.5B the app falls back to while it is not; Polish dictation is delivered as transcribed, so no model is asked for it at all. Neither weight file ships inside the app: download one here, or the dictation is delivered exactly as it was transcribed and the app says so.")
+                                // The paragraph is a view-model property so the
+                                // routing it states is asserted by the suite
+                                // rather than living only in the view body.
+                                Text(viewModel.transformModelsHeaderDescription)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -1875,8 +1897,16 @@ struct SettingsView: View {
                                 VStack(alignment: .leading, spacing: 6) {
                                     HStack(alignment: .top) {
                                         VStack(alignment: .leading, spacing: 2) {
+                                            // The model's own name first: three
+                                            // rows whose titles were their roles
+                                            // left "which one is S1-mini?" to be
+                                            // inferred from the prose below.
+                                            Text(model.displayName)
+                                                .font(.subheadline.weight(.semibold))
                                             Text(viewModel.transformModelRoleDescription(model))
-                                                .font(.subheadline)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                                .fixedSize(horizontal: false, vertical: true)
                                             Text(viewModel.transformModelStateDescription(model))
                                                 .font(.caption)
                                                 .foregroundColor(
@@ -1923,7 +1953,10 @@ struct SettingsView: View {
                                             .fixedSize(horizontal: false, vertical: true)
                                     }
 
-                                    Text("Runs inside the app: \(model.sourceDescription).")
+                                    // The name is the row's title now, so this
+                                    // line carries only what the title does not:
+                                    // the licence and where the weights come from.
+                                    Text("Runs inside the app. \(model.licence). From \(model.source).")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                         .fixedSize(horizontal: false, vertical: true)

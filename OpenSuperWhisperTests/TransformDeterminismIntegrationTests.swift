@@ -20,7 +20,6 @@ final class TransformDeterminismIntegrationTests: XCTestCase {
     /// user's model directory.
     private static var home: URL { FileManager.default.homeDirectoryForCurrentUser }
     private static var englishWeights: URL { home.appendingPathComponent("models/qwen2.5-1.5b-instruct-q4_k_m.gguf") }
-    private static var polishWeights: URL { home.appendingPathComponent("models/Qwen3-8B-Q4_K_M.gguf") }
 
     private static func sha256(_ text: String) -> String {
         SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
@@ -81,17 +80,6 @@ final class TransformDeterminismIntegrationTests: XCTestCase {
     func testPolishRewriteIsIdenticalOnEveryRepeat() throws {
         try assertOneInputGivesOneOutput(
             weights: Self.englishWeights,
-            language: .polish, tone: .formal,
-            input: "nie mogę dzisiaj przyjść na spotkanie przepraszam "
-                 + "czy możemy przełożyć je na przyszły tydzień"
-        )
-    }
-
-    /// Polish again, on the 8B — the model Polish prefers when it is installed —
-    /// so the larger backend's accumulation is pinned too.
-    func testPolishRewriteOnTheEightBeeIsIdenticalOnEveryRepeat() throws {
-        try assertOneInputGivesOneOutput(
-            weights: Self.polishWeights,
             language: .polish, tone: .formal,
             input: "nie mogę dzisiaj przyjść na spotkanie przepraszam "
                  + "czy możemy przełożyć je na przyszły tydzień"

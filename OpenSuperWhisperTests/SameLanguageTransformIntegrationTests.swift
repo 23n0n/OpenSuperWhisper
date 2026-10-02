@@ -19,7 +19,6 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
 
     private static var home: URL { FileManager.default.homeDirectoryForCurrentUser }
     private static var smallWeights: URL { home.appendingPathComponent("models/qwen2.5-1.5b-instruct-q4_k_m.gguf") }
-    private static var polishWeights: URL { home.appendingPathComponent("models/Qwen3-8B-Q4_K_M.gguf") }
     private static var normalizerWeights: URL { home.appendingPathComponent("models/s1-mini-q4_k_m.gguf") }
 
     private var directory: URL!
@@ -60,11 +59,6 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
     private func shippedWeights() throws -> URL {
         try stage(manager.defaultModel, from: Self.smallWeights)
         return Self.smallWeights
-    }
-
-    private func polishWeights() throws -> URL {
-        try stage(manager.polishModel, from: Self.polishWeights)
-        return Self.polishWeights
     }
 
     private func stagedNormalizerWeights() throws -> URL {
@@ -180,7 +174,6 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
     /// the switches say.
     func testPolishIsDeliveredAsTranscribedWithNoModelCall() async throws {
         _ = try stagedNormalizerWeights()
-        try polishWeights()
 
         let input = "no hej, sluchaj, musimy przelozyc to spotkanie z klientem na przyszly tydzien, ok?"
         let settingses = [
@@ -273,7 +266,6 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
     /// engine produced, and no weights loaded by the attempt.
     func testBothSwitchesOffMakeNoModelCallAtAll() async throws {
         try shippedWeights()
-        try polishWeights()
 
         let calls = CallCounter()
         let subject = service(
@@ -314,8 +306,6 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         XCTAssertTrue(without.contains("nothing is refused"), without)
         XCTAssertNil(card.transformMissingNotice(for: manager.normalizerModel),
                      "a missing optional model is never a warning: nothing is refused for it")
-        XCTAssertNil(card.transformMissingNotice(for: manager.polishModel),
-                     "the idle larger model is not a warning either")
 
         _ = try stagedNormalizerWeights()
         card.refreshTransformModelState()
@@ -326,13 +316,14 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         XCTAssertTrue(with.contains("runs on \(manager.normalizerModel.displayName)"), with)
         XCTAssertTrue(with.contains("S1-mini is installed"), with)
 
-        // The row whose model resolves no job says so, and the English backend's
-        // row says what it takes over.
-        let idleRow = card.transformModelRoleDescription(manager.polishModel)
-        TestFixtures.report("[s1-mini] the idle row: \(idleRow)")
-        XCTAssertTrue(idleRow.contains("No job"), idleRow)
+        // The card lists the two models the app has, and each row says what its
+        // own model is for.
+        XCTAssertEqual(card.transformModels.map(\.id),
+                       [TransformModelManager.normalizerModelID, TransformModelManager.defaultModelID])
         XCTAssertTrue(card.transformModelRoleDescription(manager.normalizerModel).contains("English transform"),
                       card.transformModelRoleDescription(manager.normalizerModel))
+        XCTAssertTrue(card.transformModelRoleDescription(manager.defaultModel).contains("The floor"),
+                      card.transformModelRoleDescription(manager.defaultModel))
     }
 
     // MARK: - One model at a time, and what the English backend costs
@@ -377,27 +368,29 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
     /// The warm-up carries the cold load, and a dictation that arrives while the
     /// warm-up is still running waits for it instead of loading a second copy.
     func testWarmUpCarriesTheColdLoadAndTheFirstUtterance() async throws {
-        _ = try polishWeights()
-        let polish = manager.polishModel
-        // Verify first, so the one-off ~5 GB hash is not measured as load time.
-        // (That hash does leave the file in the page cache, so this is the
-        // warm-cache load: the app's second use of the weights. The cold figure,
-        // with the cache evicted, is measured outside this suite — see the task
-        // report for both numbers.)
-        XCTAssertNotNil(manager.verifiedPath(for: polish))
+        _ = try stagedNormalizerWeights()
+        let normalizer = manager.normalizerModel
+        // Verify first, so the one-off hash of the weights is not measured as
+        // load time. (That hash does leave the file in the page cache, so this is
+        // the warm-cache load: the app's second use of the weights. The cold
+        // figure, with the cache evicted, is measured outside this suite — see
+        // the task report for both numbers.)
+        XCTAssertNotNil(manager.verifiedPath(for: normalizer))
 
-        let prompt = TransformService.systemPrompt(for: .cleanUp(language: .polish), cleanUp: true)
+        let prompt = TransformService.systemPrompt(for: .cleanUp(language: .english), cleanUp: true)
+        let input = "Please send the report to the client today."
+        // Greedy decoding, so the race below compares outputs rather than draws.
         let baseline = wiredBytes()
 
         let warmStart = Date()
-        runtime.warmUp(for: polish)
+        runtime.warmUp(for: normalizer)
         try await waitUntilLoaded(timeout: 180)
         TestFixtures.report("[same-language] warm-up (load + throwaway decode): "
                     + "\(seconds(Date().timeIntervalSince(warmStart)))")
         report("after the warm-up", wiredSince: baseline)
 
         let firstStart = Date()
-        let first = try await runtime.transform(systemPrompt: prompt, userText: "Cześć, jak się masz?", model: polish)
+        let first = try await runtime.transform(systemPrompt: prompt, userText: input, model: normalizer)
         TestFixtures.report("[same-language] first utterance after a finished warm-up: "
                     + "\(seconds(Date().timeIntervalSince(firstStart)))")
         XCTAssertFalse(first.isEmpty)
@@ -407,8 +400,8 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         // load — the utterance is slower, never wrong, and never doubled.
         runtime.unload()
         let raceStart = Date()
-        runtime.warmUp(for: polish)
-        let raced = try await runtime.transform(systemPrompt: prompt, userText: "Cześć, jak się masz?", model: polish)
+        runtime.warmUp(for: normalizer)
+        let raced = try await runtime.transform(systemPrompt: prompt, userText: input, model: normalizer)
         TestFixtures.report("[same-language] first utterance overlapping the warm-up: "
                     + "\(seconds(Date().timeIntervalSince(raceStart)))")
         XCTAssertEqual(raced, first, "a dictation that races the warm-up must still come back in Polish")
@@ -424,19 +417,19 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
 
     // MARK: - The digest
 
-    /// The download's verification step, against the real 5 GB file: a mutated
+    /// The download's verification step, against a real weight file: a mutated
     /// copy is refused and leaves nothing installed, and the file on disk still
     /// hashes to the pin.
     func testAMutatedCopyIsRefusedAndThePinnedFileStillVerifies() throws {
-        let polish = manager.polishModel
-        let source = Self.polishWeights
+        let normalizer = manager.normalizerModel
+        let source = Self.normalizerWeights
         guard FileManager.default.fileExists(atPath: source.path) else {
             throw XCTSkip("no weights at \(source.path)")
         }
 
         // A clone: shares its blocks with the original, so this costs no disk
         // and the byte below cannot reach the pinned file.
-        let clone = directory.appendingPathComponent("mutated-qwen3-8b.gguf")
+        let clone = directory.appendingPathComponent("mutated-s1-mini.gguf")
         try? FileManager.default.removeItem(at: clone)
         XCTAssertEqual(clonefile(source.path, clone.path, 0), 0, "clonefile failed for \(source.path)")
 
@@ -446,33 +439,34 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         try handle.seek(toOffset: size.uint64Value / 2)
         try handle.write(contentsOf: Data([0xFF]))
 
-        XCTAssertThrowsError(try manager.install(fileAt: clone, model: polish)) { error in
+        XCTAssertThrowsError(try manager.install(fileAt: clone, model: normalizer)) { error in
             guard case TransformModelError.checksumMismatch = error else {
                 return XCTFail("a mutated copy must be refused by the checksum, got \(error)")
             }
             TestFixtures.report("[same-language] mutated copy refused: \(error.localizedDescription)")
         }
-        XCTAssertFalse(manager.hasModelFile(polish), "a refused file must not be installed")
-        XCTAssertNil(manager.verifiedPath(for: polish))
-        XCTAssertFalse(manager.isPolishModelInstalled, "a refused file is not 'the 8B is installed'")
+        XCTAssertFalse(manager.hasModelFile(normalizer), "a refused file must not be installed")
+        XCTAssertNil(manager.verifiedPath(for: normalizer))
+        XCTAssertFalse(manager.isNormalizerInstalled, "a refused file is not 'the English backend is installed'")
 
         // …while the file the app would have downloaded still matches the pin.
-        XCTAssertEqual(try TransformModelManager.sha256(ofFileAt: source), polish.sha256)
-        TestFixtures.report("[same-language] on-disk \(source.lastPathComponent) re-verifies against \(polish.sha256)")
+        XCTAssertEqual(try TransformModelManager.sha256(ofFileAt: source), normalizer.sha256)
+        TestFixtures.report("[same-language] on-disk \(source.lastPathComponent) re-verifies "
+                    + "against \(normalizer.sha256)")
     }
 
     /// The file the machine already has is the file the catalogue pins, so the
     /// app's own verification accepts it without a re-download.
-    func testTheInstalledEightBeeVerifiesAgainstThePin() throws {
-        let polish = manager.polishModel
-        _ = try polishWeights()
+    func testTheInstalledEnglishBackendVerifiesAgainstThePin() throws {
+        let normalizer = manager.normalizerModel
+        _ = try stagedNormalizerWeights()
 
-        XCTAssertTrue(manager.hasModelFile(polish), "the staged size must match the pinned size")
-        XCTAssertNotNil(manager.verifiedPath(for: polish))
-        XCTAssertTrue(manager.verifyInstalledModel(polish))
-        XCTAssertTrue(manager.isPolishModelInstalled)
-        TestFixtures.report("[same-language] \(Self.polishWeights.path) verifies: "
-                    + "\(polish.sizeBytes) bytes, \(polish.sha256)")
+        XCTAssertTrue(manager.hasModelFile(normalizer), "the staged size must match the pinned size")
+        XCTAssertNotNil(manager.verifiedPath(for: normalizer))
+        XCTAssertTrue(manager.verifyInstalledModel(normalizer))
+        XCTAssertTrue(manager.isNormalizerInstalled)
+        TestFixtures.report("[same-language] \(Self.normalizerWeights.path) verifies: "
+                    + "\(normalizer.sizeBytes) bytes, \(normalizer.sha256)")
     }
 
     // MARK: - The idle-unload contract
@@ -527,8 +521,6 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         XCTAssertTrue(notice.contains("every English transform falls back to"), notice)
         XCTAssertNil(card.transformMissingNotice(for: card.englishTransformModel),
                      "the optional English backend has nothing to warn about")
-        XCTAssertNil(card.transformMissingNotice(for: card.idleTransformModel),
-                     "nor does the idle one")
         TestFixtures.report("[s1-mini] the floor missing: \(notice)")
     }
 
