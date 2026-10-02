@@ -655,15 +655,26 @@ Whisper Models — are kept as they are, apart from the notes this fork needed.
 
 ## Installation
 
-Download `OpenSuperWhisper-<version>.pkg` from the
-[GitHub releases page](https://github.com/Starmel/OpenSuperWhisper/releases) and run it, or:
+**This fork publishes no installer, and there is no Homebrew cask for it.** A tagged release is a source marker
+with the notes and no download: such a package would be unsigned and bound to one locally created signing
+identity, so Gatekeeper would refuse it on any other Mac and it could never hold a stable Accessibility grant
+there. `brew install opensuperwhisper` installs **upstream's** OpenSuperWhisper
+([Starmel/OpenSuperWhisper](https://github.com/Starmel/OpenSuperWhisper)), not this fork.
+
+Build this one instead — [Building locally](#building-locally) has the whole path:
 
 ```shell
-brew update # Optional
-brew install opensuperwhisper
+git clone https://github.com/23n0n/OpenSuperWhisper.git
+cd OpenSuperWhisper
+git submodule update --init --recursive
+brew install cmake rust ruby     # build-time tools only; the app needs none of them at run time
+Scripts/dev-run.sh build         # the native engines, the app, and a signature from the local dev identity
+cp -R build/Build/Products/Debug/OpenSuperWhisper.app /Applications/
 ```
 
-Everything the app needs is inside the package: the speech engine (whisper.cpp
+`Scripts/dev-run.sh` creates that signing identity on first use, builds the vendored engines and the app, and signs
+the result; its `build` argument stops there, and with no argument it launches the app instead. The speech engine
+(whisper.cpp
 plus llama.cpp for tone and clean-up) is linked into the app, its Metal
 shaders are embedded in it, and neither needs Homebrew, a background server or a
 listening port. Speech models (and, if you use the tone or clean-up switches, the
@@ -678,8 +689,11 @@ On first launch macOS asks for the two permissions the app needs:
 | **Microphone** | recording | Privacy & Security → Microphone |
 | **Accessibility** | typing the transcript into the focused app | Privacy & Security → Accessibility |
 
-Both grant the *app binary*. If you rebuild it locally with a different
-signature, macOS treats it as a different app and the grant must be given again.
+Both grants are stored against the app's **Designated Requirement**, and this fork's builds take theirs from one
+locally created signing identity — so rebuilding the same identity keeps the grants, and signing ad-hoc (or with a
+different identity) is what throws them away.
+[Keeping permission grants across rebuilds](#keeping-permission-grants-across-rebuilds) is that difference in
+full.
 
 The same two grants are visible inside the app — **Settings → Shortcuts →
 Permissions** — with their current state and a button that opens the pane which
@@ -695,11 +709,19 @@ without changing either until you choose.
 
 ## Uninstalling
 
-One operation removes the app, your dictation history, the downloaded models and
-the installer receipt:
+**Settings → Advanced → Uninstall OpenSuperWhisper…**, or the same item in the menu-bar menu, or
+`/Applications/Uninstall OpenSuperWhisper.command` if the app is already gone. It removes:
 
-- **Settings → Advanced → Uninstall OpenSuperWhisper…**, or the same item in the menu-bar menu; or
-- `/Applications/Uninstall OpenSuperWhisper.command`, if the app is already gone.
+- the app, and the uninstall command beside it;
+- the models the app downloaded for itself — the speech models and the transform weights — and any model copies an
+  earlier package left in `/Library/Application Support/ru.starmel.OpenSuperWhisper/Models`;
+- its caches, HTTP storage and saved window state;
+- the installer receipt, so a later install is a clean first install.
+
+**It keeps your dictation history.** The recordings, the transcriptions database and your settings stay where they
+are, and a later install finds them again — the confirmation sheet lists that half too, before anything is
+removed. The wipe is the flag: `/Applications/Uninstall OpenSuperWhisper.command --remove-user-data` takes the
+history with it, and `--reset-permissions` clears the two grants as well.
 
 It leaves `~/models`, `/opt/homebrew` and every other application's data alone,
 and running it twice is harmless.
@@ -719,12 +741,12 @@ If you encounter any issues or have questions, please:
 
 To build locally, you'll need:
 
-    git clone git@github.com:Starmel/OpenSuperWhisper.git
+    git clone https://github.com/23n0n/OpenSuperWhisper.git   # this fork, not upstream
     cd OpenSuperWhisper
     git submodule update --init --recursive
     brew install cmake rust ruby
-    gem install xcpretty
-    ./run.sh build
+    gem install xcpretty                                     # optional: shortens the build output
+    Scripts/dev-run.sh build                                 # or ./run.sh build, which is the same script
 
 The vendored engines are built by `Scripts/build-native.sh`: llama.cpp is
 configured first and installs its ggml package, then whisper.cpp is configured
