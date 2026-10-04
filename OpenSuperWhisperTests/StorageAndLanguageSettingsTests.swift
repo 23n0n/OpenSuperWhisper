@@ -1,4 +1,5 @@
 import AppKit
+import FluidAudio
 import XCTest
 @testable import OpenSuperWhisper
 
@@ -95,6 +96,56 @@ final class LanguageSupportTests: XCTestCase {
         for code in LanguageUtil.parakeetV3Languages {
             XCTAssertNotNil(LanguageUtil.languageNames[code], "Missing display name for \(code)")
         }
+    }
+
+    /// Redux is a ternary re-training of v3 with the same tokenizer, so the list
+    /// it may offer is v3's 25 languages — not v2's English-only one.
+    func testSupportedLanguages_parakeetRedux_isTheV3List() {
+        XCTAssertEqual(
+            LanguageUtil.supportedLanguages(engine: "fluidaudio", fluidAudioModelVersion: "redux"),
+            LanguageUtil.parakeetV3Languages
+        )
+    }
+}
+
+final class ParakeetModelVersionTests: XCTestCase {
+
+    /// Every call site used to map a stored version with
+    /// `version == "v2" ? .v2 : .v3`, which resolves every string that is not
+    /// "v2" to v3 — including "redux", whose weights and cache directory are its
+    /// own. The app would have downloaded, verified, measured and deleted v3's
+    /// files under Redux's name.
+    func testAsrVersion_redux_doesNotCollapseToV3() {
+        guard case .redux = AsrModelVersion(storedParakeetVersion: "redux") else {
+            return XCTFail("\"redux\" must resolve to FluidAudio's .redux, not to v3's weights")
+        }
+    }
+
+    func testAsrVersion_namedVersions_resolveToThemselves() {
+        guard case .v2 = AsrModelVersion(storedParakeetVersion: "v2") else {
+            return XCTFail("\"v2\" must resolve to .v2")
+        }
+        guard case .v3 = AsrModelVersion(storedParakeetVersion: "v3") else {
+            return XCTFail("\"v3\" must resolve to .v3")
+        }
+    }
+
+    /// A preference written by a build that offered no third model stores a
+    /// string this build still has to accept.
+    func testAsrVersion_unknownStoredString_fallsBackToV3() {
+        XCTAssertNil(ParakeetModelVersion(stored: "who-knows"))
+        guard case .v3 = AsrModelVersion(storedParakeetVersion: "who-knows") else {
+            return XCTFail("an unrecognised stored version must fall back to v3")
+        }
+    }
+
+    /// Redux's weights are the 219 MB the settings row promises, and they come
+    /// from the repo whose name FluidAudio downloads.
+    func testReduxRow_describesTheTernaryWeights() {
+        let row = try? XCTUnwrap(SettingsFluidAudioModels.availableModels.first { $0.version == "redux" })
+        XCTAssertEqual(row?.size, 219)
+        XCTAssertEqual(ParakeetModelVersion.redux.huggingFaceRepo, "parakeet-redux-coreml")
+        XCTAssertEqual(ParakeetModelVersion.redux.displayName, "Parakeet Redux")
     }
 }
 

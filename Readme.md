@@ -22,7 +22,7 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 ## Features
 
 - 🎙️ Real-time audio recording and transcription
-- 🧠 Two transcription engines: [Whisper](https://github.com/ggerganov/whisper.cpp) and [Parakeet](https://github.com/AntinomyCollective/FluidAudio) — download models directly from the app
+- 🧠 Two transcription engines: [Whisper](https://github.com/ggerganov/whisper.cpp) and [Parakeet](https://github.com/AntinomyCollective/FluidAudio) — download models directly from the app (Parakeet: v3 and v2, plus **Redux**, moondream's 219 MB ternary re-training of v3)
 - ⌨️ Global keyboard shortcuts — key combination or single modifier key (e.g. Left ⌘, Right ⌥, Fn)
 - 🖱️ Mouse button trigger — bind the middle or an extra (thumb) mouse button to start/stop recording
 - ✊ Hold-to-record mode — hold the shortcut, modifier key or mouse button to record, release to stop
@@ -614,6 +614,34 @@ failure's own description, so a failed row whose transcript is empty reads **"No
 text: the app did not break, and the row must not read as if it had. Rows written before the column stopped
 carrying failure text can still hold one, and those keep the red "Transcription failed" marker and the stored text
 under it.
+
+### 13. Parakeet Redux is a third download, not a second engine
+
+The Parakeet engine shipped two models — v3 (multilingual) and v2 (English-only). Redux, moondream's ternary
+re-training of v3, is now a third row in **Settings → Model → Download Models**, downloading its own 219 MB
+(`FluidInference/parakeet-redux-coreml`) into the same FluidAudio cache. Same tokenizer, same blank id, same
+15 s window and the same decoder/joint contract as v3, so every v3 decode path applies and the language list it
+may offer is v3's 25, not v2's one.
+
+What a reader should know before downloading it:
+
+- **It needs macOS 15.** The compressed encoder is built from iOS 18 / macOS 15 Core ML operations and FluidAudio
+  refuses to load it on anything older. The app's own deployment target is macOS 14, so on an older system the row
+  says *Not available on this Mac — needs macOS 15 or newer* and offers neither its download nor its selection, and
+  the download path refuses the request as well — nothing crosses the network before the load would fail.
+- **It is smaller, not simply better.** Its publisher's own tables put Redux 0.29 WER behind v3 on the Open ASR
+  Leaderboard average and clearly behind it in background noise, ahead on FLEURS and on long-form audio. The row
+  says what it is (2-bit ternary encoder, smallest of the three), not that it is the most accurate one.
+- **The version string became one mapping.** Every call site used to turn a stored version into a model with
+  `version == "v2" ? .v2 : .v3`. A third model has no case there, and `"redux"` is not `"v2"`: it would have
+  resolved to `.v3`, so the app would have downloaded, verified, measured and deleted v3's weights while the row,
+  the engine and the size on disk all said Redux. All of it now goes through `ParakeetModelVersion`
+  (`OpenSuperWhisper/Utils/ParakeetModelVersion.swift`), and a stored string no model answers to still falls back to
+  v3 — which is what a preference written by an older build means.
+- **FluidAudio had to move for it**: the pin goes from 0.15.6 to 0.17.5, the first release carrying
+  `AsrModelVersion.redux`. Every piece of its API this app calls (`downloadAndLoad`, `defaultCacheDirectory`,
+  `modelsExist(at:version:)`, `AsrManager.transcribe(_:decoderState:)`, `TdtDecoderState(decoderLayers:)`,
+  `transcriptionProgressStream`) is unchanged across that step.
 
 ### What is unchanged
 

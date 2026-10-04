@@ -493,7 +493,7 @@ class SettingsViewModel: ObservableObject {
     }
     
     func isFluidAudioModelDownloaded(version: String) -> Bool {
-        let asrVersion: AsrModelVersion = version == "v2" ? .v2 : .v3
+        let asrVersion = AsrModelVersion(storedParakeetVersion: version)
         
         // Используем правильный путь к кэшу согласно документации:
         // ~/Library/Application Support/FluidAudio/Models/<version-folder>/
@@ -646,7 +646,7 @@ class SettingsViewModel: ObservableObject {
     /// so what is checked is that every file the engine needs is on disk and
     /// none of them is empty, and the row says exactly that.
     func verifyFluidAudioModel(version: String) {
-        let asrVersion: AsrModelVersion = version == "v2" ? .v2 : .v3
+        let asrVersion = AsrModelVersion(storedParakeetVersion: version)
         let directory = AsrModels.defaultCacheDirectory(for: asrVersion)
         guard checkingPath == nil else { return }
         checkingPath = directory.path
@@ -681,7 +681,7 @@ class SettingsViewModel: ObservableObject {
 
     /// Size on disk of a Parakeet model, for the "Installed" line.
     func fluidAudioModelSizeDescription(version: String) -> String {
-        let asrVersion: AsrModelVersion = version == "v2" ? .v2 : .v3
+        let asrVersion = AsrModelVersion(storedParakeetVersion: version)
         let directory = AsrModels.defaultCacheDirectory(for: asrVersion)
         let files = (try? FileManager.default.contentsOfDirectory(at: directory,
                                                                   includingPropertiesForKeys: [.fileSizeKey])) ?? []
@@ -694,7 +694,7 @@ class SettingsViewModel: ObservableObject {
     /// Deletes a Parakeet model's files. The engine downloads them again on
     /// demand, and the row stops claiming to be installed.
     func removeFluidAudioModel(version: String) {
-        let asrVersion: AsrModelVersion = version == "v2" ? .v2 : .v3
+        let asrVersion = AsrModelVersion(storedParakeetVersion: version)
         let directory = AsrModels.defaultCacheDirectory(for: asrVersion)
         let freed = (try? FileManager.default.contentsOfDirectory(at: directory,
                                                                   includingPropertiesForKeys: [.fileSizeKey]))?
@@ -709,7 +709,10 @@ class SettingsViewModel: ObservableObject {
         }
         checkSummaries[directory.path] = nil
         checkProblems.remove(directory.path)
-        modelStorageNotice = .removed(name: "Parakeet \(version)", bytesFreed: freed)
+        modelStorageNotice = .removed(
+            name: ParakeetModelVersion(stored: version)?.displayName ?? "Parakeet \(version)",
+            bytesFreed: freed
+        )
         initializeFluidAudioModels()
     }
     
@@ -825,6 +828,13 @@ class SettingsViewModel: ObservableObject {
     @MainActor
     func downloadFluidAudioModel(_ model: SettingsFluidAudioModel) async throws {
         guard !isDownloading else { return }
+
+        // The row hides this, but the call also arrives from the "download the
+        // selected model" entry point: refuse Redux on a system whose Core ML
+        // cannot load it before 219 MB start moving over the network.
+        if let requested = ParakeetModelVersion(stored: model.version), !requested.isSupportedOnThisMac {
+            throw ParakeetModelError.requiresMacOS15(requested.displayName)
+        }
         try DiskSpaceUtil.ensureEnoughFreeSpaceForModelDownload()
         
         isDownloading = true
@@ -844,7 +854,7 @@ class SettingsViewModel: ObservableObject {
                 if downloadID == id { downloadTask = nil; downloadID = nil }
             }
             do {
-                let version: AsrModelVersion = model.version == "v2" ? .v2 : .v3
+                let version = AsrModelVersion(storedParakeetVersion: model.version)
                 
                 guard !Task.isCancelled else {
                     await MainActor.run {
@@ -2557,6 +2567,14 @@ struct SettingsFluidAudioModel: Identifiable {
     var sizeString: String {
         formatModelSize(megabytes: size)
     }
+
+    /// Whether this Mac can load the model at all. Redux's encoder is built from
+    /// macOS 15 Core ML operations, so on an older system the row offers neither
+    /// its download nor its selection: the engine would refuse the load after
+    /// the whole file had crossed the network.
+    var isSupportedOnThisMac: Bool {
+        ParakeetModelVersion(stored: version)?.isSupportedOnThisMac ?? true
+    }
 }
 
 struct SettingsFluidAudioModels {
@@ -2567,6 +2585,13 @@ struct SettingsFluidAudioModels {
             isDownloaded: false,
             description: "Multilingual, 25 languages",
             size: 483
+        ),
+        SettingsFluidAudioModel(
+            name: "Parakeet Redux",
+            version: "redux",
+            isDownloaded: false,
+            description: "Multilingual, 25 languages — 2-bit ternary encoder, needs macOS 15",
+            size: 219
         ),
         SettingsFluidAudioModel(
             name: "Parakeet v2",
@@ -2596,7 +2621,7 @@ struct OnboardingUnifiedModel: Identifiable {
         case .whisper(let url, _):
             return makeHuggingFacePageURL(fromDownloadURL: url)
         case .parakeet(let version):
-            let repo = version == "v2" ? "parakeet-tdt-0.6b-v2-coreml" : "parakeet-tdt-0.6b-v3-coreml"
+            let repo = (ParakeetModelVersion(stored: version) ?? .v3).huggingFaceRepo
             return URL(string: "https://huggingface.co/FluidInference/\(repo)")
         }
     }
@@ -2667,6 +2692,12 @@ struct FluidAudioModelDownloadItemView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
+                if !model.isSupportedOnThisMac {
+                    Text("Not available on this Mac — needs macOS 15 or newer")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                }
+
                 if model.isDownloaded {
                     Text("Downloaded — \(viewModel.fluidAudioModelSizeDescription(version: model.version)) on disk")
                         .font(.caption2)
@@ -2704,6 +2735,7 @@ struct FluidAudioModelDownloadItemView: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
+                            .disabled(!model.isSupportedOnThisMac)
                         }
 
                         Button("Remove") {
@@ -2720,11 +2752,11 @@ struct FluidAudioModelDownloadItemView: View {
                         .controlSize(.small)
                     }
 
-                    if viewModel.checkingPath == AsrModels.defaultCacheDirectory(for: model.version == "v2" ? .v2 : .v3).path {
+                    if viewModel.checkingPath == AsrModels.defaultCacheDirectory(for: AsrModelVersion(storedParakeetVersion: model.version)).path {
                         ProgressView().controlSize(.small).scaleEffect(0.7)
                     }
                     if let summary = viewModel.checkSummaries[
-                        AsrModels.defaultCacheDirectory(for: model.version == "v2" ? .v2 : .v3).path] {
+                        AsrModels.defaultCacheDirectory(for: AsrModelVersion(storedParakeetVersion: model.version)).path] {
                         Text(summary)
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -2752,7 +2784,7 @@ struct FluidAudioModelDownloadItemView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(viewModel.isDownloading)
+                    .disabled(viewModel.isDownloading || !model.isSupportedOnThisMac)
                 }
             }
         }

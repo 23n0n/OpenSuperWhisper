@@ -24,7 +24,7 @@ class FluidAudioEngine: TranscriptionEngine {
     }
 
     func initialize() async throws {
-        let version: AsrModelVersion = versionString == "v2" ? .v2 : .v3
+        let version = AsrModelVersion(storedParakeetVersion: versionString)
         
         let models = try await AsrModels.downloadAndLoad(version: version)
         let manager = AsrManager(config: .default)
