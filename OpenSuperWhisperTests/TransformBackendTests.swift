@@ -20,7 +20,7 @@ final class TransformBackendTests: XCTestCase {
     private func service(
         local: LocalRecorder,
         settings: GateSettings = GateSettings(tone: true, cleanUp: false, toneMode: .neutral),
-        model: @escaping (TransformPolicy) -> TransformModel = { _ in TransformModelManager.shared.defaultModel }
+        model: @escaping (TransformPolicy) -> TransformModel = { _ in TransformModelStandIn.instruct }
     ) -> TransformService {
         TransformService(
             localTransform: { systemPrompt, userText, chosen in
@@ -108,7 +108,7 @@ final class TransformBackendTests: XCTestCase {
                 settings: GateSettings(tone: false, cleanUp: false, toneMode: .neutral),
                 model: { _ in
                     XCTFail("no model may be resolved when nothing is switched on")
-                    return TransformModelManager.shared.defaultModel
+                    return TransformModelStandIn.instruct
                 }
             )
 
@@ -122,30 +122,16 @@ final class TransformBackendTests: XCTestCase {
 
     // MARK: - Which model a language runs on
 
-    /// The model choice is a **preference**, resolved from what is on disk, and
-    /// **the language is what makes it**: English takes S1-mini while it is
-    /// installed and the floor while it is not, and the job — tone, clean-up, or
-    /// both — does not change the answer. Nothing is refused for a missing
-    /// optional model, and nothing is substituted silently.
-    func testEnglishPrefersTheNormalizerAndTheFloorWithoutIt() throws {
+    /// There is no model choice any more: one backend, and the job — tone,
+    /// clean-up, or both — does not change it. What changes is only whether it is
+    /// installed, and that is what decides whether the transform runs at all.
+    func testEnglishAlwaysResolvesToTheOneBackend() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("osw-preference-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let payload = Data(repeating: 0x5A, count: 512)
-        let shipped = TransformModel(
-            id: TransformModelManager.defaultModelID,
-            displayName: "Shipped",
-            fileName: "shipped.gguf",
-            style: .instruction,
-            downloadURL: URL(string: "https://example.invalid/shipped.gguf")!,
-            sha256: sha256(payload),
-            sizeBytes: Int64(payload.count),
-            memoryBytes: 1,
-            licence: "Apache-2.0",
-            source: "test"
-        )
         let normalizer = TransformModel(
             id: TransformModelManager.normalizerModelID,
             displayName: "S1-mini",
@@ -158,58 +144,48 @@ final class TransformBackendTests: XCTestCase {
             licence: "Apache-2.0",
             source: "test"
         )
-        let manager = TransformModelManager(directory: directory, catalogue: [shipped, normalizer])
+        let manager = TransformModelManager(directory: directory, catalogue: [normalizer])
 
-        // Neither installed: English runs on the floor, whatever the switches
-        // asked for. Nothing is refused for a missing optional model, and the
-        // caller is told which model it will really run on.
+        // Nothing installed: the routing still answers with the one model, and
+        // `isNormalizerInstalled` is what says the transform cannot run — the
+        // runtime raises `notInstalled` with this name when a dictation asks.
         XCTAssertFalse(manager.isNormalizerInstalled)
-        XCTAssertEqual(manager.preferredTransformModel.id, shipped.id)
-        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, shipped.id)
-        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, shipped.id)
-        XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .neutral)).id, shipped.id)
+        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, normalizer.id)
+        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, normalizer.id)
+        XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .neutral)).id, normalizer.id)
 
         // The record-start warm-up resolves through the same function, so it
         // warms what the next dictation will use rather than a model nothing
         // then asks for.
         XCTAssertEqual(
             manager.model(for: TransformRuntime.warmUpPolicy(toneEnabled: true, toneMode: .neutral)).id,
-            shipped.id,
-            "with the normalizer missing, the warm-up warms the floor"
+            normalizer.id,
+            "the warm-up warms the one model"
         )
 
-        // Install the normalizer: **every** English job moves onto it. The job
-        // does not decide — tone alone, clean-up alone and both together all
-        // resolve to the English backend.
+        // Installed: the same answer, now backed by weights on disk.
         let source = directory.appendingPathComponent("downloaded.gguf")
         try payload.write(to: source)
         try manager.install(fileAt: source, model: normalizer)
         XCTAssertTrue(manager.isNormalizerInstalled)
-        XCTAssertEqual(manager.preferredTransformModel.id, normalizer.id)
         XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, normalizer.id)
-        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, normalizer.id,
-                       "an English tone rewrite runs on the normalizer when it is installed")
+        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, normalizer.id)
         XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .casual)).id, normalizer.id)
-        XCTAssertEqual(
-            manager.model(for: TransformRuntime.warmUpPolicy(toneEnabled: false, toneMode: .neutral)).id,
-            normalizer.id,
-            "clean-up alone warms the same backend: the language is what chooses"
-        )
 
-        TestFixtures.report("[transform] model preference: English runs on \(shipped.id) while the "
-                    + "normalizer is missing and on \(normalizer.id) once it is installed, for tone and "
-                    + "clean-up alike; the warm-up warms the same one")
+        TestFixtures.report("[transform] model resolution: every English job — tone, clean-up, both — "
+                    + "resolves to \(normalizer.id), installed or not; a missing file is what the runtime "
+                    + "refuses on")
     }
 
     /// Polish has no backend, and the catalogue says so rather than keeping a row
-    /// nothing resolves to: the transform is English-only, so the only two models
-    /// the app offers are the two the English work chooses between. A policy that
-    /// carried Polish would still be handed the floor — the one model left — and
-    /// `TransformPolicy.resolve` is what keeps such a policy from ever existing.
+    /// nothing resolves to: the transform is English-only, so the one model the
+    /// app offers is the one the English work runs on. A policy that carried
+    /// Polish would be handed it too — there is nothing else — and
+    /// `TransformPolicy.resolve` is what keeps such a policy from existing.
     func testPolishHasNoBackendOfItsOwn() throws {
         XCTAssertEqual(TransformModelManager.availableModels.map(\.id),
-                       [TransformModelManager.normalizerModelID, TransformModelManager.defaultModelID],
-                       "two entries, and neither of them is a Polish model")
+                       [TransformModelManager.normalizerModelID],
+                       "one entry, and it is not a Polish model")
         XCTAssertNil(TransformPolicy.resolve(tone: true, cleanUp: true, language: "pl", toneMode: .formal),
                      "Polish never reaches a model, so it never resolves a policy either")
 
@@ -222,8 +198,8 @@ final class TransformBackendTests: XCTestCase {
             catalogue: TransformModelManager.availableModels
         )
 
-        XCTAssertEqual(manager.model(for: .cleanUp(language: .polish)).id, TransformModelManager.defaultModelID,
-                       "if a Polish policy ever existed, the floor is the only model it could run on")
+        XCTAssertEqual(manager.model(for: .cleanUp(language: .polish)).id, TransformModelManager.normalizerModelID,
+                       "if a Polish policy ever existed, the one model is all it could run on")
         TestFixtures.report("[transform] Polish resolves through no backend of its own: the catalogue is "
                     + "\(TransformModelManager.availableModels.map(\.id).joined(separator: ", "))")
     }
@@ -235,7 +211,7 @@ final class TransformBackendTests: XCTestCase {
         let normalizer = TransformModelManager.shared.normalizerModel
         let local = LocalRecorder()
         let subject = service(local: local, model: { policy in
-            policy.language == .english ? normalizer : TransformModelManager.shared.defaultModel
+            policy.language == .english ? normalizer : TransformModelManager.shared.normalizerModel
         })
 
         _ = await subject.transformIfEnabled("Please send the report.", sourceLanguage: "en")

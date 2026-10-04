@@ -163,7 +163,7 @@ final class TranscriptionLanguageGateTests: XCTestCase {
             // rule the suite already runs under (see dev-run.sh's
             // multilingual-model opt-in, which exports nothing when the machine
             // has no candidate).
-            modelForPolicy: { _ in TransformModelManager.shared.defaultModel },
+            modelForPolicy: { _ in TransformModelStandIn.instruct },
             gateSettings: { GateSettings(tone: true, cleanUp: false, toneMode: .formal) }
         )
 
@@ -222,7 +222,7 @@ final class TranscriptionLanguageGateTests: XCTestCase {
             // model's route is the one these assertions describe, and the
             // default resolution would take the normalizer's route on a machine
             // that has S1-mini installed.
-            modelForPolicy: { _ in TransformModelManager.shared.defaultModel },
+            modelForPolicy: { _ in TransformModelStandIn.instruct },
             gateSettings: { GateSettings(tone: false, cleanUp: true, toneMode: .formal) }
         )
 

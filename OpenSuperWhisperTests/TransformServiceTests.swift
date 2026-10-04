@@ -50,7 +50,7 @@ final class TransformServiceTests: XCTestCase {
     private func makeService(
         local: LocalRecorder,
         settings: GateSettings? = nil,
-        model: @escaping (TransformPolicy) -> TransformModel = { _ in TransformModelManager.shared.defaultModel }
+        model: @escaping (TransformPolicy) -> TransformModel = { _ in TransformModelStandIn.instruct }
     ) -> TransformService {
         TransformService(
             localTransform: { systemPrompt, userText, chosen in
@@ -246,7 +246,7 @@ final class TransformServiceTests: XCTestCase {
         var policies: [TransformPolicy] = []
         func record(_ policy: TransformPolicy) -> TransformModel {
             policies.append(policy)
-            return TransformModelManager.shared.defaultModel
+            return TransformModelStandIn.instruct
         }
     }
 
@@ -590,7 +590,7 @@ final class TransformServiceTests: XCTestCase {
                 local.models.append(chosen)
                 return try local.result.get()
             },
-            modelForPolicy: { _ in TransformModelManager.shared.defaultModel },
+            modelForPolicy: { _ in TransformModelStandIn.instruct },
             gateSettings: { GateSettings(tone: true, cleanUp: false, toneMode: .formal) },
             reportFailure: { recorder.notices.append($0) }
         )
@@ -662,7 +662,7 @@ final class TransformServiceTests: XCTestCase {
                 local.models.append(chosen)
                 return try local.result.get()
             },
-            modelForPolicy: { _ in TransformModelManager.shared.defaultModel },
+            modelForPolicy: { _ in TransformModelStandIn.instruct },
             gateSettings: { GateSettings(tone: true, cleanUp: false, toneMode: .formal) },
             reportFailure: { recorder.notices.append($0) }
         )
@@ -693,7 +693,7 @@ final class TransformServiceTests: XCTestCase {
                 local.models.append(chosen)
                 return try local.result.get()
             },
-            modelForPolicy: { _ in TransformModelManager.shared.defaultModel },
+            modelForPolicy: { _ in TransformModelStandIn.instruct },
             gateSettings: { GateSettings(tone: false, cleanUp: true, toneMode: .formal) },
             reportFailure: { recorder.notices.append($0) }
         )

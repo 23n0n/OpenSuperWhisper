@@ -3,9 +3,9 @@ import CryptoKit
 import Foundation
 
 enum TransformModelError: Error, LocalizedError {
-    /// Nothing installed for the language that was asked for. Carries the
-    /// model's name: the shipped model is the floor for every language, so "the
-    /// model is missing" has to say *which* one.
+    /// Nothing installed for the model the transform resolved to. Carries the
+    /// model's name: the catalogue holds one entry today, and the name is still
+    /// what says which file to download.
     case notInstalled(String)
     /// The file is there and is not what it says it is: the size or the
     /// checksum the catalogue pins does not match the bytes on disk. It is a
@@ -35,9 +35,7 @@ enum TransformModelError: Error, LocalizedError {
 
 /// The input contract a backend was trained on.
 ///
-/// The catalogue's entries are not interchangeable: the two Qwen models are
-/// instruction followers that take the app's own system instruction and the
-/// dictation, while S1-mini is not one at all — its card states it "is not a
+/// The backend is not an instruction follower: S1-mini's card states it "is not a
 /// chat model and will not follow general instructions", that it takes one exact
 /// system prompt and a control line, and that rewording either makes it
 /// "hallucinate or produce garbled output". So its prompt is composed by a
@@ -123,25 +121,23 @@ struct TransformModel: Equatable, Identifiable {
 /// is the wrong trade for a menu-bar utility). They live in
 /// `~/Library/Application Support/<bundle id>/transform-models/`, exactly like
 /// the whisper models next door, so uninstalling the app removes them and
-/// reinstalling fetches them again. The catalogue holds the two models the
-/// transform knows: the English backend every English transform prefers, and the
-/// floor it falls back to while that one is not installed. `model(for:)` is what
-/// the runtime asks, and what it hands back is the model that will really run.
+/// reinstalling fetches them again. The catalogue holds the one model the
+/// transform knows: S1-mini, the normalizer every English transform runs on.
+/// `model(for:)` is what the runtime asks, and what it hands back is the model
+/// that will really run — with nothing behind it, a machine without the weights
+/// gets a notice naming the file to download instead of a second model quietly
+/// doing the work.
 final class TransformModelManager {
     static let shared = TransformModelManager()
-
-    /// The floor: the one entry that is not optional. An English transform runs
-    /// on it while S1-mini is not installed, which is the only job left that
-    /// falls back here.
-    static let defaultModelID = "qwen2.5-1.5b-instruct-q4_k_m"
 
     /// The English backend: `superwhisper/s1-mini`, a 0.6B text normalizer
     /// trained for exactly this job — it takes a raw ASR transcript and returns
     /// clean written text, fillers and false starts resolved, punctuation and
     /// capitalisation applied, spoken numbers, dates, times, currency and email
-    /// addresses written out. Every English transform runs on it when it is
-    /// installed, on both switches, and the shipped 1.5B does that work while it
-    /// is not: a *preference*, never a requirement.
+    /// addresses written out. Every English transform runs on it, on both
+    /// switches — it is the one model the transform has, and a *download*, not a
+    /// requirement: without its file the dictation is delivered as transcribed
+    /// and the notice names the file to fetch.
     ///
     /// It is not an instruct model and cannot be given the app's prompt: its
     /// card states it "is not a chat model and will not follow general
@@ -154,11 +150,18 @@ final class TransformModelManager {
     /// take: the reference list of names and jargon. The normalizer's input is
     /// the system prompt, a control line and the transcript, in that order, with
     /// nothing else — there is no slot for it, and inventing one is what the
-    /// card forbids. The list still rides the prompt of the shipped model.
+    /// card forbids. The list still rides the instruction prompt, which no model
+    /// this build ships takes.
     static let normalizerModelID = "s1-mini-q4_k_m"
 
-    /// The catalogue, in the order Settings lists it: the English backend, then
-    /// the floor every English transform falls back to while it is not installed.
+    /// The catalogue: the one model there is.
+    ///
+    /// A second entry used to sit here — Qwen2.5 1.5B, an instruction follower
+    /// the English work fell back to while S1-mini was not installed — and it is
+    /// gone from the product rather than left unrouted: with one backend there is
+    /// nothing to substitute quietly, so a machine without the weights is told
+    /// which file to download instead of getting a rewrite from a model the user
+    /// never chose.
     static let availableModels: [TransformModel] = [
         TransformModel(
             id: "s1-mini-q4_k_m",
@@ -182,19 +185,6 @@ final class TransformModelManager {
             // capitalization". The display name is where this app does that.
             licence: "Apache-2.0 plus a naming clause: it keeps the name \"S1-mini\" by \"Superwhisper\"",
             source: "superwhisper/s1-mini-GGUF on Hugging Face"
-        ),
-        TransformModel(
-            id: "qwen2.5-1.5b-instruct-q4_k_m",
-            displayName: "Qwen2.5 1.5B Instruct (Q4_K_M)",
-            fileName: "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-            style: .instruction,
-            downloadURL: URL(string: "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf")!,
-            sha256: "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370",
-            sizeBytes: 986_048_768,
-            // 934.69 MiB weights + 112.00 MiB KV (4096 ctx) + 62.51 MiB compute.
-            memoryBytes: 1_159_641_497,
-            licence: "Apache-2.0",
-            source: "bartowski/Qwen2.5-1.5B-Instruct-GGUF on Hugging Face"
         )
     ]
 
@@ -237,49 +227,33 @@ final class TransformModelManager {
         catalogue.first { $0.id == id }
     }
 
-    /// The shipped model: the one entry in the catalogue every language can run
-    /// on, and the floor the transform falls back to.
-    var defaultModel: TransformModel {
-        catalogue.first { $0.id == Self.defaultModelID } ?? catalogue[0]
-    }
-
-    /// The English backend: the normalizer every English transform runs on when
-    /// it is installed.
+    /// The one backend: the normalizer every English transform runs on.
+    ///
+    /// It is the whole catalogue, so "is it installed" and "can the transform run
+    /// at all" are the same question — and when the answer is no, the runtime
+    /// raises `notInstalled` with this model's name rather than running something
+    /// else.
     var normalizerModel: TransformModel {
-        catalogue.first { $0.id == Self.normalizerModelID } ?? defaultModel
+        catalogue.first { $0.id == Self.normalizerModelID } ?? catalogue[0]
     }
 
-    /// Whether the English backend is installed and its bytes verified. False is
-    /// a normal state, not a problem: the English work then runs on
-    /// `defaultModel` and nothing is refused.
+    /// Whether the backend is installed and its bytes verified. False is a state
+    /// the app reports, not one it works around: the weights are a download, and
+    /// a transform with none of them fails with the file to fetch.
     var isNormalizerInstalled: Bool {
         verifiedPath(for: normalizerModel) != nil
     }
 
-    /// The backend every transform runs on: S1-mini while it is installed, the
-    /// shipped floor while it is not.
+    /// The backend a *policy* runs on: the one model there is.
     ///
-    /// A **preference**, resolved against the catalogue and against what is on
-    /// disk, and the whole of the choice now that the transform is English-only
-    /// and the catalogue is two entries. Nothing is refused for a missing
-    /// optional model, and nothing is substituted silently — the caller is handed
-    /// the model that will really run, so Settings can say which.
-    var preferredTransformModel: TransformModel {
-        isNormalizerInstalled ? normalizerModel : defaultModel
-    }
-
-    /// The backend a *policy* runs on.
-    ///
-    /// The policy is asked and not consulted: since the transform is
-    /// English-only, every policy that exists is English and the job — tone,
-    /// clean-up, or both — decides nothing, which leaves the installed set as the
-    /// only input. The parameter stays because the callers ask per policy, and
-    /// because a policy carrying anything but English would be a bug that shows
-    /// up here (as a resolution with no model of its own) rather than as a
-    /// silently substituted model.
+    /// The policy is asked and not consulted — every policy that exists is
+    /// English, and with a single entry the job (tone, clean-up, or both) and the
+    /// language both decide nothing. The parameter stays because the callers ask
+    /// per policy, and because a policy carrying anything but English would be a
+    /// bug that surfaces at `TransformPolicy.resolve` rather than as a
+    /// quietly substituted model here.
     func model(for policy: TransformPolicy) -> TransformModel {
-        guard policy.language == .english else { return defaultModel }
-        return preferredTransformModel
+        normalizerModel
     }
 
     func fileURL(for model: TransformModel) -> URL {

@@ -13,7 +13,6 @@ import XCTest
 /// into the bundle, and every test that needed a real model went on passing by
 /// skipping instead of running.
 enum TestFixtures {
-
     /// The repository root, derived from this file's own location.
     static let repositoryRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
@@ -174,4 +173,28 @@ enum TestFixtures {
             pasteboard.setData(item.data, forType: item.type)
         }
     }
+}
+
+/// An instruction-follower stand-in, for the tests that drive the app's own
+/// instruction prompt.
+///
+/// The catalogue holds one model — S1-mini, a normalizer that cannot be told
+/// anything but its card's control line — so a test about the *instruction*
+/// prompt has to name the kind of backend it means instead of borrowing a
+/// catalogue entry that is no longer that kind. Nothing here loads weights: the
+/// local transform is injected, and the digests are placeholders no install path
+/// reads.
+enum TransformModelStandIn {
+    static let instruct = TransformModel(
+        id: "instruct-stand-in",
+        displayName: "Instruct Stand-In",
+        fileName: "instruct-stand-in.gguf",
+        style: .instruction,
+        downloadURL: URL(string: "https://example.invalid/instruct-stand-in.gguf")!,
+        sha256: String(repeating: "0", count: 64),
+        sizeBytes: 1,
+        memoryBytes: 1,
+        licence: "test fixture",
+        source: "test"
+    )
 }

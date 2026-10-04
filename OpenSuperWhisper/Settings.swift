@@ -249,23 +249,12 @@ class SettingsViewModel: ObservableObject {
     /// against the user's Application Support.
     let transformModelManager: TransformModelManager
 
-    /// The catalogue, in the order the card lists it: the English backend, the
-    /// floor it falls back to, and the larger instruction-follower no job
-    /// resolves to any more.
+    /// The catalogue. One row, one model: S1-mini.
     var transformModels: [TransformModel] { TransformModelManager.availableModels }
 
-    /// The English backend — S1-mini, what every English transform runs on while
-    /// it is installed.
-    var englishTransformModel: TransformModel {
+    /// The transform's one backend — S1-mini, what every English transform runs on.
+    var transformModel: TransformModel {
         transformModelManager.normalizerModel
-    }
-
-    /// The floor: the model every English transform falls back to while S1-mini
-    /// is not installed, and the one Polish clean-up ran on when Polish still ran
-    /// clean-up. Nothing is ever refused for a missing optional model, so this is
-    /// the only row that must be present for the feature to work at all.
-    var shippedTransformModel: TransformModel {
-        transformModelManager.defaultModel
     }
 
     func isTransformModelInstalled(_ model: TransformModel) -> Bool {
@@ -276,48 +265,38 @@ class SettingsViewModel: ObservableObject {
         downloadingTransformModelID == model.id
     }
 
-    /// What a row's model is and what it does for the app, in the app's own
+    /// What the row's model is and what it does for the app, in the app's own
     /// routing words.
     ///
     /// The row's title is the model's own name, so this says what that name is
-    /// for — and what the model *is*, because the two entries differ in kind, not
-    /// only in size: one is a normalizer that cannot be instructed, the other an
-    /// instruction follower, and only the first of them does the work on a machine
-    /// that has it. The floor's row says what it waits for, and the English
-    /// backend's says what it takes over.
+    /// for — and what the model *is*: a normalizer that cannot be instructed, so
+    /// it takes one fixed prompt and a control line instead of the app's
+    /// instructions, which is why the reference list above does not reach it. Its
+    /// tone line rewrites punctuation, casing and contractions, not vocabulary.
     func transformModelRoleDescription(_ model: TransformModel) -> String {
-        if model.id == englishTransformModel.id {
-            return "The English backend. Every English transform — tone and clean-up alike — runs on it "
-                + "whenever it is installed, and it takes the work over from the fallback below the "
-                + "moment it arrives. A 0.6B normalizer trained on exactly this job — raw transcript in, "
-                + "clean written text out — and not an instruction follower: it takes one fixed prompt "
-                + "and a control line instead of the app's instructions, which is why the reference list "
-                + "above does not reach it."
-        }
-        return "The floor, and the fallback: every English transform runs on it while S1-mini is not "
-            + "installed, and nothing runs on it while S1-mini is. A 1.5B instruction follower, so it "
-            + "takes the app's own prompt — the reference list included — and it is the one row that has "
-            + "to be present for the switches to do anything at all on a machine without S1-mini."
+        return "The transform's only backend. Every English dictation — tone and clean-up alike — runs "
+            + "on it, and nothing else is ever loaded. A 0.6B normalizer trained on exactly this job — "
+            + "raw transcript in, clean written text out — and not an instruction follower: it takes one "
+            + "fixed prompt and a control line instead of the app's instructions, which is why the "
+            + "reference list above does not reach it. Its tone line rewrites punctuation, casing and "
+            + "contractions — formal writes \"it is\" where casual leaves \"its\" — but not vocabulary: "
+            + "the words you said come back as the words you said. Without this file the switches do "
+            + "nothing, and the dictation says so."
     }
 
     /// The card's opening paragraph: what the weights are, where they live, and
-    /// what downloading both of them does.
+    /// what the single row means.
     ///
-    /// The list offers two models and one of them does the work, so the question
-    /// the rows cannot answer between them — is it a mistake to have both? — is
-    /// answered here, before the rows: the routing is decided by what is
-    /// installed, the second file costs nothing at run time, and only the model in
-    /// use is ever resident.
+    /// One model does the work, so the question the row cannot answer — is there
+    /// anything behind it? — is answered here, before it: the routing needs the
+    /// file, and without it the dictation is delivered as transcribed and says so.
     var transformModelsHeaderDescription: String {
-        return "The app runs these itself, from its own folder, so uninstalling takes them with it. "
-            + "Every English transform — tone and clean-up alike — runs on S1-mini while it is installed "
-            + "and on the 1.5B fallback while it is not; Polish dictation is delivered as transcribed, so "
-            + "no model is asked for it at all. No weight file ships inside the app: download one here, or "
-            + "the dictation is delivered exactly as it was transcribed and the app says so. Downloading "
-            + "both is fine and changes nothing above: the work still goes to S1-mini, and while S1-mini "
-            + "is here the 1.5B is never loaded at all. At most one of them is ever resident — it is "
-            + "released after ten minutes without a transform — so the cost in RAM is the model in use, "
-            + "never the sum, and the cost on disk is the sum of the rows you have downloaded."
+        return "The app runs this itself, from its own folder, so uninstalling takes it with it. "
+            + "Every English dictation — tone and clean-up alike — runs on S1-mini; Polish dictation is "
+            + "delivered as transcribed, so no model is asked for it at all. No weight file ships inside "
+            + "the app: download it here, or the dictation is delivered exactly as it was transcribed and "
+            + "the app says so. It is resident only while it is being used — it is released after ten "
+            + "minutes without a transform — so the cost in RAM is one model, never a set of them."
     }
 
     /// What a row says about its model: download state, disk and RAM.
@@ -329,35 +308,30 @@ class SettingsViewModel: ObservableObject {
         return isTransformModelInstalled(model) ? "Installed — \(cost)" : "Not downloaded — \(cost)"
     }
 
-    /// What stays unchanged while `model` is missing, or `nil` when it is
-    /// installed or optional.
+    /// What is missing while `model` is absent, or `nil` when it is installed.
     ///
-    /// Only the floor is a requirement: English runs on it while S1-mini is not
-    /// installed, and that is the one job with no other fallback. Both of the
-    /// others are optional, so neither is ever a warning — the card states which
-    /// model the work really runs on, and nothing is refused.
+    /// There is one model and it is a requirement: tone and clean-up both run on
+    /// it, so without its file neither switch can do anything, and nothing else
+    /// steps in.
     func transformMissingNotice(for model: TransformModel) -> String? {
-        guard model.id == shippedTransformModel.id, !isTransformModelInstalled(model) else { return nil }
-        return "Without it no English dictation can be transformed at all: it is the model every "
-            + "English transform falls back to while S1-mini is not installed. S1-mini is optional, "
-            + "and this one does its work only while it is absent."
+        guard model.id == transformModel.id, !isTransformModelInstalled(model) else { return nil }
+        return "Without it no English dictation can be transformed at all: tone and clean-up alike run on "
+            + "this one model. Download it here — until then every dictation is delivered exactly as it "
+            + "was transcribed, and a dictation with a switch on says so."
     }
 
-    /// Which model the work will run on, and whether the English backend is
-    /// present.
+    /// Which model the work will run on, and whether it is present.
     ///
-    /// The model choice is a preference, so the card states it rather than
-    /// warning about it. English — tone and clean-up alike — runs on S1-mini
-    /// while it is installed and on the shipped model while it is not, and a
-    /// Polish dictation is delivered exactly as it was transcribed. Nothing is
-    /// refused, and nothing has to be downloaded for the feature to work.
+    /// There is no choice to state any more, only the presence of the one model:
+    /// English — tone and clean-up alike — runs on S1-mini, a Polish dictation is
+    /// delivered as transcribed, and with no weights at all the transform fails
+    /// with the file to download.
     var transformLanguageModelDescription: String {
-        let english = transformModelManager.preferredTransformModel
         let presence = transformModelManager.isNormalizerInstalled
             ? "S1-mini is installed."
-            : "S1-mini is not installed, so the shipped model does the work — nothing is refused, and "
-                + "nothing has to be downloaded."
-        return "Every English transform — tone and clean-up alike — runs on \(english.displayName). "
+            : "S1-mini is not installed — download it below; until then a dictation with a switch on is "
+                + "delivered as transcribed, and it says so."
+        return "Every English transform — tone and clean-up alike — runs on \(transformModel.displayName). "
             + "Polish dictation is delivered as transcribed: no transform runs on it at all. "
             + presence
     }
@@ -1873,7 +1847,7 @@ struct SettingsView: View {
                                     RoundedRectangle(cornerRadius: 8)
                                         .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                                 )
-                            Text("Names, jargon and domain terms you say, one per line — the transform is told to keep these spellings. Optional, and inert while empty. S1-mini's input format is fixed and has no slot for a list, so this rides the shipped model's prompt only.")
+                            Text("Names, jargon and domain terms you say, one per line — the transform is told to keep these spellings. Optional, and inert while empty. S1-mini's input format is fixed and has no slot for a list, so nothing the app ships takes this field yet: it rides the instruction prompt, which no shipped model uses.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }

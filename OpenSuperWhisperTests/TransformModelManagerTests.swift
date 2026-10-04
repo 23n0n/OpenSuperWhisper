@@ -158,30 +158,26 @@ final class TransformModelManagerTests: XCTestCase {
         XCTAssertNil(manager.model(forID: "nope"), "an id this build does not ship is not a model")
     }
 
-    /// The catalogue holds the two entries the routing knows: the English backend
-    /// and the floor every English transform falls back to while it is not
-    /// installed. The normalizer is the small one — 462 MB against the floor's
-    /// 986 MB — which is the point of moving English onto it, and it is the last
-    /// entry the card lists.
-    func testTheCatalogueHoldsTheEnglishBackendAndTheFloor() throws {
+    /// The catalogue holds one entry — the normalizer every English transform
+    /// runs on — and both models an earlier build offered are gone from the
+    /// product rather than left unrouted: the 8B no job resolved to, and the 1.5B
+    /// instruction follower that used to stand behind S1-mini.
+    func testTheCatalogueHoldsTheOneModel() throws {
         let normalizer = TransformModelManager.shared.normalizerModel
-        let shipped = TransformModelManager.shared.defaultModel
 
         XCTAssertEqual(normalizer.id, TransformModelManager.normalizerModelID)
-        XCTAssertEqual(shipped.id, TransformModelManager.defaultModelID)
-        XCTAssertEqual(normalizer.id, TransformModelManager.availableModels.first?.id,
-                       "the card lists the English backend first")
-        XCTAssertEqual(TransformModelManager.availableModels.map(\.id), [normalizer.id, shipped.id],
-                       "two models, and this is the order the Settings list shows")
-        XCTAssertLessThan(normalizer.sizeBytes, shipped.sizeBytes,
-                          "the English backend is the smaller model, and the card states that")
+        XCTAssertEqual(TransformModelManager.availableModels.map(\.id), [normalizer.id],
+                       "one model, and this is the model the Settings list shows")
         XCTAssertFalse(TransformModelManager.availableModels.contains { $0.id == "qwen3-8b-q4_k_m" },
                        "the 8B no job resolved to is gone from the product, not merely unrouted")
+        XCTAssertFalse(
+            TransformModelManager.availableModels.contains { $0.id == "qwen2.5-1.5b-instruct-q4_k_m" },
+            "the floor S1-mini used to fall back to is gone too: with one backend there is nothing to "
+                + "substitute quietly, so a machine without the weights is told which file to get"
+        )
 
-        // The style is what each entry is: the normalizer is not an instruct
-        // model, and the floor is.
+        // The style is what the entry is: a normalizer that cannot be instructed.
         XCTAssertEqual(normalizer.style, .normalizer)
-        XCTAssertEqual(shipped.style, .instruction)
     }
 
     /// The English backend is pinned by the brief: the URL, the size and the
@@ -234,28 +230,13 @@ final class TransformModelManagerTests: XCTestCase {
         XCTAssertFalse(TransformPromptStyle.instruction.isGreedy)
     }
 
-    /// The floor is pinned too: it is what an English transform falls back to
-    /// while the English backend is not installed, so its digest is the floor the
-    /// whole feature stands on.
-    func testTheShippedModelIsPinned() throws {
-        let shipped = TransformModelManager.shared.defaultModel
-
-        XCTAssertEqual(
-            shipped.downloadURL.absoluteString,
-            "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
-        )
-        XCTAssertEqual(shipped.sha256, "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370")
-        XCTAssertEqual(shipped.sizeBytes, 986_048_768)
-        XCTAssertEqual(shipped.fileName, "qwen2.5-1.5b-instruct-q4_k_m.gguf")
-    }
-
     // MARK: - The model is a preference
 
-    /// Nothing installed: English runs on the floor rather than being refused, and
-    /// a policy that carried another language would resolve to it too — it is the
-    /// only backend left. The catalogue is what makes the second half true, so the
-    /// test states both.
-    func testNothingInstalledResolvesToTheFloorInsteadOfRefusing() throws {
+    /// Nothing installed: the routing still answers with the one model — there is
+    /// nothing else it could name — and it is the **runtime** that refuses, with
+    /// `notInstalled` and the file to download. `isNormalizerInstalled` is what
+    /// says so, and nothing steps in behind it.
+    func testNothingInstalledStillResolvesToTheOneModel() throws {
         // The real catalogue, pointed at a directory with nothing in it — so
         // "the optional models are not installed" is this test's fact and not
         // the machine's.
@@ -269,10 +250,9 @@ final class TransformModelManagerTests: XCTestCase {
         )
 
         XCTAssertFalse(manager.isNormalizerInstalled)
-        XCTAssertEqual(manager.preferredTransformModel.id, TransformModelManager.defaultModelID,
-                       "English runs on the floor instead of being refused")
         XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id,
-                       TransformModelManager.defaultModelID)
+                       TransformModelManager.normalizerModelID,
+                       "the one model is what the routing answers with, installed or not")
         XCTAssertNil(manager.verifiedPath(for: manager.normalizerModel), "nothing is staged, so nothing verifies")
     }
 }

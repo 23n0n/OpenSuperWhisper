@@ -5,20 +5,23 @@ import XCTest
 
 /// The transform, driven against real weights.
 ///
-/// Skipped when this machine does not have the files, exactly like
+/// Skipped when this machine does not have the file, exactly like
 /// `LlamaRuntimeIntegrationTests`: CI stays hermetic, and a machine that has
-/// them proves the product's promise — **English dictation is transformed, and
-/// every other language is delivered as it was transcribed** — that English runs
-/// on S1-mini through the app's own prompt when it is installed and on the
-/// shipped 1.5B when it is not, that a Polish dictation never reaches a model at
-/// all, and what the English backend costs in wired memory and warm-up latency.
+/// it proves the product's promise — **English dictation is transformed, and
+/// every other language is delivered as it was transcribed** — that every
+/// English transform runs on S1-mini through the app's own normalizer prompt,
+/// that a Polish dictation never reaches a model at all, and what the one
+/// backend costs in wired memory and warm-up latency.
+///
+/// There is no fallback behind that model, so the missing-file case is not a
+/// silent substitution: a switched-on English dictation is delivered as it was
+/// transcribed and the failure names the file to download.
 ///
 /// The weights are hard-linked into a staging directory, so nothing here copies
-/// 5 GB and nothing here can write to the files in `~/models`.
+/// the file and nothing here can write to the one in `~/models`.
 final class SameLanguageTransformIntegrationTests: XCTestCase {
 
     private static var home: URL { FileManager.default.homeDirectoryForCurrentUser }
-    private static var smallWeights: URL { home.appendingPathComponent("models/qwen2.5-1.5b-instruct-q4_k_m.gguf") }
     private static var normalizerWeights: URL { home.appendingPathComponent("models/s1-mini-q4_k_m.gguf") }
 
     private var directory: URL!
@@ -45,8 +48,8 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
     // MARK: - Helpers
 
     /// Stages real weights under the name the catalogue expects. A hard link:
-    /// no 5 GB copy, and removing the staged name later cannot touch the file
-    /// it points at.
+    /// no copy of the file, and removing the staged name later cannot touch the
+    /// file it points at.
     private func stage(_ model: TransformModel, from source: URL) throws {
         guard FileManager.default.fileExists(atPath: source.path) else {
             throw XCTSkip("no weights at \(source.path)")
@@ -54,11 +57,6 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         let destination = manager.fileURL(for: model)
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.linkItem(at: source, to: destination)
-    }
-
-    private func shippedWeights() throws -> URL {
-        try stage(manager.defaultModel, from: Self.smallWeights)
-        return Self.smallWeights
     }
 
     private func stagedNormalizerWeights() throws -> URL {
@@ -74,9 +72,16 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         var calls: Int { models.count }
     }
 
+    /// Catches what the service tells the user when a transform cannot run, so
+    /// the missing-file case can be judged by its own words instead of a print.
+    private final class NoticeRecorder {
+        var notices: [TransformFailureNotice] = []
+    }
+
     private func service(
         settings: GateSettings,
-        calls: CallCounter
+        calls: CallCounter,
+        failure: @escaping (TransformFailureNotice) -> Void = { _ in }
     ) -> TransformService {
         TransformService(
             localTransform: { systemPrompt, userText, model in
@@ -88,7 +93,8 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
                 )
             },
             modelForPolicy: { self.manager.model(for: $0) },
-            gateSettings: { settings }
+            gateSettings: { settings },
+            reportFailure: failure
         )
     }
 
@@ -216,29 +222,41 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         XCTAssertEqual(calls.calls, 0)
     }
 
-    /// English clean-up and tone still run on the **floor** while S1-mini is not
-    /// installed — the app's own instruction prompt, the shipped 1.5B, and no
-    /// refusal for the missing optional model.
-    func testEnglishStillRunsOnTheShippedFloorWithoutTheNormalizer() async throws {
-        try shippedWeights()
-        XCTAssertFalse(manager.isNormalizerInstalled, "precondition: only the floor is staged")
+    /// With the one model not staged, English still resolves a policy — the
+    /// language is the transform's — but there is nothing behind it: the model
+    /// is attempted, `didRunModel` is false, the raw transcript is delivered,
+    /// and the notice names the missing file. That is the whole missing-file
+    /// story now, because no other model steps in.
+    func testEnglishWithoutTheNormalizerAttemptsTheOneModelAndNamesTheMissingFile() async throws {
+        XCTAssertFalse(manager.isNormalizerInstalled, "precondition: nothing is staged")
 
         let input = "please send the report to the client today and copy me on the reply"
         let calls = CallCounter()
+        let notices = NoticeRecorder()
         let subject = service(
             settings: GateSettings(tone: false, cleanUp: true, toneMode: .neutral),
-            calls: calls
+            calls: calls,
+            failure: { notices.notices.append($0) }
         )
 
         let outcome = await subject.transformDetailed(input, sourceLanguage: "en")
-        TestFixtures.report("[s1-mini] English on the floor: model \(calls.models.joined(separator: ", ")) "
-                    + "| didRunModel \(outcome.didRunModel) | output \(outcome.text)")
+        TestFixtures.report("[s1-mini] English with nothing staged: model "
+                    + "\(calls.models.joined(separator: ", ")) | didRunModel \(outcome.didRunModel) "
+                    + "| output \(outcome.text)")
 
-        XCTAssertEqual(calls.models, [TransformModelManager.defaultModelID],
-                       "English falls back to the floor for a missing optional model")
-        XCTAssertTrue(outcome.didRunModel, "and nothing is refused")
-        XCTAssertEqual(outcome.policy, .cleanUp(language: .english))
-        XCTAssertFalse(outcome.text.isEmpty)
+        XCTAssertEqual(calls.models, [TransformModelManager.normalizerModelID],
+                       "the one model is attempted even when it is not installed")
+        XCTAssertFalse(outcome.didRunModel, "nothing answered, so nothing may claim to have run")
+        XCTAssertEqual(outcome.policy, .cleanUp(language: .english),
+                       "English is still the transform's language; only the file is missing")
+        XCTAssertEqual(outcome.text, input, "the raw transcript is delivered")
+
+        let notice = try XCTUnwrap(notices.notices.first, "the failure has to be visible")
+        XCTAssertEqual(notice.message,
+                       TransformModelError.notInstalled(manager.normalizerModel.displayName).localizedDescription,
+                       "the notice is the runtime's notInstalled, word for word")
+        XCTAssertTrue(notice.message.contains(manager.normalizerModel.displayName),
+                      "and it names S1-mini: \(notice.message)")
     }
 
     /// Nothing installed is the one case where English cannot be transformed: the
@@ -256,16 +274,17 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
 
         XCTAssertEqual(outcome.text, input)
         XCTAssertFalse(outcome.didRunModel)
-        XCTAssertEqual(calls.models, [TransformModelManager.defaultModelID],
-                       "the model it would have used is what is attempted")
+        XCTAssertEqual(calls.models, [TransformModelManager.normalizerModelID],
+                       "the one model the app has is what is attempted")
         TestFixtures.report("[s1-mini] no weights staged: delivered the raw transcript, "
                     + "didRunModel \(outcome.didRunModel)")
     }
 
     /// Both switches off: zero model calls, the transcript bit-for-bit what the
-    /// engine produced, and no weights loaded by the attempt.
+    /// engine produced, and no weights loaded by the attempt — the installed
+    /// file is there and still untouched.
     func testBothSwitchesOffMakeNoModelCallAtAll() async throws {
-        try shippedWeights()
+        _ = try stagedNormalizerWeights()
 
         let calls = CallCounter()
         let subject = service(
@@ -286,56 +305,53 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         XCTAssertNil(runtime.loadedModelID, "nothing may be loaded for a dictation that asked for nothing")
     }
 
-    /// The card says which model the English work runs on — the floor while
-    /// S1-mini is missing, S1-mini once it is installed — and that a Polish
-    /// dictation is not transformed at all.
+    /// The card says which model the English work runs on — the one model, whose
+    /// absence it states plainly, and whose install it confirms — and that a
+    /// Polish dictation is not transformed at all. There is no second row to
+    /// read a fallback out of.
     @MainActor
     func testTheCardSaysWhichModelTheEnglishWorkRunsOn() async throws {
-        try shippedWeights()
-        XCTAssertFalse(manager.isNormalizerInstalled, "precondition: only the floor is staged")
-
         let card = SettingsViewModel(transformModelManager: manager)
+        card.refreshTransformModelState()
+        try await waitForInstalledCount(of: card, toBe: 0)
+
+        let without = card.transformLanguageModelDescription
+        TestFixtures.report("[s1-mini] card without the model: \(without)")
+        XCTAssertTrue(without.contains("runs on \(manager.normalizerModel.displayName)"), without)
+        XCTAssertTrue(without.contains("Polish dictation is delivered as transcribed"), without)
+        XCTAssertTrue(without.contains("S1-mini is not installed"), without)
+
+        _ = try stagedNormalizerWeights()
         card.refreshTransformModelState()
         try await waitForInstalledCount(of: card, toBe: 1)
 
-        let without = card.transformLanguageModelDescription
-        TestFixtures.report("[s1-mini] card without the English backend: \(without)")
-        XCTAssertTrue(without.contains("runs on \(manager.defaultModel.displayName)"), without)
-        XCTAssertTrue(without.contains("Polish dictation is delivered as transcribed"), without)
-        XCTAssertTrue(without.contains("S1-mini is not installed"), without)
-        XCTAssertTrue(without.contains("nothing is refused"), without)
-        XCTAssertNil(card.transformMissingNotice(for: manager.normalizerModel),
-                     "a missing optional model is never a warning: nothing is refused for it")
-
-        _ = try stagedNormalizerWeights()
-        card.refreshTransformModelState()
-        try await waitForInstalledCount(of: card, toBe: 2)
-
         let with = card.transformLanguageModelDescription
-        TestFixtures.report("[s1-mini] card with the English backend installed: \(with)")
+        TestFixtures.report("[s1-mini] card with the model installed: \(with)")
         XCTAssertTrue(with.contains("runs on \(manager.normalizerModel.displayName)"), with)
         XCTAssertTrue(with.contains("S1-mini is installed"), with)
 
-        // The card lists the two models the app has, and each row says what its
-        // own model is for.
-        XCTAssertEqual(card.transformModels.map(\.id),
-                       [TransformModelManager.normalizerModelID, TransformModelManager.defaultModelID])
-        XCTAssertTrue(card.transformModelRoleDescription(manager.normalizerModel).contains("English transform"),
-                      card.transformModelRoleDescription(manager.normalizerModel))
-        XCTAssertTrue(card.transformModelRoleDescription(manager.defaultModel).contains("The floor"),
-                      card.transformModelRoleDescription(manager.defaultModel))
+        // The catalogue is the one row, and its role description is written for a
+        // normalizer — not for an instruction follower, because there is none.
+        XCTAssertEqual(card.transformModels.map(\.id), [TransformModelManager.normalizerModelID])
+        let role = card.transformModelRoleDescription(card.transformModel)
+        XCTAssertTrue(role.contains("only backend"), role)
+        XCTAssertTrue(role.contains("normalizer"), role)
+        XCTAssertTrue(role.contains("not an instruction follower"), role)
     }
 
-    // MARK: - One model at a time, and what the English backend costs
+    // MARK: - The one model: what a load costs, and when it is released
 
-    /// The wired-memory step of the English backend in this process, and the
-    /// one-at-a-time contract: asking for the other model evicts it rather than
-    /// adding to it. The step is what the catalogue pins as `memoryBytes`.
-    func testTheEnglishBackendIsTheOnlyResidentModelAndItsWiredStepIsMeasured() async throws {
-        try shippedWeights()
+    /// The wired-memory step of the one model in this process, and that it is
+    /// resident for exactly as long as it is needed: the load leaves it
+    /// resident, and `unload()` leaves nothing behind. The step is what the
+    /// catalogue pins as `memoryBytes`.
+    ///
+    /// There used to be a second model to prove eviction against; with one
+    /// backend the contract that survives is only this — loaded, resident,
+    /// released.
+    func testTheModelLoadsResidentAndUnloadReleasesItWithItsWiredStepMeasured() async throws {
         _ = try stagedNormalizerWeights()
         let normalizer = manager.normalizerModel
-        let floor = manager.defaultModel
 
         let baseline = wiredBytes()
         _ = try await runtime.transform(
@@ -344,24 +360,15 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
             model: normalizer
         )
         XCTAssertEqual(runtime.loadedModelID, normalizer.id)
-        report("with S1-mini resident", wiredSince: baseline)
-        let residentWithNormalizer = wiredBytes()
-
-        _ = try await runtime.transform(
-            systemPrompt: TransformService.systemPrompt(for: .cleanUp(language: .english), cleanUp: true),
-            userText: "Please send the report.",
-            model: floor
-        )
-        XCTAssertEqual(runtime.loadedModelID, floor.id,
-                       "the other model must be evicted, not held beside it")
-        report("with the floor resident (S1-mini evicted)", wiredSince: baseline)
+        report("with the model resident", wiredSince: baseline)
+        let resident = wiredBytes()
 
         runtime.unload()
-        XCTAssertNil(runtime.loadedModelID)
+        XCTAssertNil(runtime.loadedModelID, "unload leaves nothing resident")
         report("after unload", wiredSince: baseline)
-        TestFixtures.report("[s1-mini] wired: baseline \(gigabytes(baseline)), S1-mini "
-                    + "\(gigabytes(residentWithNormalizer)), step "
-                    + "\(gigabytes(residentWithNormalizer &- min(residentWithNormalizer, baseline))) "
+        TestFixtures.report("[s1-mini] wired: baseline \(gigabytes(baseline)), model "
+                    + "\(gigabytes(resident)), step "
+                    + "\(gigabytes(resident &- min(resident, baseline))) "
                     + "against a pinned \(normalizer.memoryBytes) bytes")
     }
 
@@ -404,7 +411,7 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         let raced = try await runtime.transform(systemPrompt: prompt, userText: input, model: normalizer)
         TestFixtures.report("[same-language] first utterance overlapping the warm-up: "
                     + "\(seconds(Date().timeIntervalSince(raceStart)))")
-        XCTAssertEqual(raced, first, "a dictation that races the warm-up must still come back in Polish")
+        XCTAssertEqual(raced, first, "a dictation that races the warm-up must still come back identical to the warmed one")
     }
 
     private func waitUntilLoaded(timeout: TimeInterval) async throws {
@@ -480,17 +487,17 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
     /// measured once against the default (task `fm-20260923-28`, its report).
     func testTheIdleUnloadReleasesTheWeightsAndForgetsTheModel() async throws {
         XCTAssertEqual(TransformRuntime.idleUnloadInterval, 600, "the shipped idle window is ten minutes")
-        let shipped = manager.defaultModel
-        _ = try shippedWeights()
+        let normalizer = manager.normalizerModel
+        _ = try stagedNormalizerWeights()
 
         let shortLived = TransformRuntime(models: manager, idleUnloadInterval: 1)
         let start = Date()
         _ = try await shortLived.transform(
-            systemPrompt: TransformService.systemPrompt(for: .cleanUp(language: .polish), cleanUp: true),
-            userText: "Cześć, jak się masz?",
-            model: shipped
+            systemPrompt: TransformService.normalizerSystemPrompt,
+            userText: TransformService.normalizerUserPrompt(for: "Please send the report to the client today.", tone: nil),
+            model: normalizer
         )
-        XCTAssertEqual(shortLived.loadedModelID, shipped.id)
+        XCTAssertEqual(shortLived.loadedModelID, normalizer.id)
 
         let deadline = Date().addingTimeInterval(60)
         while shortLived.isLoaded, Date() < deadline {
@@ -502,11 +509,13 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
         XCTAssertNil(shortLived.loadedModelID, "and clear the resident model with them")
     }
 
-    /// The shipped model is the one requirement: if it is missing, the card says
-    /// so. It is staged everywhere else in this suite, so this asserts the
-    /// notice's own words against a directory that really has nothing in it.
+    /// The one model is the whole requirement: if it is missing, the card says
+    /// so, says what the absence costs — no English dictation can be transformed
+    /// — and offers the file. It is staged everywhere else in this suite, so the
+    /// notice's own words are asserted against a directory that really has
+    /// nothing in it, and its silence against one that has the file.
     @MainActor
-    func testTheCardWarnsOnlyWhenTheFloorIsMissing() async throws {
+    func testTheCardWarnsOnlyWhenTheOneModelIsMissing() async throws {
         let empty = FileManager.default.temporaryDirectory
             .appendingPathComponent("osw-card-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
@@ -516,12 +525,18 @@ final class SameLanguageTransformIntegrationTests: XCTestCase {
                                                         catalogue: TransformModelManager.availableModels)
         )
 
-        let notice = try XCTUnwrap(card.transformMissingNotice(for: card.shippedTransformModel),
-                                   "a missing floor is a real problem and has to be said")
-        XCTAssertTrue(notice.contains("every English transform falls back to"), notice)
-        XCTAssertNil(card.transformMissingNotice(for: card.englishTransformModel),
-                     "the optional English backend has nothing to warn about")
-        TestFixtures.report("[s1-mini] the floor missing: \(notice)")
+        let notice = try XCTUnwrap(card.transformMissingNotice(for: card.transformModel),
+                                   "the one model missing is a real problem and has to be said")
+        XCTAssertTrue(notice.contains("no English dictation can be transformed at all"), notice)
+        XCTAssertTrue(notice.contains("Download it here"), notice)
+        TestFixtures.report("[s1-mini] the model missing: \(notice)")
+
+        _ = try stagedNormalizerWeights()
+        let installed = SettingsViewModel(transformModelManager: manager)
+        installed.refreshTransformModelState()
+        try await waitForInstalledCount(of: installed, toBe: 1)
+        XCTAssertNil(installed.transformMissingNotice(for: installed.transformModel),
+                     "an installed model has nothing to warn about")
     }
 
     /// The card refreshes off the main thread (`refreshTransformModelState`), so

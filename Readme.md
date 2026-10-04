@@ -36,11 +36,12 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
 - 🌐 **Local tone and clean-up for English dictation** — a small model trained for exactly this job runs inside
   the app (llama.cpp linked in, no server, no port); two independent switches, off by default. The transcript is
   rewritten in place, in English: **the app never changes the language of your dictation**
-- 🇬🇧 **Every English transform runs on S1-mini by Superwhisper (462 MB) when it is installed**, and on the
-  shipped 1.5B while it is not. **A Polish dictation reaches no model at all — the transform is English-only.**
+- 🇬🇧 **Every English transform runs on S1-mini by Superwhisper (462 MB), the one model the transform has.**
+  **A Polish dictation reaches no model at all — the transform is English-only.**
   With *Clean up dictation* on, Polish still gets the deterministic scrub (§4): fillers, stutters, Polish affixes,
-  casing and diacritics, none of which needs a model. The card says which model the work runs on and what it costs
-  in RAM. Nothing is refused, nothing is substituted silently
+  casing and diacritics, none of which needs a model. The card says what the model costs in RAM and what happens
+  without it: a machine that has not downloaded it gets its transcript back unchanged, with a notice naming the
+  file to fetch — nothing is refused and nothing is substituted silently
 - 🛡️ **A rewrite that answers instead of rewriting never reaches your text** — a deterministic guard rejects an
   assistant frame ("Sure,", "Oczywiście,"), a label line, the prompt's own `TRANSCRIPT`/`TRANSKRYPCJA`
   delimiter, a stub or a language flip, and pastes your own words with a notice instead. It reads text only:
@@ -56,8 +57,9 @@ OpenSuperWhisper is a macOS application that provides real-time audio transcript
   `hmm`, `aaa`, stutters and repeats are removed, and the sentence's own language is repaired (Polish affixes,
   casing, diacritics), in whatever language was spoken. The grammar repair — punctuation, articles, word order —
   is the model's, and rides the *same* single transform call as tone, which makes it English dictation only
-- 📚 **Reference / glossary field** — names and terms fed into the transform prompt. It rides the shipped floor's
-  prompt: S1-mini takes one fixed input with no slot for a list, and the card says so
+- 📚 **Reference / glossary field** — names and terms fed into the transform prompt. The model the app ships
+  takes one fixed input with no slot for a list, so the field rides a prompt no shipped model uses: the card
+  says so rather than pretending the list reaches S1-mini
 - 🧯 **A transform that did not run says so, and offers its fix** — a failed call names the job that did not
   happen (*Tone rewrite could not run*, *Clean-up could not run*, or both when one call carried them), and for the
   failures the app can repair — a weight file that was never downloaded, and one that is on disk but does not
@@ -113,19 +115,20 @@ a dictation in any other language — Polish included — is never sent to a mod
 still run on it is the clean-up switch's deterministic scrub, which is a function and not a model (see §4).
 There is no direction change anywhere in the product.
 
-The rewrite is performed **in-process** by one of two models. `S1-mini by Superwhisper` (Q4_K_M, ~462 MB on
-disk, ~0.9 GB of RAM while loaded) is a 0.6B text normalizer trained for exactly this job — raw ASR text in,
-clean written text out: fillers removed, false starts and self-corrections resolved, punctuation and
-capitalisation applied, and spoken numbers, dates, times, currency and email addresses written out. It is what
-**every English transform runs on while it is installed**. It is not an instruction follower: it takes one exact
-system prompt and a control line, so the app composes that format for it instead of its own instruction, mapping
-the three tone modes onto the model's `Styling` values (`[Styling: casual|semi-formal|formal] [Structure: prose]
-[Context: general]`) and asking for its answers greedily, as the model's card requires.
-`Qwen2.5-1.5B-Instruct-Q4_K_M` (~986 MB on disk, ~1.1 GB while loaded) is the **floor**: English runs on it
-while S1-mini is not installed, with the app's own instruction prompt, and the card says which one is in use.
-The two are the whole catalogue: the larger 8B an earlier build preferred for tone and Polish clean-up is gone
-from the app rather than left in the list unrouted. Each model is downloaded on demand into the app's own
-Application Support folder and verified against its pinned checksum before it is used. llama.cpp is vendored as
+The rewrite is performed **in-process** by one model, and it is the whole catalogue. `S1-mini by Superwhisper`
+(Q4_K_M, ~462 MB on disk, ~0.9 GB of RAM while loaded) is a 0.6B text normalizer trained for exactly this job —
+raw ASR text in, clean written text out: fillers removed, false starts and self-corrections resolved, punctuation
+and capitalisation applied, and spoken numbers, dates, times, currency and email addresses written out. It is not
+an instruction follower: it takes one exact system prompt and a control line, so the app composes that format for
+it instead of its own instruction, mapping the three tone modes onto the model's `Styling` values
+(`[Styling: casual|semi-formal|formal] [Structure: prose] [Context: general]`) and asking for its answers
+greedily, as the model's card requires. What its tone line does and does not do is measured rather than assumed:
+it rewrites punctuation, casing and contractions — `formal` writes "it is" where `casual` leaves "its" — and it
+leaves the words you said as the words you said. **Nothing stands behind it**: the 1.5B instruction follower an
+earlier build fell back to, and the larger 8B before that, are gone from the app rather than left in the list
+unrouted, so a machine without the weights gets its transcript back with a notice naming the file to download
+instead of a rewrite from a model nobody chose. The weights are downloaded on demand into the app's own
+Application Support folder and verified against their pinned checksum before use. llama.cpp is vendored as
 `libllama/` and linked into the app exactly like whisper.cpp, so there is no background server, no listening
 port and no endpoint override: the transform (`OpenSuperWhisper/TransformService.swift`) is the only way the
 text can be rewritten.
@@ -654,16 +657,17 @@ Whisper Models — are kept as they are, apart from the notes this fork needed.
 
 ### Known limits and what is not built yet
 
-- **The English transform is a preference, not a guarantee.** `S1-mini by Superwhisper` (462 MB) is what
-  every English transform runs on while it is installed, and it is not required: with only the shipped 1.5B
-  installed, English runs on that instead, and the card says so. The transform is **English-only**: a Polish
-  dictation is never sent to a model (the clean-up scrub still applies to it when that switch is on). The 5 GB 8B that used to be
-  preferred for tone and Polish clean-up is **not in the app at all**: it resolved no job once the transform
-  became English-only, so the row that kept its file visible was removed with it, and the only two models the
-  app offers are the two the English work chooses between. A machine that downloaded it still has the file in
-  the app's own folder (`~/Library/Application Support/ru.starmel.OpenSuperWhisper/transform-models/`), where
-  nothing in the app can see it any more: deleting it there is how the space comes back, and an uninstall takes
-  it with everything else.
+- **The tone rewrite is a preference, not a guarantee.** One model does it: `S1-mini by Superwhisper` (462 MB),
+  a normalizer whose tone line rewrites punctuation, casing and contractions rather than vocabulary — so a tone
+  is a register hint, not a rewriting pass, and the words you said come back as the words you said. It is **not
+  required** either: with its file missing, a dictation whose switch is on is delivered as transcribed and the
+  app names the file to download — nothing is substituted. The transform is **English-only**: a Polish dictation
+  is never sent to a model (the clean-up scrub still applies to it when that switch is on). The 1.5B instruction
+  follower an earlier build fell back to, and the 5 GB 8B before that, are **not in the app at all** — the
+  catalogue is one row, so nothing is unrouted and nothing is fetched behind your back. A machine that
+  downloaded either still has the file in the app's own folder
+  (`~/Library/Application Support/ru.starmel.OpenSuperWhisper/transform-models/`), where nothing in the app can
+  see it any more: deleting it there is how the space comes back, and an uninstall takes it with everything else.
 - **The guard catches the class, not the drift.** An assistant frame, a label line, the prompt's own delimiter,
   a stub and a language flip are rejected deterministically; subtle content drift (an article dropped, a noun
   invented) is text the guard cannot judge, and it is the prompt's and the model's job. Nothing here grades
@@ -901,35 +905,29 @@ app's instruction prompt: it gets the exact system prompt its card specifies, th
 transcript — `[Styling: <value>] [Structure: prose] [Context: general]`, with the tone switch's Formal / Casual
 / Neutral mapped onto its `Styling` values (formal / casual / semi-formal) and `prose`/`general` fixed, because
 the app's contract forbids restructuring the dictation into bullets and has no email mode. Its answers are
-decoded greedily, as its card requires. The 1.5B floor keeps the app's own instruction prompt, which forbids
-answering, greeting, acknowledging or labelling the dictation and frames the user turn with
-`<<<TRANSCRIPT … TRANSCRIPT>>>`.
+decoded greedily, as its card requires. The app's own instruction prompt — which forbids answering, greeting,
+acknowledging or labelling the dictation and frames the user turn with `<<<TRANSCRIPT … TRANSCRIPT>>>` — is
+still built for an instruction backend, and no model this build ships takes it.
 
-**Which model the work uses.** The model is a preference, not a requirement:
+**Which model the work uses.** There is one, and it is a download rather than a requirement:
 
 | Job | Language | Model | Download | RAM while loaded |
 |---|---|---|---|---|
-| Tone and clean-up alike | English | `S1-mini by Superwhisper` (Q4_K_M) when installed | ~462 MB | ~0.9 GB |
-| Tone and clean-up alike — when S1-mini is not installed | English | `Qwen2.5-1.5B-Instruct-Q4_K_M` | ~986 MB | ~1.1 GB |
+| Tone and clean-up alike | English | `S1-mini by Superwhisper` (Q4_K_M) | ~462 MB | ~0.9 GB |
 | — | Polish | none: the transcript is delivered as transcribed | — | — |
 | — | anything else | none: the transcript is delivered as transcribed | — | — |
 
-Nothing has to be downloaded for the feature to work: with only the shipped 1.5B installed, English runs on it,
-and the Settings card says exactly that ("S1-mini is not installed, so the shipped model does the work — nothing
-is refused…"). Only one model is ever resident: a change of model unloads one before loading the other, so the
-wired memory is the model in use, not the sum. Either is released after ten minutes without a transform; because
-a model's cold load is seconds rather than milliseconds, the app warms up what the current switches imply when
-recording starts — S1-mini while it is installed, the shipped floor otherwise — so the load happens while you are
-still speaking. (Every English policy resolves to the same model, which is why the warm-up follows the switches
-rather than a language.)
+Nothing else stands behind it: with the file missing, a dictation whose switch is on is delivered as transcribed
+and says which file to download, because substituting a model nobody chose is the behaviour this build removed.
+The weights are the only model ever resident, and they are released after ten minutes without a transform;
+because a model's cold load is seconds rather than milliseconds, the app warms up what the current switches
+imply when recording starts, so the load happens while you are still speaking.
 
-**The card lists two entries, and only one of them does the work at a time.** `S1-mini by Superwhisper (Q4_K_M)`
-is the English backend and `Qwen2.5 1.5B Instruct (Q4_K_M)` is the floor it falls back to: English runs on
-S1-mini while it is installed and on the floor while it is not, and a Polish dictation is never transformed.
-Downloading both changes nothing about that routing; the floor costs its ~1 GB on disk and nothing at run time
-while S1-mini is present, and it is not loaded at all then. Each row states its own name, what the model *is* and
-what it does — S1-mini is a 0.6B normalizer that cannot be instructed at all, the floor is a 1.5B instruction
-follower — and the card says, above them, which model the current switches actually run on.
+**The card lists one entry, and states what it is.** `S1-mini by Superwhisper (Q4_K_M)` is the whole catalogue:
+a 0.6B normalizer that cannot be instructed at all, which is why the tone switch maps onto its control line
+instead of being asked for in the app's own words. The row says what the model *is*, what tone does and does not
+do with it, and what happens while it is missing; the header above it says that a Polish dictation never reaches
+a model. There is no second download to wonder about.
 
 **The licence, and the name it requires.** `S1-mini by Superwhisper` is Apache-2.0 with one
 additional term, which it inherits from Qwen3-0.6B and writes out in its own `LICENSE`. The term
@@ -943,12 +941,13 @@ condition. The Apache-2.0 half brings its own obligations. The licence text and 
 modified model has to say what was changed. This repository carries neither file, because it ships
 no weights: the app downloads `s1-mini-q4_k_m.gguf` from the publisher's own repository
 (`superwhisper/s1-mini-GGUF`), where `LICENSE` and `NOTICE` sit beside it, and verifies the file
-against the pinned digest before using it. Qwen2.5 1.5B is Apache-2.0 alone.
+against the pinned digest before using it.
 
-**And if the rewrite is not a rewrite.** The floor's prompt forbids answering, greeting, acknowledging or
-labelling the dictation, and its user turn is framed and delimited (`<<<TRANSCRIPT … TRANSCRIPT>>>`) so dictated
-instructions are rewritten rather than obeyed. Because a prompt alone did not survive the small model that used
-to do this work, a deterministic guard then reads every tone answer — S1-mini's included — an assistant frame, a
+**And if the rewrite is not a rewrite.** The app's own instruction prompt — built for an instruction backend this
+build does not ship — forbids answering, greeting, acknowledging or labelling the dictation, and frames the user
+turn with `<<<TRANSCRIPT … TRANSCRIPT>>>` so dictated instructions are rewritten rather than obeyed. Because a
+prompt alone did not survive the small model that used to do this work, a deterministic guard then reads every
+tone answer — S1-mini's included — an assistant frame, a
 `Register:`/`Output:` label, an announcement of the
 "rewritten text" (in either language), the prompt's own `TRANSCRIPT`/`TRANSKRYPCJA` delimiter returned as the
 answer, a stub of a dictation that carried a sentence, or an answer with no word of the language that went in —
@@ -965,7 +964,7 @@ answer, a marker a model invents later in a spelling neither prompt uses, unless
 |---|---|---|---|
 | off | off | any | the raw transcript — nothing is detected, nothing is called |
 | any | any | Polish, or any language but English | the raw transcript: the transform is English-only, so no model is called |
-| on | off | English | rewritten in the register you picked, by S1-mini or by the floor without it |
+| on | off | English | rewritten in the register you picked, by S1-mini |
 | off | on | English | the transcript repaired: punctuation, articles, word order, fillers |
 | on | on | English | one call carrying both instructions |
 

@@ -275,10 +275,10 @@ struct TransformFailureNotice {
 ///
 /// One backend, in process: llama.cpp is linked into the app and the weights
 /// live in app-owned storage, so nothing listens on a port and no other process
-/// has to be running. The model is a **preference**, not a requirement
-/// (`TransformModelManager.model(for:)`): English runs on S1-mini when it is
-/// installed and on the shipped 1.5B when it is not. Nothing is refused for a
-/// missing optional model, and nothing is substituted behind the user's back.
+/// has to be running. One model does the work and nothing stands behind it
+/// (`TransformModelManager.model(for:)`): English runs on S1-mini, and a machine
+/// without its file gets the transcript it dictated back with a notice naming the
+/// download — nothing is substituted behind the user's back.
 final class TransformService {
     static let shared = TransformService()
 
