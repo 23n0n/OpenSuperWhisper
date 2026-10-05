@@ -480,6 +480,16 @@ final class TransformService {
                         message: complaint
                     )
                 }
+                // In the e-mail mode the *shape* is still delivered: the model's
+                // refusal costs the prose, not the greeting and the sign-off, and
+                // a mail-shaped text is what the trigger promised.
+                if case .email(let language, _) = policy {
+                    return TransformOutcome(
+                        text: EmailEnvelope.apply(to: prepared, language: language),
+                        policy: policy,
+                        didRunModel: false
+                    )
+                }
                 return TransformOutcome(text: prepared, policy: policy, didRunModel: false)
             }
             // The e-mail mode promises a *document*, and the envelope is the part

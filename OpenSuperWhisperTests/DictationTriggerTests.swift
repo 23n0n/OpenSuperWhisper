@@ -24,6 +24,15 @@ final class DictationTriggerTests: XCTestCase {
             "napisz email: wyślij raport do piątku",
             "write an email send the report by Friday",
             "draft a mail send the report by Friday",
+            // Spoken at the top of a dictation, which is rarely clean: one filler
+            // in front of the verb, or one between the verb and its noun.
+            "no dobra, dyktuję maila, wyślij raport do piątku",
+            "dyktuję teraz maila wyślij raport do piątku",
+            "napisz mi maila do klienta i wyślij raport do piątku",
+            "przygotuj maila wyślij raport do piątku",
+            "zrób maila wyślij raport do piątku",
+            "utwórz e-mail: wyślij raport do piątku",
+            "make a mail send the report by Friday",
         ]
         for spelling in spellings {
             let match = try XCTUnwrap(DictationTrigger.email(in: spelling), spelling)
@@ -36,6 +45,20 @@ final class DictationTriggerTests: XCTestCase {
         }
     }
 
+    /// Ordinary sentences about a mail are content, not a mode change — including
+    /// the one that made the verb window stop at three words.
+    func testSentencesAboutAMailAreNotTriggers() {
+        for sentence in [
+            "no więc słuchaj, napisz maila do klienta",
+            "wyślij mi tego maila jeszcze dzisiaj, dobrze",
+            "przygotuj nowy plan na jutro",
+            "ten mail od klienta wymaga odpowiedzi",
+            "please, when you have a moment, write an email to the client",
+        ] {
+            XCTAssertNil(DictationTrigger.email(in: sentence), sentence)
+        }
+    }
+
     /// A body that mentions a mail is content, not a mode change: only the
     /// opening counts.
     func testAMentionInsideTheBodyIsNotATrigger() {
@@ -43,6 +66,7 @@ final class DictationTriggerTests: XCTestCase {
         XCTAssertNil(DictationTrigger.email(in: "I will send you an email about the meeting tomorrow"))
     }
 
+    /// A phrase that starts after the verb window is a mention, not a trigger.
     func testAWordTooFarInDoesNotTrigger() {
         XCTAssertNil(DictationTrigger.email(in: "no więc słuchaj, napisz maila do klienta"))
         XCTAssertNil(DictationTrigger.email(in: "please, when you have a moment, write an email to the client"))
