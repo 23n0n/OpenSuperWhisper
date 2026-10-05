@@ -66,7 +66,7 @@ class IndicatorViewModel: ObservableObject {
     private let stopRecordingOperation: () async -> RecordedAudio?
     private let cancelAudioRecordingOperation: () -> Void
     private let injectTextOperation: (String) -> KeyboardSimulator.InjectionResult
-    private let transformTextOperation: (String, String?) async -> TransformService.TransformOutcome
+    private let transformTextOperation: (String, String?, Bool) async -> TransformService.TransformOutcome
     private let cleanUpOperation: (String) -> DictationScrubber.Result
     private let cleanUpEnabledOperation: () -> Bool
     private let reportCenter: DictationReportCenter
@@ -87,8 +87,8 @@ class IndicatorViewModel: ObservableObject {
             // and records which one it was — see `TextDelivery`.
             TextDelivery.deliver($0, watch: .live())
         },
-        transformText: @escaping (String, String?) async -> TransformService.TransformOutcome = {
-            await TransformService.shared.transformDetailed($0, sourceLanguage: $1)
+        transformText: @escaping (String, String?, Bool) async -> TransformService.TransformOutcome = {
+            await TransformService.shared.transformDetailed($0, sourceLanguage: $1, email: $2)
         },
         cleanUp: @escaping (String) -> DictationScrubber.Result = { text in
             // The switch is read per dictation, so flipping it in Settings takes
@@ -323,14 +323,23 @@ class IndicatorViewModel: ObservableObject {
                 // annotations are gone before anything is asked of a transform.
                 // History keeps the raw transcript either way.
                 let scrub = self.cleanUpOperation(rawText)
-                let text = scrub.text
+                // The spoken trigger picks the e-mail mode, and the phrase is
+                // taken off the front: what is left is the body the model is
+                // asked to shape into an e-mail. A phrase with nothing after it
+                // is a dictation with no body, and is discarded like one.
+                let spoken = DictationTrigger.email(in: scrub.text)
+                let body = spoken?.body ?? scrub.text
+                let isEmail = spoken != nil && !body.isEmpty
+                let text = body
 
                 if text.isEmpty {
                     try? FileManager.default.removeItem(at: tempURL)
                     print(
-                        rawText.isEmpty
-                            ? "No speech detected, dictation discarded"
-                            : "Nothing but filler or an annotation; dictation discarded"
+                        spoken != nil
+                            ? "The e-mail trigger carried no body; dictation discarded"
+                            : (rawText.isEmpty
+                                ? "No speech detected, dictation discarded"
+                                : "Nothing but filler or an annotation; dictation discarded")
                     )
                 } else {
                     let timestamp = Date()
@@ -354,7 +363,7 @@ class IndicatorViewModel: ObservableObject {
 
                     try Task.checkCancellation()
                     guard self.decodingSessionID == sessionID else { throw CancellationError() }
-                    let outcome = await transformTextOperation(text, output.language)
+                    let outcome = await transformTextOperation(text, output.language, isEmail)
                     try Task.checkCancellation()
                     guard self.decodingSessionID == sessionID else { throw CancellationError() }
                     self.reportCenter.publish(DictationReport(

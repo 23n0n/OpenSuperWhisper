@@ -123,7 +123,7 @@ final class SilentEmptyDictationTests: XCTestCase {
             recordingStore: store,
             stopRecording: audio,
             cancelAudioRecording: {},
-            transformText: { text, _ in
+            transformText: { text, _, _ in
                 TransformService.TransformOutcome(text: text, policy: nil, didRunModel: false)
             }
         )
@@ -362,7 +362,7 @@ final class SilentEmptyDictationTests: XCTestCase {
             recordingStore: store,
             stopRecording: { audio },
             cancelAudioRecording: {},
-            transformText: { text, _ in
+            transformText: { text, _, _ in
                 TransformService.TransformOutcome(text: text, policy: nil, didRunModel: false)
             }
         )

@@ -286,7 +286,7 @@ final class UninstallServiceTests: XCTestCase {
             to: shipped.appendingPathComponent("whisper-models/ggml-large-v3-turbo.bin")
         )
         try Data("shipped-transform".utf8).write(
-            to: shipped.appendingPathComponent("transform-models/qwen2.5-1.5b-instruct-q4_k_m.gguf")
+            to: shipped.appendingPathComponent("transform-models/Qwen2.5-7B-Instruct-Q4_K_M.gguf")
         )
         // The models the app downloaded for itself.
         try Data("downloaded".utf8).write(

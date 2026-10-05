@@ -178,10 +178,10 @@ enum TestFixtures {
 /// An instruction-follower stand-in, for the tests that drive the app's own
 /// instruction prompt.
 ///
-/// The catalogue holds one model — S1-mini, a normalizer that cannot be told
-/// anything but its card's control line — so a test about the *instruction*
-/// prompt has to name the kind of backend it means instead of borrowing a
-/// catalogue entry that is no longer that kind. Nothing here loads weights: the
+/// The catalogue's instruction follower is a 4.68 GB download, and a prompt-shape
+/// test must run without loading any weights — so it names the kind of backend it
+/// means instead of borrowing the real entry. The stand-in carries the same
+/// `.instruction` style the real model does, and nothing here loads weights: the
 /// local transform is injected, and the digests are placeholders no install path
 /// reads.
 enum TransformModelStandIn {

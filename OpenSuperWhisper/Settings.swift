@@ -249,12 +249,22 @@ class SettingsViewModel: ObservableObject {
     /// against the user's Application Support.
     let transformModelManager: TransformModelManager
 
-    /// The catalogue. One row, one model: S1-mini.
+    /// The catalogue. Two rows, two jobs: S1-mini for English clean-up, the
+    /// instruction model for tone and the e-mail mode in both languages.
     var transformModels: [TransformModel] { TransformModelManager.availableModels }
 
-    /// The transform's one backend — S1-mini, what every English transform runs on.
+    /// The English clean-up backend — S1-mini, the smaller of the two. The only
+    /// model a clean-up-alone dictation in English runs on, and the only one
+    /// that cannot be instructed.
     var transformModel: TransformModel {
         transformModelManager.normalizerModel
+    }
+
+    /// The tone and e-mail backend — the instruction model, the larger of the
+    /// two. Every tone rewrite, and the spoken e-mail trigger, runs on it, in
+    /// Polish and English alike; it never does an English clean-up by itself.
+    var toneTransformModel: TransformModel {
+        transformModelManager.toneModel
     }
 
     func isTransformModelInstalled(_ model: TransformModel) -> Bool {
@@ -269,34 +279,53 @@ class SettingsViewModel: ObservableObject {
     /// routing words.
     ///
     /// The row's title is the model's own name, so this says what that name is
-    /// for — and what the model *is*: a normalizer that cannot be instructed, so
-    /// it takes one fixed prompt and a control line instead of the app's
-    /// instructions, which is why the reference list above does not reach it. Its
-    /// tone line rewrites punctuation, casing and contractions, not vocabulary.
+    /// for — and what the model *is*, which is the difference the two rows turn
+    /// on: one normalizer that cannot be instructed and reads English only, and
+    /// one instruction follower that reads both languages. What each row leaves
+    /// to the other is stated rather than implied, because a missing file now
+    /// costs one job, not the whole transform.
     func transformModelRoleDescription(_ model: TransformModel) -> String {
-        return "The transform's only backend. Every English dictation — tone and clean-up alike — runs "
-            + "on it, and nothing else is ever loaded. A 0.6B normalizer trained on exactly this job — "
-            + "raw transcript in, clean written text out — and not an instruction follower: it takes one "
-            + "fixed prompt and a control line instead of the app's instructions, which is why the "
-            + "reference list above does not reach it. Its tone line rewrites punctuation, casing and "
-            + "contractions — formal writes \"it is\" where casual leaves \"its\" — but not vocabulary: "
-            + "the words you said come back as the words you said. Without this file the switches do "
-            + "nothing, and the dictation says so."
+        switch model.style {
+        case .normalizer:
+            return "The English clean-up backend. English clean-up alone runs on it, and nothing else "
+                + "does: a 0.6B normalizer trained on exactly this job — raw transcript in, clean "
+                + "written text out — and not an instruction follower, so it cannot be told what to do. "
+                + "It takes one fixed prompt and a control line, which is why the reference list above "
+                + "does not reach it, and it reads English only. Its clean-up line repairs punctuation, "
+                + "casing, articles and word order. Without this file English clean-up alone falls back "
+                + "to the deterministic scrub — fillers gone, grammar untouched — and the dictation says "
+                + "so; tone and e-mail run on the other model and keep working."
+        case .instruction:
+            return "The tone and e-mail backend. Every tone rewrite — Polish and English alike — and the "
+                + "spoken e-mail mode run on it; English clean-up alone does not. It is an instruction "
+                + "follower, so it takes the app's own prompt, which is where the reference list above "
+                + "rides. It is roughly ten times the normalizer's size because it has to read both "
+                + "languages and follow a register: tone was English-only until it existed. Without this "
+                + "file a tone or e-mail rewrite is delivered as transcribed and the app says so; "
+                + "English clean-up alone runs on the other model and keeps working."
+        }
     }
 
     /// The card's opening paragraph: what the weights are, where they live, and
-    /// what the single row means.
+    /// what the two rows mean together.
     ///
-    /// One model does the work, so the question the row cannot answer — is there
-    /// anything behind it? — is answered here, before it: the routing needs the
-    /// file, and without it the dictation is delivered as transcribed and says so.
+    /// Two models, two jobs, so the question the rows cannot answer — what
+    /// happens when one of them is absent? — is answered here, before them: each
+    /// job needs its own file, and without it that job is delivered as
+    /// transcribed (or, for clean-up, as the deterministic scrub) and says so.
+    /// The costs are stated because they are the reason there are two rows
+    /// rather than one.
     var transformModelsHeaderDescription: String {
-        return "The app runs this itself, from its own folder, so uninstalling takes it with it. "
-            + "Every English dictation — tone and clean-up alike — runs on S1-mini; Polish dictation is "
-            + "delivered as transcribed, so no model is asked for it at all. No weight file ships inside "
-            + "the app: download it here, or the dictation is delivered exactly as it was transcribed and "
-            + "the app says so. It is resident only while it is being used — it is released after ten "
-            + "minutes without a transform — so the cost in RAM is one model, never a set of them."
+        return "The app runs these itself, from its own folder, so uninstalling takes them with it. Two "
+            + "models, two jobs. S1-mini by Superwhisper (462 MB, about 1 GB of memory) is the normalizer "
+            + "English clean-up alone runs on — it cannot be instructed and reads English only. Qwen2.5 7B "
+            + "Instruct (4.68 GB on disk, about 5.3 GB of memory while a rewrite runs — the engine's "
+            + "accounting, not a wired measurement) is the instruction follower that rewrites tone and "
+            + "e-mail in Polish and English. A weight file is a download, not a requirement: without the "
+            + "missing file its job is delivered as transcribed and the app says so, and the other job "
+            + "keeps working. No weight file ships inside the app. Each model is resident only while it is "
+            + "being used — released after ten minutes without a transform — so only the model the last "
+            + "rewrite needed costs memory."
     }
 
     /// What a row says about its model: download state, disk and RAM.
@@ -310,35 +339,51 @@ class SettingsViewModel: ObservableObject {
 
     /// What is missing while `model` is absent, or `nil` when it is installed.
     ///
-    /// There is one model and it is a requirement: tone and clean-up both run on
-    /// it, so without its file neither switch can do anything, and nothing else
-    /// steps in.
+    /// Each model is a requirement for its own jobs and not for the other's: a
+    /// missing normalizer costs English clean-up alone (the deterministic scrub
+    /// still runs), a missing instruction model costs tone and e-mail. Saying
+    /// which job stops is the point — a row that warned about "the transform"
+    /// would over-report the loss.
     func transformMissingNotice(for model: TransformModel) -> String? {
-        guard model.id == transformModel.id, !isTransformModelInstalled(model) else { return nil }
-        return "Without it no English dictation can be transformed at all: tone and clean-up alike run on "
-            + "this one model. Download it here — until then every dictation is delivered exactly as it "
-            + "was transcribed, and a dictation with a switch on says so."
+        guard !isTransformModelInstalled(model) else { return nil }
+        switch model.style {
+        case .normalizer:
+            return "Without it English clean-up alone cannot run: the grammar repair of a clean-up "
+                + "dictation is this model's, so until it is downloaded that job is delivered as the "
+                + "deterministic scrub's output — fillers gone, grammar untouched — and the dictation says "
+                + "so. Tone and the e-mail mode run on the instruction model and do not need this file. "
+                + "Download it here."
+        case .instruction:
+            return "Without it neither a tone rewrite nor the e-mail mode can run, in Polish or English: "
+                + "both jobs run on this instruction model. Until it is downloaded a dictation with the "
+                + "tone switch on is delivered as transcribed — the deterministic scrub still applies when "
+                + "clean-up is on — and the app says so. Download it here."
+        }
     }
 
-    /// Which model the work will run on, and whether it is present.
+    /// Which model each job will run on, and whether it is present.
     ///
-    /// There is no choice to state any more, only the presence of the one model:
-    /// English — tone and clean-up alike — runs on S1-mini, a Polish dictation is
-    /// delivered as transcribed, and with no weights at all the transform fails
-    /// with the file to download.
+    /// The job decides the model, so this names both: tone and e-mail in either
+    /// language run on the instruction model, English clean-up alone runs on the
+    /// normalizer, and each absence is reported against the job it costs rather
+    /// than against a single "transform".
     var transformLanguageModelDescription: String {
-        let presence = transformModelManager.isNormalizerInstalled
+        let cleanUpPresence = transformModelManager.isNormalizerInstalled
             ? "S1-mini is installed."
-            : "S1-mini is not installed — download it below; until then a dictation with a switch on is "
-                + "delivered as transcribed, and it says so."
-        return "Every English transform — tone and clean-up alike — runs on \(transformModel.displayName). "
-            + "Polish dictation is delivered as transcribed: no transform runs on it at all. "
-            + presence
+            : "S1-mini is not installed — download it below; until then English clean-up alone falls back "
+                + "to the deterministic scrub, and the dictation says so."
+        let tonePresence = isTransformModelInstalled(toneTransformModel)
+            ? "\(toneTransformModel.displayName) is installed."
+            : "\(toneTransformModel.displayName) is not installed — download it below; until then a tone "
+                + "or e-mail rewrite is delivered as transcribed, and the app says so."
+        return "Tone and the e-mail mode run on \(toneTransformModel.displayName), in Polish and English "
+            + "alike; English clean-up alone runs on \(transformModel.displayName), the normalizer. "
+            + cleanUpPresence + " " + tonePresence
     }
 
     /// Recomputes the installed state of every backend off the main thread: the
-    /// first check of a hand-placed file hashes it, which is a 462 MB, a 986 MB
-    /// or a 5 GB read. The cached stamp means only that first check pays it.
+    /// first check of a hand-placed file hashes it, which is a 462 MB or a
+    /// 4.68 GB read. The cached stamp means only that first check pays it.
     func refreshTransformModelState() {
         let catalogue = TransformModelManager.availableModels
         let manager = transformModelManager
@@ -1785,9 +1830,9 @@ struct SettingsView: View {
                 .background(Color(.controlBackgroundColor).opacity(0.3))
                 .cornerRadius(12)
 
-                // Tone & Clean-up
+                // Tone, clean-up and the spoken e-mail trigger.
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Tone & Clean-up")
+                    Text("Tone, Clean-up & E-mail")
                         .font(.headline)
                         .foregroundColor(.primary)
 
@@ -1825,7 +1870,7 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Clean up dictation")
                                     .font(.subheadline)
-                                Text("Remove filler words, stutters and repeats, then fix punctuation, articles and word order in the language you spoke. The scrub needs no model; the grammar repair rides the transform call below.")
+                                Text("Remove filler words, stutters and repeats in any language — that scrub is a function and needs no model. The grammar repair (punctuation, articles, word order) needs a model: on its own it is English-only, on S1-mini; with a tone on it rides the tone call, in Polish or English.")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -1847,13 +1892,27 @@ struct SettingsView: View {
                                     RoundedRectangle(cornerRadius: 8)
                                         .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                                 )
-                            Text("Names, jargon and domain terms you say, one per line — the transform is told to keep these spellings. Optional, and inert while empty. S1-mini's input format is fixed and has no slot for a list, so nothing the app ships takes this field yet: it rides the instruction prompt, which no shipped model uses.")
+                            Text("Names, jargon and domain terms you say, one per line — the transform is told to keep these spellings. Optional, and inert while empty. It rides the instruction model's prompt (tone and e-mail); S1-mini's input format is fixed and has no slot for a list, so English clean-up alone does not get it.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
 
+                        // E-mail mode is selected by what the dictation opens
+                        // with, not by a control: the trigger phrase is spoken,
+                        // so the card spells it out and says there is no switch.
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("E-mail mode (spoken)")
+                                    .font(.subheadline)
+                                Text("Say the trigger at the start of a dictation — “dyktuję maila” (also “dyktuję mejla”, “napisz maila”, “dyktuję email”, accepted inside the first four words). The phrase is taken off the front and the rest is shaped into a greeting, body paragraphs, a polite closing and a sign-off — no subject line, no placeholders — in Polish or English. There is no switch and no second hotkey; a trigger with nothing after it is discarded as an empty dictation.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+
                         // Built-in runtime: the weights the app downloads and
-                        // runs itself. There is no other backend.
+                        // runs itself. There is no backend outside it.
                         Divider()
 
                         VStack(alignment: .leading, spacing: 12) {
@@ -1869,9 +1928,9 @@ struct SettingsView: View {
                                     .fixedSize(horizontal: false, vertical: true)
                             }
 
-                            // Which model the English work runs on right now, and
-                            // whether S1-mini is present — stated, never warned
-                            // about: it is a preference, not a requirement.
+                            // Which model each job runs on right now, and whether
+                            // each one is present — stated, never warned about:
+                            // the weights are downloads, not requirements.
                             Text(viewModel.transformLanguageModelDescription)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -1955,7 +2014,7 @@ struct SettingsView: View {
                             }
                         }
 
-                        Text("Nothing here changes the language of what you dictated: English comes out English, and Polish dictation is delivered exactly as it was transcribed. The tone switch rewrites the dictation in the register you pick, the clean-up switch removes filler and repairs punctuation, articles and word order, and both ride one model call — with both switches off nothing is sent to a model at all. Every dictation reports the detected language and shows the raw transcript beside the cleaned and rewritten text; history always keeps the raw transcript, and recordings transcribed from the list are never rewritten. The language of each utterance is detected automatically, which needs a multilingual whisper model. Every English transform runs on S1-mini while it is installed and on the shipped 1.5B while it is not; Polish is never sent to a model, so nothing is asked of one for it.")
+                        Text("Nothing here changes the language of what you dictated: Polish comes back Polish and English comes back English, and neither switch is a translation. Tone and the e-mail mode run on the instruction model, in Polish and English alike — Polish tone is new; the deterministic scrub is still what Polish clean-up is — while English clean-up alone runs on S1-mini. With both switches off and no e-mail trigger, nothing is sent to a model at all. Before any model runs, a deterministic function replaces profanity and crude slang with neutral wording that carries the same meaning, so that part is a guarantee rather than the model's judgement; if the model then refuses the job or invents a bracketed placeholder, the answer is thrown away and the dictation is delivered with the profanity already neutralised, with a notice that the rewrite did not happen. Every dictation reports the detected language and shows the raw transcript beside the cleaned and rewritten text; history always keeps the raw transcript, and recordings transcribed from the list are never rewritten. The language of each utterance is detected automatically, which needs a multilingual whisper model.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

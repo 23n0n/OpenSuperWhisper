@@ -90,9 +90,11 @@ private final class LanguageLessEngine: TranscriptionEngine {
 }
 
 /// The wiring that carries the spoken language with the text: the language the
-/// engine measured decides whether the transform runs at all — English is
-/// rewritten, everything else is delivered as it was transcribed — and, when the
-/// model cannot have heard it, it is also what the guard refuses on.
+/// engine measured, together with the switches, decides which transform runs —
+/// English clean-up alone runs on S1-mini, tone and the e-mail mode run on the
+/// instruction model in either language, and a Polish clean-up alone is the
+/// deterministic scrub and reaches no model. It is also what the guard refuses
+/// on when the model cannot have heard the speech.
 @MainActor
 final class TranscriptionLanguageGateTests: XCTestCase {
 
@@ -139,10 +141,11 @@ final class TranscriptionLanguageGateTests: XCTestCase {
 
     // MARK: - The language drives the transform
 
-    /// The language drives the transform: the English dictation of the engine is
-    /// rewritten, and the Polish one is delivered exactly as it was transcribed —
-    /// no prompt, no call, and never an English frame around Polish words.
-    func testOnlyTheEnglishDictationIsRewrittenAndPolishIsDeliveredUntouched() async throws {
+    /// The language drives the transform within each job: a tone rewrite happens
+    /// in English and in Polish alike, each framed in its own language, while a
+    /// Polish clean-up alone — which is the deterministic scrub, not a model call
+    /// — is delivered exactly as it was transcribed.
+    func testBothLanguagesAreRewrittenInTheirOwnLanguage() async throws {
         final class Recorder {
             var prompts: [String] = []
             var texts: [String] = []
@@ -154,15 +157,9 @@ final class TranscriptionLanguageGateTests: XCTestCase {
                 recorder.texts.append(text)
                 return text
             },
-            // The model decides which prompt shape this call composes, and the
-            // default resolution reads what is installed on the machine running
-            // the suite: with S1-mini downloaded, the normalizer takes every
-            // English transform and its input is a control line rather than the
-            // frame asserted below. Pin the route, so the gate this test is
-            // about reads the same with and without the optional weights - the
-            // rule the suite already runs under (see dev-run.sh's
-            // multilingual-model opt-in, which exports nothing when the machine
-            // has no candidate).
+            // The instruction model's route is the one these assertions describe,
+            // so the test does not read what is installed on the machine running
+            // the suite. Injected, so no weights load.
             modelForPolicy: { _ in TransformModelStandIn.instruct },
             gateSettings: { GateSettings(tone: true, cleanUp: false, toneMode: .formal) }
         )
@@ -179,35 +176,40 @@ final class TranscriptionLanguageGateTests: XCTestCase {
         let polishOutcome = await service.transformDetailed(polish.text, sourceLanguage: polish.language)
         let englishOutcome = await service.transformDetailed(english.text, sourceLanguage: english.language)
 
-        // The Polish dictation: the transform is English-only, so nothing is
-        // asked of a model for it, and what is handed on is the transcript.
-        XCTAssertEqual(polishOutcome.text, polish.text, "Polish is delivered as it was transcribed")
-        XCTAssertNil(polishOutcome.policy, "Polish has no policy: no prompt, no call, no frame")
-        XCTAssertFalse(polishOutcome.didRunModel)
+        // Tone is a same-language rewrite in both languages now: each dictation
+        // resolves its own tone policy and reaches the model. (The injected model
+        // echoes its framed user turn, which the guard rejects as the prompt's own
+        // marker, so the transcript is what is delivered; the routing is what this
+        // test is about.)
+        XCTAssertEqual(polishOutcome.policy, .tone(language: .polish, tone: .formal))
+        XCTAssertTrue(polishOutcome.didRunModel)
+        XCTAssertEqual(englishOutcome.policy, .tone(language: .english, tone: .formal))
+        XCTAssertTrue(englishOutcome.didRunModel)
 
-        // The English dictation is the only one that reaches a model, and it is
-        // handed over inside the frame with its own transcript — the Polish one
-        // never rides it.
-        XCTAssertEqual(recorder.prompts.count, 1, "only the English dictation is rewritten")
-        XCTAssertEqual(recorder.texts.count, 1)
-        let englishTurn = try XCTUnwrap(recorder.texts.first)
-        let englishPrompt = try XCTUnwrap(recorder.prompts.first)
-        XCTAssertTrue(englishTurn.contains("<<<TRANSCRIPT\n\(englishText)\nTRANSCRIPT>>>"),
-                      "the English dictation is handed over inside the frame: \(englishTurn)")
+        XCTAssertEqual(recorder.prompts.count, 2, "both dictations are rewritten")
+        XCTAssertEqual(recorder.texts.count, 2)
+
+        // Each turn carries its own transcript inside the frame, and each prompt
+        // is written in the language it will rewrite.
+        let polishTurn = try XCTUnwrap(recorder.texts.first)
+        let englishTurn = try XCTUnwrap(recorder.texts.last)
+        XCTAssertTrue(polishTurn.contains("<<<TRANSCRIPT\n\(polishText)\nTRANSCRIPT>>>"), polishTurn)
+        XCTAssertTrue(polishTurn.contains("(polski)"), polishTurn)
+        XCTAssertFalse(polishTurn.contains("(English)"), "a Polish turn is not framed as English: \(polishTurn)")
+        XCTAssertTrue(englishTurn.contains("<<<TRANSCRIPT\n\(englishText)\nTRANSCRIPT>>>"), englishTurn)
         XCTAssertTrue(englishTurn.contains("(English)"), englishTurn)
         XCTAssertFalse(englishTurn.contains("(polski)"), "an English turn is never framed as Polish: \(englishTurn)")
-        XCTAssertFalse(englishTurn.contains(polishText),
-                       "the Polish transcript never reaches a model: \(englishTurn)")
+
+        let polishPrompt = try XCTUnwrap(recorder.prompts.first)
+        let englishPrompt = try XCTUnwrap(recorder.prompts.last)
+        XCTAssertTrue(polishPrompt.contains("po polsku"), polishPrompt)
         XCTAssertTrue(englishPrompt.contains("English text"), englishPrompt)
-        XCTAssertFalse(englishPrompt.contains("po polsku"),
-                       "no turn is instructed in Polish: \(englishPrompt)")
-        XCTAssertEqual(englishOutcome.text, english.text)
     }
 
     /// An engine that reports nothing leaves the transcript itself as the signal,
-    /// which is the Parakeet path — and the heuristic's verdict decides exactly
-    /// what the engine's does: Polish text is delivered untouched, English text
-    /// is rewritten.
+    /// which is the Parakeet path — and, with clean-up alone switched on, the
+    /// heuristic's verdict decides exactly what the engine's does: Polish text is
+    /// the deterministic scrub and reaches no model, English text is cleaned up.
     func testEngineWithNoLanguageSignal_fallsBackToTheTranscriptText() async throws {
         final class Recorder {
             var prompts: [String] = []
@@ -218,10 +220,10 @@ final class TranscriptionLanguageGateTests: XCTestCase {
                 recorder.prompts.append(prompt)
                 return text
             },
-            // Same pin as in the English/Python gate above: the instruction
-            // model's route is the one these assertions describe, and the
-            // default resolution would take the normalizer's route on a machine
-            // that has S1-mini installed.
+            // Same pin as in the tone gate above: the instruction model's route
+            // is the one these assertions describe, and the default resolution
+            // would take the normalizer's route on a machine that has S1-mini
+            // installed.
             modelForPolicy: { _ in TransformModelStandIn.instruct },
             gateSettings: { GateSettings(tone: false, cleanUp: true, toneMode: .formal) }
         )
@@ -233,7 +235,7 @@ final class TranscriptionLanguageGateTests: XCTestCase {
         XCTAssertNil(polishOutcome.policy)
         XCTAssertFalse(polishOutcome.didRunModel)
         XCTAssertEqual(recorder.prompts.count, 0,
-                       "Polish text the heuristic places is not cleaned up: the transform is English-only")
+                       "Polish clean-up alone is the deterministic scrub, so no model is asked")
 
         let english = try await transcribe(engine: LanguageLessEngine(text: englishText), pcmSamples: nil)
         let englishOutcome = await service.transformDetailed(english.text, sourceLanguage: english.language)

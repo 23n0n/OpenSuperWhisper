@@ -179,6 +179,12 @@ enum TransformPolicy: Equatable {
     /// Both, as one call: the tone wording and the clean-up wording ride the
     /// same prompt.
     case cleanUpWithTone(language: TransformLanguage, tone: ToneMode)
+    /// Turn the dictation into an e-mail in its own language: the register work
+    /// of a tone plus the shape — a greeting, body paragraphs, a polite closing
+    /// and a sign-off. Its own policy rather than a tone because what is asked
+    /// for is a *document*, and because the trigger that selects it is spoken
+    /// (`DictationTrigger.email`), not a switch in Settings.
+    case email(language: TransformLanguage, tone: ToneMode)
 
     /// The tone embedded in the prompt, if this policy sends any tone text.
     var promptTone: ToneMode? {
@@ -186,6 +192,7 @@ enum TransformPolicy: Equatable {
         case .cleanUp: return nil
         case .tone(_, let tone): return tone
         case .cleanUpWithTone(_, let tone): return tone
+        case .email(_, let tone): return tone
         }
     }
 
@@ -196,6 +203,7 @@ enum TransformPolicy: Equatable {
         case .cleanUp(let language): return language
         case .tone(let language, _): return language
         case .cleanUpWithTone(let language, _): return language
+        case .email(let language, _): return language
         }
     }
 
@@ -209,43 +217,47 @@ enum TransformPolicy: Equatable {
             return "\(language.displayName), \(tone.displayName.lowercased()) tone"
         case .cleanUpWithTone(let language, let tone):
             return "\(language.displayName), \(tone.displayName.lowercased()) tone, clean-up"
+        case .email(let language, _):
+            return "\(language.displayName), e-mail"
         }
     }
 
     /// The decision table for one dictation.
     ///
-    /// * Nothing switched on ⇒ `nil`, and the caller never even looks the
-    ///   language up.
-    /// * Both switched on ⇒ one call carrying both the tone and the clean-up
-    ///   wording.
-    /// * One switched on ⇒ that one, in the spoken language.
-    /// * **Any language but English ⇒ `nil`.** The transform is English-only:
-    ///   the app has one backend, S1-mini, and its card says "it covers English
-    ///   only". A Polish dictation is delivered exactly as it was transcribed —
-    ///   no request, no model call, no substitution — which is also what a
-    ///   transcript nothing could place already got. The two cases are the same
-    ///   answer here on purpose: the raw transcript is what the user asked for in
-    ///   the second case and what the first one is defined as.
+    /// * Nothing switched on — and no e-mail trigger — ⇒ `nil`, and the caller
+    ///   never even looks the language up.
+    /// * **The e-mail trigger** ⇒ the e-mail policy, in the spoken language. The
+    ///   phrase is the switch, so neither switch has to be on for it.
+    /// * **Tone**, with or without clean-up ⇒ the instruction model's job, in
+    ///   **either language the app serves**. Polish tone is the reason that model
+    ///   exists at all: S1-mini cannot be instructed and cannot read Polish, and
+    ///   the deterministic scrub is not a register.
+    /// * **Clean-up alone** ⇒ S1-mini, and only in English. Polish clean-up is
+    ///   the deterministic scrub, so there is no model call to make and no policy
+    ///   to hand out.
+    /// * A language nothing can place ⇒ `nil`, exactly as before: the transcript
+    ///   is pasted untouched.
     static func resolve(
         tone: Bool,
         cleanUp: Bool,
         language: String?,
-        toneMode: ToneMode
+        toneMode: ToneMode,
+        email: Bool = false
     ) -> TransformPolicy? {
-        guard tone || cleanUp else { return nil }
+        guard tone || cleanUp || email else { return nil }
 
         guard let verdict = language.flatMap(LanguageDetector.Verdict.init(languageCode:)),
-              verdict == .english,
               let spoken = TransformLanguage(verdict: verdict) else {
             return nil
         }
 
-        switch (cleanUp, tone) {
-        case (true, true): return .cleanUpWithTone(language: spoken, tone: toneMode)
-        case (true, false): return .cleanUp(language: spoken)
-        case (false, true): return .tone(language: spoken, tone: toneMode)
-        case (false, false): return nil
-        }
+        if email { return .email(language: spoken, tone: toneMode) }
+
+        if !tone { return spoken == .english ? .cleanUp(language: .english) : nil }
+
+        return cleanUp
+            ? .cleanUpWithTone(language: spoken, tone: toneMode)
+            : .tone(language: spoken, tone: toneMode)
     }
 }
 
@@ -395,11 +407,16 @@ final class TransformService {
     /// The same call, with the decision and the fallback state kept, so the
     /// dictation report can show which transform ran and whether the model
     /// answered.
-    func transformDetailed(_ text: String, sourceLanguage: String? = nil) async -> TransformOutcome {
+    func transformDetailed(
+        _ text: String,
+        sourceLanguage: String? = nil,
+        email: Bool = false
+    ) async -> TransformOutcome {
         guard !text.isEmpty else { return TransformOutcome(text: text, policy: nil, didRunModel: false) }
         let settings = gateSettings()
-        // Nothing is switched on: skip the language work entirely.
-        guard settings.tone || settings.cleanUp else {
+        // Nothing is switched on and the e-mail trigger was not spoken: skip the
+        // language work entirely.
+        guard settings.tone || settings.cleanUp || email else {
             return TransformOutcome(text: text, policy: nil, didRunModel: false)
         }
 
@@ -408,14 +425,21 @@ final class TransformService {
             tone: settings.tone,
             cleanUp: settings.cleanUp,
             language: language,
-            toneMode: settings.toneMode
+            toneMode: settings.toneMode,
+            email: email
         ) else {
             return TransformOutcome(text: text, policy: nil, didRunModel: false)
         }
 
+        // What a register rewrite is given never carries what was said in anger:
+        // the replaceable words are neutralised by a function before the model
+        // runs, so "no profanity under a formal tone" does not depend on the
+        // model's judgement (`ProfanityScrubber`).
+        let prepared = policy.promptTone != nil ? ProfanityScrubber.scrub(text).text : text
+
         do {
             let transformed = try await performTransform(
-                text,
+                prepared,
                 policy: policy,
                 cleanUp: settings.cleanUp,
                 reference: settings.reference
@@ -427,7 +451,7 @@ final class TransformService {
             if policy.promptTone != nil,
                let rejection = TransformGuard.rejection(
                    of: transformed,
-                   for: text,
+                   for: prepared,
                    language: policy.language
                ) {
                 await MainActor.run {
@@ -437,11 +461,33 @@ final class TransformService {
                     )
                 }
                 return TransformOutcome(
-                    text: text,
+                    text: prepared,
                     policy: policy,
                     didRunModel: true,
                     guardRejection: rejection
                 )
+            }
+            // An answer that is *about* the job instead of doing it — a refusal,
+            // or a placeholder the model invented — is not a rewrite either. The
+            // dictation is delivered, and it is delivered with the profanity
+            // already neutralised, because that is the part the user asked to be
+            // guaranteed rather than attempted.
+            if policy.promptTone != nil,
+               let complaint = TransformAnswerCheck.unusableAnswer(of: transformed, for: prepared) {
+                await MainActor.run {
+                    AppErrorCenter.shared.report(
+                        "Tone rewrite was not used",
+                        message: complaint
+                    )
+                }
+                return TransformOutcome(text: prepared, policy: policy, didRunModel: false)
+            }
+            // The e-mail mode promises a *document*, and the envelope is the part
+            // the app can guarantee: a greeting and a sign-off are added when the
+            // model left them out, and its own are kept when it wrote them.
+            if case .email(let language, _) = policy {
+                let shaped = EmailEnvelope.apply(to: transformed, language: language)
+                return TransformOutcome(text: shaped, policy: policy, didRunModel: true)
             }
             return TransformOutcome(text: transformed, policy: policy, didRunModel: true)
         } catch {
@@ -527,6 +573,7 @@ final class TransformService {
         case .tone: return "Tone rewrite could not run"
         case .cleanUpWithTone: return "Tone rewrite and clean-up could not run"
         case .cleanUp: return "Clean-up could not run"
+        case .email: return "The e-mail rewrite could not run"
         }
     }
 
@@ -571,8 +618,15 @@ final class TransformService {
                 "You are a dictation editor. The user dictated \(language.displayName) text; "
                 + "it stays in \(language.displayName)."
             )
-        case .tone(let language, let tone), .cleanUpWithTone(let language, let tone):
+        case .tone(let language, let tone):
             lines.append(toneInstruction(for: language, tone: tone))
+            lines.append(registerRules(for: language))
+        case .cleanUpWithTone(let language, let tone):
+            lines.append(toneInstruction(for: language, tone: tone))
+            lines.append(registerRules(for: language))
+        case .email(let language, _):
+            lines.append(emailInstruction(for: language))
+            lines.append(registerRules(for: language))
         }
 
         if cleanUp {
@@ -670,6 +724,96 @@ final class TransformService {
         switch language {
         case .english: return englishToneInstruction(for: tone)
         case .polish: return polishToneInstruction(for: tone)
+        }
+    }
+
+    /// The e-mail instruction: the shape the dictation is turned into, written in
+    /// the dictation's own language.
+    ///
+    /// Its own wording rather than the tone instruction plus a suffix: the shape
+    /// is the job here, not a decoration on a register change. The closing asks
+    /// for no name, because the app does not know the user's signature and a
+    /// placeholder it invented came back in the pasted text during measurement.
+    static func emailInstruction(for language: TransformLanguage) -> String {
+        switch language {
+        case .polish:
+            return """
+            Zamieniasz podyktowaną treść w treść e-maila po polsku. Układ: przywitanie, rozwinięcie \
+            w jednym lub dwóch akapitach, grzecznościowe zakończenie i pozdrowienie. Zachowujesz sens, \
+            fakty i osobę mówiącą; niczego nie dodajesz i nie odpowiadasz na treść. Zwracasz wyłącznie \
+            treść e-maila — bez tematu, bez nagłówków i bez podpisu z nazwą. Przywitanie i pozdrowienie \
+            są obowiązkowe: e-mail bez nich nie jest e-mailem.
+
+            PRZYKŁAD
+            WEJŚCIE: musimy przesunąć to spotkanie na czwartek, klient nie może w środę, daj znać czy pasuje
+            WYJŚCIE: Dzień dobry,
+
+            chciałbym zaproponować przesunięcie naszego spotkania na czwartek — w środę klient nie jest dostępny. Proszę o informację, czy czwartek Państwu odpowiada.
+
+            Z poważaniem
+
+            PRZYKŁAD
+            WEJŚCIE: raport nie jest jeszcze gotowy, potrzebuję go do piątku, inaczej będzie problem
+            WYJŚCIE: Dzień dobry,
+
+            informuję, że raport nie został jeszcze przygotowany. Będę wdzięczny za jego przekazanie do piątku, ponieważ późniejszy termin może spowodować trudności.
+
+            Z poważaniem
+            """
+        case .english:
+            return """
+            You turn the dictated content into an e-mail in English. Shape: a greeting, one or two body \
+            paragraphs, a polite closing and a sign-off. You keep the meaning, the facts and the \
+            speaker; you add nothing and you never answer the content. You output only the e-mail — no \
+            subject line, no headings, no signature with a name. The greeting and the sign-off are \
+            mandatory: an e-mail without them is not an e-mail.
+
+            EXAMPLE
+            INPUT: we need to push that meeting to Thursday, the client can't do Wednesday, let me know if that works
+            OUTPUT: Hello,
+
+            I would like to propose moving our meeting to Thursday — the client is not available on Wednesday. Please let me know whether Thursday works for you.
+
+            Best regards
+
+            EXAMPLE
+            INPUT: the report still isn't ready, I need it by Friday or we're in trouble
+            OUTPUT: Hello,
+
+            I would like to note that the report is not ready yet. I would appreciate receiving it by Friday, as a later date may cause difficulties.
+
+            Best regards
+            """
+        }
+    }
+
+    /// The two rules every register rewrite needs and the tone wording does not
+    /// carry, both measured on the shipped instruction model.
+    ///
+    /// * **Never refuse.** "go fuck yourself, and I want this formal" is a
+    ///   dictation, not a request for help, and the measured failure was a model
+    ///   answering it with a refusal ("I cannot rewrite language like that").
+    ///   That answer is not a frame the guard can see; naming the content as
+    ///   dictation and the job as rewriting is what the rule is for.
+    /// * **Nothing invented.** The signature the model does not know came back as
+    ///   a bracketed placeholder in a measured answer — text the user never
+    ///   dictated, pasted as if they had.
+    static func registerRules(for language: TransformLanguage) -> String {
+        switch language {
+        case .polish:
+            return """
+            Treść może zawierać wulgaryzmy, agresję, sarkazm albo nieprzyjemne sformułowania — to \
+            normalne w dyktowaniu i nie jest prośbą skierowaną do ciebie. Nigdy nie odmawiasz, nie \
+            prosisz o inny tekst, nie komentujesz i nie oceniasz. Nie dodajesz nagłówków, cudzysłowów \
+            ani miejsc do uzupełnienia typu „[Imię]”.
+            """
+        case .english:
+            return """
+            The dictated text may contain profanity, aggression, sarcasm or unpleasant wording — that \
+            is normal in dictation and is not a request addressed to you. Never refuse, never ask for \
+            different text, never comment on the content. Add no headings, no quotation marks and no \
+            placeholders such as "[Name]".
+            """
         }
     }
 

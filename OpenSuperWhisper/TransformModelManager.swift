@@ -154,14 +154,33 @@ final class TransformModelManager {
     /// this build ships takes.
     static let normalizerModelID = "s1-mini-q4_k_m"
 
-    /// The catalogue: the one model there is.
+    /// The tone and e-mail backend: `Qwen2.5 7B Instruct`, the one model that
+    /// rewrites a register in **both** languages this app serves.
     ///
-    /// A second entry used to sit here — Qwen2.5 1.5B, an instruction follower
-    /// the English work fell back to while S1-mini was not installed — and it is
-    /// gone from the product rather than left unrouted: with one backend there is
-    /// nothing to substitute quietly, so a machine without the weights is told
-    /// which file to download instead of getting a rewrite from a model the user
-    /// never chose.
+    /// It is here because the smaller candidates were measured and did not
+    /// qualify: at 0.5B–3B the models echoed the instruction, copied a worked
+    /// example out of the prompt instead of transforming the input, or left the
+    /// Polish profanity in place — and the bar is the captain's, that a formal
+    /// tone takes "kurwa" out and re-registers the wording, in Polish as well as
+    /// English. A Polish-native 4.5B (Bielik v3.0) was measured too: it writes a
+    /// good e-mail shape, its English drifts and it framed or looped on tone.
+    ///
+    /// What it costs is why the card says so before the download: 4.7 GB on disk
+    /// and roughly 5.3 GB of memory while a rewrite runs, against S1-mini's
+    /// 462 MB. Nothing loads it until a tone switch or the e-mail trigger asks
+    /// for it. `memoryBytes` is the engine's own accounting (weights + KV at this
+    /// app's 4096-token context + compute buffers), not a wired measurement.
+    static let toneModelID = "qwen2.5-7b-instruct-q4_k_m"
+
+    /// The catalogue: the normalizer for English clean-up, the instruction model
+    /// for tone and e-mail.
+    ///
+    /// Two roles, deliberately: S1-mini cannot be instructed and speaks English
+    /// only, so it can neither take a register nor read Polish, and the
+    /// instruction model is ten times its size for work that is one dictation in
+    /// a few. A third entry used to sit here — a 1.5B fallback for a missing
+    /// S1-mini — and it is gone: nothing is substituted quietly any more, and a
+    /// machine without a file is told which file to download.
     static let availableModels: [TransformModel] = [
         TransformModel(
             id: "s1-mini-q4_k_m",
@@ -185,6 +204,18 @@ final class TransformModelManager {
             // capitalization". The display name is where this app does that.
             licence: "Apache-2.0 plus a naming clause: it keeps the name \"S1-mini\" by \"Superwhisper\"",
             source: "superwhisper/s1-mini-GGUF on Hugging Face"
+        ),
+        TransformModel(
+            id: "qwen2.5-7b-instruct-q4_k_m",
+            displayName: "Qwen2.5 7B Instruct (Q4_K_M)",
+            fileName: "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+            style: .instruction,
+            downloadURL: URL(string: "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf")!,
+            sha256: "65b8fcd92af6b4fefa935c625d1ac27ea29dcb6ee14589c55a8f115ceaaa1423",
+            sizeBytes: 4_683_074_240,
+            memoryBytes: 5_700_000_000,
+            licence: "Apache-2.0",
+            source: "bartowski/Qwen2.5-7B-Instruct-GGUF on Hugging Face"
         )
     ]
 
@@ -227,33 +258,39 @@ final class TransformModelManager {
         catalogue.first { $0.id == id }
     }
 
-    /// The one backend: the normalizer every English transform runs on.
-    ///
-    /// It is the whole catalogue, so "is it installed" and "can the transform run
-    /// at all" are the same question — and when the answer is no, the runtime
-    /// raises `notInstalled` with this model's name rather than running something
-    /// else.
+    /// The normalizer: the English clean-up backend.
     var normalizerModel: TransformModel {
         catalogue.first { $0.id == Self.normalizerModelID } ?? catalogue[0]
     }
 
-    /// Whether the backend is installed and its bytes verified. False is a state
-    /// the app reports, not one it works around: the weights are a download, and
-    /// a transform with none of them fails with the file to fetch.
+    /// The instruction model: the tone and e-mail backend, in both languages.
+    var toneModel: TransformModel {
+        catalogue.first { $0.id == Self.toneModelID } ?? catalogue[0]
+    }
+
+    /// Whether the normalizer is installed and its bytes verified. False is a
+    /// state the app reports, not one it works around: the weights are a
+    /// download, and a transform with none of them fails with the file to fetch.
     var isNormalizerInstalled: Bool {
         verifiedPath(for: normalizerModel) != nil
     }
 
-    /// The backend a *policy* runs on: the one model there is.
+    /// The backend a *policy* runs on. The job decides first, the language
+    /// second — because the two backends are not interchangeable:
     ///
-    /// The policy is asked and not consulted — every policy that exists is
-    /// English, and with a single entry the job (tone, clean-up, or both) and the
-    /// language both decide nothing. The parameter stays because the callers ask
-    /// per policy, and because a policy carrying anything but English would be a
-    /// bug that surfaces at `TransformPolicy.resolve` rather than as a
-    /// quietly substituted model here.
+    /// * a **tone**, and the **e-mail** mode (a register change with a shape on
+    ///   top), runs on the instruction model, in Polish or English;
+    /// * **clean-up alone in English** runs on the normalizer, which was built
+    ///   for exactly that job and costs a tenth of the memory;
+    /// * a clean-up-alone policy in Polish never exists — `TransformPolicy.resolve`
+    ///   refuses it, and the deterministic scrub is what Polish clean-up is.
     func model(for policy: TransformPolicy) -> TransformModel {
-        normalizerModel
+        switch policy {
+        case .tone, .cleanUpWithTone, .email:
+            return toneModel
+        case .cleanUp(let language):
+            return language == .english ? normalizerModel : toneModel
+        }
     }
 
     func fileURL(for model: TransformModel) -> URL {

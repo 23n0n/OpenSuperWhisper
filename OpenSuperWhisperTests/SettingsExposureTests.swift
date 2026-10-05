@@ -40,11 +40,11 @@ final class SettingsExposureTests: XCTestCase {
 
     // MARK: - The transform model card
 
-    /// A view model over a temporary directory and a small stand-in for the
-    /// catalogue's one entry (same id, same shape, bytes instead of gigabytes), so
-    /// what the card says is decided by this test's staging and nothing here
-    /// touches the user's Application Support.
-    private func card() throws -> (SettingsViewModel, TransformModelManager, URL, TransformModel) {
+    /// A view model over a temporary directory and small stand-ins for the
+    /// catalogue's two entries (same ids, same shapes, bytes instead of
+    /// gigabytes), so what the card says is decided by this test's staging and
+    /// nothing here touches the user's Application Support.
+    private func card() throws -> (SettingsViewModel, TransformModelManager, URL, TransformModel, TransformModel) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("osw-card-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -68,11 +68,13 @@ final class SettingsExposureTests: XCTestCase {
         }
         let normalizer = entry(TransformModelManager.normalizerModelID, "S1-mini Test Model", "s1-mini.gguf",
                                style: .normalizer)
+        let tone = entry(TransformModelManager.toneModelID, "Qwen2.5 Test Model", "qwen7b.gguf",
+                         style: .instruction)
 
         let manager = TransformModelManager(directory: directory,
-                                           catalogue: [normalizer])
+                                           catalogue: [normalizer, tone])
         let model = SettingsViewModel(transformModelManager: manager)
-        return (model, manager, directory, normalizer)
+        return (model, manager, directory, normalizer, tone)
     }
 
     /// Stages `model`'s bytes in the manager's own directory, so the card's
@@ -84,90 +86,99 @@ final class SettingsExposureTests: XCTestCase {
         try manager.install(fileAt: source, model: model)
     }
 
-    /// The card names the one model the work runs on and says a Polish dictation
-    /// is delivered as transcribed — and, with the weights missing, that the
-    /// transform cannot run at all: there is nothing behind it to fall back to.
-    ///
-    /// What is asserted is both the card's words and the resolution behind them:
-    /// `model(for:)` is what the description reads, so pinning the resolution
-    /// pins the claim without pinning the sentence that carries it.
-    func testTheCardSaysWhichModelTheEnglishWorkUses() throws {
-        let (model, manager, directory, normalizer) = try card()
+    /// The card names both models, each for the job it does, and the presence
+    /// line states what is installed. What is asserted is the semantics: the two
+    /// rows are the real catalogue, `model(for:)` routes each job, and the
+    /// description names the tone model rather than claiming the transform is
+    /// English-only.
+    func testTheCardNamesBothBackendsAndTheirJobs() throws {
+        let (model, manager, directory, normalizer, tone) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         model.installedTransformModelIDs = []
 
+        // The card lists the real catalogue, both rows in order.
+        XCTAssertEqual(model.transformModels.map(\.id),
+                       [TransformModelManager.normalizerModelID, TransformModelManager.toneModelID])
+        XCTAssertEqual(model.transformModel.id, normalizer.id)
+        XCTAssertEqual(model.toneTransformModel.id, tone.id)
+
+        // The description names the tone model — the model that reads Polish —
+        // so the transform can no longer be read as English-only.
         let description = model.transformLanguageModelDescription
-        XCTAssertTrue(description.contains("runs on \(normalizer.displayName)"), description)
-        XCTAssertTrue(description.contains("Polish dictation is delivered as transcribed"), description)
-        XCTAssertTrue(description.contains("S1-mini is not installed"), description)
-        // Every job resolves to the one model, installed or not — the resolution
-        // behind the card's sentence.
-        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .neutral)).id, normalizer.id)
+        XCTAssertTrue(description.contains(tone.displayName), description)
+        XCTAssertTrue(description.contains("Polish"), description)
+        XCTAssertTrue(description.contains("installed"), description)
+
+        // The resolution behind the card's sentence: tone and the e-mail mode on
+        // the instruction model, in either language; English clean-up alone on
+        // the normalizer.
+        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .neutral)).id, tone.id)
+        XCTAssertEqual(manager.model(for: .tone(language: .polish, tone: .formal)).id, tone.id)
+        XCTAssertEqual(manager.model(for: .email(language: .polish, tone: .neutral)).id, tone.id)
         XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, normalizer.id)
 
-        // The one model is a requirement: missing, it is the card's warning, and
-        // the warning names the download that fixes it.
-        let notice = try XCTUnwrap(model.transformMissingNotice(for: normalizer))
-        XCTAssertTrue(notice.contains("no English dictation can be transformed at all"), notice)
-        XCTAssertTrue(notice.contains("Download it here"), notice)
+        // Each row is its own requirement: the notice is per model and non-nil
+        // whenever that model is absent, and each describes its own job.
+        let normalizerNotice = try XCTUnwrap(model.transformMissingNotice(for: normalizer))
+        let toneNotice = try XCTUnwrap(model.transformMissingNotice(for: tone))
+        XCTAssertTrue(normalizerNotice.contains("clean-up"), normalizerNotice)
+        XCTAssertNotEqual(normalizerNotice, toneNotice,
+                          "each missing model costs a different job, so the notices differ")
     }
 
-    /// With the weights on disk every English job runs on them — tone and
-    /// clean-up alike — the card says so, and the warning it gave while they were
-    /// missing is gone.
-    func testWithTheWeightsInstalledEveryEnglishJobRunsOnThem() throws {
-        let (model, manager, directory, normalizer) = try card()
+    /// With the weights on disk the card confirms both models and the warnings it
+    /// gave while they were missing are gone.
+    func testWithTheWeightsInstalledTheCardReportsBothPresent() throws {
+        let (model, manager, directory, normalizer, tone) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         try stage(normalizer, in: manager, directory: directory)
-        model.installedTransformModelIDs = [normalizer.id]
+        try stage(tone, in: manager, directory: directory)
+        model.installedTransformModelIDs = [normalizer.id, tone.id]
 
         let description = model.transformLanguageModelDescription
-        XCTAssertTrue(description.contains("runs on \(normalizer.displayName)"), description)
-        XCTAssertTrue(description.contains("S1-mini is installed"), description)
+        XCTAssertTrue(description.contains(tone.displayName), description)
         XCTAssertNil(model.transformMissingNotice(for: normalizer), "nothing is missing here")
-        TestFixtures.report("[settings] the card with the weights installed: \(description)")
-
-        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .neutral)).id, normalizer.id)
-        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, normalizer.id)
-        XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .casual)).id, normalizer.id)
+        XCTAssertNil(model.transformMissingNotice(for: tone), "nothing is missing here")
+        TestFixtures.report("[settings] the card with both models installed: \(description)")
     }
 
-    /// The row states its job and what the model costs before it is paid, and the
-    /// routing its role sentence describes is asserted as the resolution itself —
-    /// the sentence cannot fail, the routing can.
-    func testTheRowStatesItsJobAndItsCost() throws {
-        let (model, _, directory, normalizer) = try card()
+    /// Each row states its job and what its model costs before it is paid, and the
+    /// routing is asserted as the resolution itself — the row's words cannot fail,
+    /// the routing can.
+    func testTheRowsStateTheirJobsAndTheirCosts() throws {
+        let (model, _, directory, normalizer, tone) = try card()
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        // One row, one kind, and the card has to name it: the row whose text
-        // leaves what the model *is* to be inferred from prose is the defect this
-        // pins.
-        let role = model.transformModelRoleDescription(normalizer)
-        XCTAssertTrue(role.contains("only backend"), role)
-        XCTAssertTrue(role.contains("normalizer"), role)
-        XCTAssertTrue(role.contains("not an instruction follower"), role)
+        // What each row is for, in behaviour words: the normalizer is the
+        // clean-up backend, the instruction model the tone and e-mail one, and
+        // the two rows must not say the same thing.
+        let normalizerRole = model.transformModelRoleDescription(normalizer)
+        XCTAssertTrue(normalizerRole.lowercased().contains("clean-up"), normalizerRole)
+        let toneRole = model.transformModelRoleDescription(tone)
+        XCTAssertTrue(toneRole.lowercased().contains("tone"), toneRole)
+        XCTAssertTrue(toneRole.lowercased().contains("e-mail"), toneRole)
+        XCTAssertNotEqual(normalizerRole, toneRole, "the two rows must not share one role sentence")
 
-        // What the header answers is what the rows cannot: there is nothing to
-        // download a second time, and nothing behind the one file.
+        // The header names both models, so neither row can be read as the whole
+        // product.
         let header = model.transformModelsHeaderDescription
-        XCTAssertTrue(header.contains("Polish dictation is delivered as transcribed"), header)
-        XCTAssertTrue(header.contains("released after ten minutes"), header)
         XCTAssertTrue(header.contains("S1-mini"), header)
+        XCTAssertTrue(header.contains("Qwen2.5"), header)
 
-        XCTAssertEqual(model.transformModelManager.model(for: .tone(language: .english, tone: .casual)).id,
-                       normalizer.id, "tone runs on the one model")
-        XCTAssertEqual(model.transformModelManager.model(for: .cleanUp(language: .english)).id, normalizer.id,
-                       "and so does clean-up")
+        // Each row's state: not downloaded first, with its own disk and RAM cost.
+        for row in [normalizer, tone] {
+            let state = model.transformModelStateDescription(row)
+            XCTAssertTrue(state.hasPrefix("Not downloaded"), state)
+            XCTAssertTrue(state.contains(row.memoryDescription), state)
+            XCTAssertTrue(state.contains(row.sizeDescription), state)
+        }
 
-        let state = model.transformModelStateDescription(normalizer)
-        XCTAssertTrue(state.hasPrefix("Not downloaded"), state)
-        XCTAssertTrue(state.contains(normalizer.memoryDescription), state)
-        XCTAssertTrue(state.contains(normalizer.sizeDescription), state)
-
-        model.installedTransformModelIDs = [normalizer.id]
-        XCTAssertTrue(model.transformModelStateDescription(normalizer).hasPrefix("Installed"),
-                      model.transformModelStateDescription(normalizer))
+        model.installedTransformModelIDs = [normalizer.id, tone.id]
+        for row in [normalizer, tone] {
+            XCTAssertTrue(model.transformModelStateDescription(row).hasPrefix("Installed"),
+                          model.transformModelStateDescription(row))
+        }
     }
 }
