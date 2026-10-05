@@ -61,6 +61,33 @@ final class KeyboardSimulatorTests: XCTestCase {
 
     // MARK: - Control characters
 
+    /// The flags that are not about *which side* of a modifier is held.
+    ///
+    /// `NSEvent.ModifierFlags.deviceIndependentFlagsMask` is `0xFFFF0000`; the low
+    /// sixteen bits are the device-dependent ones (`0x20` left Option, `0x40`
+    /// right Option), and `CGEventFlags` has no named constant for the mask.
+    static let deviceIndependentFlags = CGEventFlags(rawValue: 0xFFFF0000)
+
+    /// A Polish diacritic rides the **right** Option.
+    ///
+    /// The layout produces all nine of them with Option, and the application the
+    /// captain dictates into owns the left Option for a shortcut of its own, so a
+    /// generic (left) Option never delivers the character there. The posted pair
+    /// carries the right key's device bit and never the left one's.
+    func testDiacriticsRideTheRightOptionKey() {
+        var events: [CGEvent] = []
+        KeyboardSimulator.typeText("ą") { events.append($0) }
+
+        XCTAssertEqual(events.count, 2, "one character, one key pair")
+        for event in events {
+            XCTAssertTrue(event.flags.contains(KeyboardSimulator.rightOptionDeviceFlag),
+                          "the diacritic has to be posted with the right Option: \(event.flags)")
+            XCTAssertEqual(event.flags.rawValue & 0x20, 0,
+                           "the left Option bit must never be set: \(event.flags)")
+        }
+        TestFixtures.report("[keyboard] diacritic flags: \(events[0].flags.rawValue)")
+    }
+
     /// A space with no key of its own is typed as a plain space, never as an
     /// Option combination.
     ///
@@ -269,10 +296,26 @@ final class KeyboardSimulatorTests: XCTestCase {
                 + "\(String(reflecting: first)) with, or with the unmapped code"
             )
             let flags = keyDown.flags
+            // The *device* bits say which side of a modifier is held, and the app
+            // deliberately posts the right Option for a diacritic — the target
+            // application owns the left one for a shortcut of its own — so the
+            // layer comparison drops the device-dependent bits and the side is
+            // asserted on its own right after.
             XCTAssertEqual(
-                flags, resolved?.flags ?? [],
+                flags.intersection(Self.deviceIndependentFlags),
+                (resolved?.flags ?? []).intersection(Self.deviceIndependentFlags),
                 "…and with the modifiers that layer needs, and no others"
             )
+            if (resolved?.flags ?? []).contains(.maskAlternate) {
+                XCTAssertTrue(
+                    flags.contains(KeyboardSimulator.rightOptionDeviceFlag),
+                    "an Option layer has to ride the right Option key: \(flags)"
+                )
+                XCTAssertEqual(
+                    flags.rawValue & 0x20, 0,
+                    "the left Option bit must never be set: \(flags)"
+                )
+            }
             // No assertion about key code 0 here. Which key produces which
             // character is the layout's business: on the layout active on this
             // machine 0 is the `a` key, and on a Polish typewriter layout the

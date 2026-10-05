@@ -264,6 +264,18 @@ enum KeyboardSimulator {
     /// Virtual key code for Tab.
     static let tabKeyCode: CGKeyCode = 0x30
 
+    /// The device-dependent flag that says **which** Option key is held.
+    ///
+    /// `CGEventFlags.maskAlternate` does not distinguish the sides; the low bits
+    /// of the event's flags do — the classic `NX_DEVICERALTKEYMASK`, `0x40`
+    /// (`NX_DEVICELALTKEYMASK` is `0x20`). Every Polish diacritic on this layout
+    /// rides Option, and in the application the captain dictates into the *left*
+    /// Option is taken by that application's own shortcut, so the character never
+    /// arrives: his words are that the Polish characters have to go out with the
+    /// right Option. A physical keyboard sends whichever side the hand pressed;
+    /// the app has to pick one, and it picks the side that is free.
+    static let rightOptionDeviceFlag = CGEventFlags(rawValue: 0x40)
+
     /// A key code the system defines no key for.
     ///
     /// Used for a character the active layout has no key for. 0x7F is past the end of
@@ -533,8 +545,19 @@ enum KeyboardSimulator {
         // so a still-held hotkey cannot turn the character into a shortcut (Command+A)
         // instead of plain text — while Option and Shift, which the character may
         // genuinely need, are what a physical keyboard would be holding.
-        keyDown.flags = resolved.flags
-        keyUp.flags = resolved.flags
+        //
+        // Which *side* of Option is held matters to the target, and the layer walk
+        // cannot say: it answers with the generic `.maskAlternate`. An application
+        // whose own shortcut owns the left Option swallows the character, which is
+        // the captain's case — "polskie znaki muszą iść z prawym Option" — so the
+        // option case is posted with the right key's device bit, the side that is
+        // free, and never with the left one.
+        var flags = resolved.flags
+        if flags.contains(.maskAlternate) {
+            flags.insert(rightOptionDeviceFlag)
+        }
+        keyDown.flags = flags
+        keyUp.flags = flags
 
         keyDown.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
         keyUp.keyboardSetUnicodeString(stringLength: 0, unicodeString: [])
