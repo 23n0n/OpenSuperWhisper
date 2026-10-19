@@ -275,7 +275,11 @@ class AudioRecorder: NSObject, ObservableObject {
                         return
                     }
                     
-                    if let recording, recording.duration >= Self.minimumRecordingDuration {
+                    if let recording, Self.carriesNoSignal(recording) {
+                        try? FileManager.default.removeItem(at: url)
+                        self.reportNoSignal()
+                        continuation.resume(returning: nil)
+                    } else if let recording, recording.duration >= Self.minimumRecordingDuration {
                         continuation.resume(returning: recording)
                     } else {
                         try? FileManager.default.removeItem(at: url)
@@ -318,9 +322,36 @@ class AudioRecorder: NSObject, ObservableObject {
             try? FileManager.default.removeItem(at: url)
             return nil
         }
+        if Self.carriesNoSignal(recording) {
+            try? FileManager.default.removeItem(at: url)
+            reportNoSignal()
+            return nil
+        }
         return recording
     }
     
+    /// A recording whose every frame is exactly zero came from an input that
+    /// never delivered anything — a device another app is holding, a muted one,
+    /// or the wrong one selected. No room and no electronics produce exact
+    /// zero, so this is not a quiet recording: the silence policy would drop the
+    /// dictation with no alert and no row, which reads as the app being dead.
+    private static func carriesNoSignal(_ audio: RecordedAudio) -> Bool {
+        !audio.samples.isEmpty && !audio.samples.contains { $0 != 0 }
+    }
+
+    private func reportNoSignal() {
+        Task { @MainActor in
+            let name = MicrophoneService.shared.getActiveMicrophone()?.displayName
+                ?? "The selected microphone"
+            AppErrorCenter.shared.report(
+                "Microphone delivered no audio",
+                message: "\(name) recorded only silence: every sample is zero, which means the "
+                    + "input never opened or another app is holding it. Pick a different microphone "
+                    + "in the menu bar."
+            )
+        }
+    }
+
     private func preserveCaptureFailure(_ error: Error) {
         Task { @MainActor in
             if let failure = error as? RecordingCaptureError {

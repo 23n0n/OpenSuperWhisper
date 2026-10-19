@@ -655,6 +655,13 @@ enum TranscriptionError: Error {
     case contextInitializationFailed
     case audioConversionFailed
     case processingFailed
+    /// The recording contains no signal at all: every sample is exactly zero,
+    /// which no room and no microphone produces. The cause is outside the app —
+    /// a device that is held by another process, a muted input, or the wrong
+    /// device selected — so this is reported to the user instead of being
+    /// settled as silence: nothing was said into the recording, but the
+    /// microphone that should have heard it never delivered a frame.
+    case noAudioCaptured
     /// A speech model that cannot hear the selected language, carrying the whole
     /// story so every surface — the indicator, the queue, the history row —
     /// tells the same one.
@@ -674,6 +681,10 @@ enum TranscriptionError: Error {
 extension TranscriptionError: LocalizedError {
     var errorDescription: String? {
         switch self {
+        case .noAudioCaptured:
+            return "The microphone delivered no audio at all: every sample in the recording is "
+                + "zero. Pick another input device in the menu bar, or unmute the one selected — "
+                + "another app may be holding it."
         case .speechLanguageConflict(let conflict): return conflict.message
         case .noSpeechDetected(let refusal): return refusal.message
         case .uncorroboratedTranscript(let conflict): return conflict.message

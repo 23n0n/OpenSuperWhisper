@@ -142,6 +142,14 @@ final class Qwen3ASREngine: TranscriptionEngine {
             throw TranscriptionError.audioConversionFailed
         }
 
+        // Digital silence is a capture failure, not a quiet room: no microphone
+        // and no electronics produce an exact zero for every sample. Reported
+        // rather than settled as silence, because that refusal leaves no alert
+        // and no row — a dead input would look like the app doing nothing.
+        if !samples.contains(where: { $0 != 0 }) {
+            throw TranscriptionError.noAudioCaptured
+        }
+
         guard let vadContext else {
             throw TranscriptionError.contextInitializationFailed
         }

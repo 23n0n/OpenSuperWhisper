@@ -352,7 +352,7 @@ class WhisperEngine: TranscriptionEngine {
         
         // Conversion done, now processing
         onProgressUpdate?(0.10)
-        
+
         try Task.checkCancellation()
         
         // VAD pre-filter. Off by default (Jev 1.13.0 ruling), on measurement:
