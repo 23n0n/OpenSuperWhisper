@@ -13,6 +13,8 @@ class SettingsViewModel: ObservableObject {
             AppPreferences.shared.selectedEngine = selectedEngine
             if selectedEngine == "whisper" {
                 loadAvailableModels()
+            } else if selectedEngine == Qwen3ASREngine.engineID {
+                initializeQwen3ASRModels()
             } else {
                 initializeFluidAudioModels()
             }
@@ -249,23 +251,22 @@ class SettingsViewModel: ObservableObject {
     /// against the user's Application Support.
     let transformModelManager: TransformModelManager
 
-    /// The catalogue, in the order the card lists it: the English backend, the
-    /// floor it falls back to, and the larger instruction-follower no job
-    /// resolves to any more.
+    /// The catalogue. Two rows, two jobs: S1-mini for English clean-up, the
+    /// instruction model for tone and the e-mail mode in both languages.
     var transformModels: [TransformModel] { TransformModelManager.availableModels }
 
-    /// The English backend — S1-mini, what every English transform runs on while
-    /// it is installed.
-    var englishTransformModel: TransformModel {
+    /// The English clean-up backend — S1-mini, the smaller of the two. The only
+    /// model a clean-up-alone dictation in English runs on, and the only one
+    /// that cannot be instructed.
+    var transformModel: TransformModel {
         transformModelManager.normalizerModel
     }
 
-    /// The floor: the model every English transform falls back to while S1-mini
-    /// is not installed, and the one Polish clean-up ran on when Polish still ran
-    /// clean-up. Nothing is ever refused for a missing optional model, so this is
-    /// the only row that must be present for the feature to work at all.
-    var shippedTransformModel: TransformModel {
-        transformModelManager.defaultModel
+    /// The tone and e-mail backend — the instruction model, the larger of the
+    /// two. Every tone rewrite, and the spoken e-mail trigger, runs on it, in
+    /// Polish and English alike; it never does an English clean-up by itself.
+    var toneTransformModel: TransformModel {
+        transformModelManager.toneModel
     }
 
     func isTransformModelInstalled(_ model: TransformModel) -> Bool {
@@ -276,48 +277,57 @@ class SettingsViewModel: ObservableObject {
         downloadingTransformModelID == model.id
     }
 
-    /// What a row's model is and what it does for the app, in the app's own
+    /// What the row's model is and what it does for the app, in the app's own
     /// routing words.
     ///
     /// The row's title is the model's own name, so this says what that name is
-    /// for — and what the model *is*, because the two entries differ in kind, not
-    /// only in size: one is a normalizer that cannot be instructed, the other an
-    /// instruction follower, and only the first of them does the work on a machine
-    /// that has it. The floor's row says what it waits for, and the English
-    /// backend's says what it takes over.
+    /// for — and what the model *is*, which is the difference the two rows turn
+    /// on: one normalizer that cannot be instructed and reads English only, and
+    /// one instruction follower that reads both languages. What each row leaves
+    /// to the other is stated rather than implied, because a missing file now
+    /// costs one job, not the whole transform.
     func transformModelRoleDescription(_ model: TransformModel) -> String {
-        if model.id == englishTransformModel.id {
-            return "The English backend. Every English transform — tone and clean-up alike — runs on it "
-                + "whenever it is installed, and it takes the work over from the fallback below the "
-                + "moment it arrives. A 0.6B normalizer trained on exactly this job — raw transcript in, "
-                + "clean written text out — and not an instruction follower: it takes one fixed prompt "
-                + "and a control line instead of the app's instructions, which is why the reference list "
-                + "above does not reach it."
+        switch model.style {
+        case .normalizer:
+            return "The English clean-up backend. English clean-up alone runs on it, and nothing else "
+                + "does: a 0.6B normalizer trained on exactly this job — raw transcript in, clean "
+                + "written text out — and not an instruction follower, so it cannot be told what to do. "
+                + "It takes one fixed prompt and a control line, which is why the reference list above "
+                + "does not reach it, and it reads English only. Its clean-up line repairs punctuation, "
+                + "casing, articles and word order. Without this file English clean-up alone falls back "
+                + "to the deterministic scrub — fillers gone, grammar untouched — and the dictation says "
+                + "so; tone and e-mail run on the other model and keep working."
+        case .instruction:
+            return "The tone and e-mail backend. Every tone rewrite — Polish and English alike — and the "
+                + "spoken e-mail mode run on it; English clean-up alone does not. It is an instruction "
+                + "follower, so it takes the app's own prompt, which is where the reference list above "
+                + "rides. It is roughly ten times the normalizer's size because it has to read both "
+                + "languages and follow a register: tone was English-only until it existed. Without this "
+                + "file a tone or e-mail rewrite is delivered as transcribed and the app says so; "
+                + "English clean-up alone runs on the other model and keeps working."
         }
-        return "The floor, and the fallback: every English transform runs on it while S1-mini is not "
-            + "installed, and nothing runs on it while S1-mini is. A 1.5B instruction follower, so it "
-            + "takes the app's own prompt — the reference list included — and it is the one row that has "
-            + "to be present for the switches to do anything at all on a machine without S1-mini."
     }
 
     /// The card's opening paragraph: what the weights are, where they live, and
-    /// what downloading both of them does.
+    /// what the two rows mean together.
     ///
-    /// The list offers two models and one of them does the work, so the question
-    /// the rows cannot answer between them — is it a mistake to have both? — is
-    /// answered here, before the rows: the routing is decided by what is
-    /// installed, the second file costs nothing at run time, and only the model in
-    /// use is ever resident.
+    /// Two models, two jobs, so the question the rows cannot answer — what
+    /// happens when one of them is absent? — is answered here, before them: each
+    /// job needs its own file, and without it that job is delivered as
+    /// transcribed (or, for clean-up, as the deterministic scrub) and says so.
+    /// The costs are stated because they are the reason there are two rows
+    /// rather than one.
     var transformModelsHeaderDescription: String {
-        return "The app runs these itself, from its own folder, so uninstalling takes them with it. "
-            + "Every English transform — tone and clean-up alike — runs on S1-mini while it is installed "
-            + "and on the 1.5B fallback while it is not; Polish dictation is delivered as transcribed, so "
-            + "no model is asked for it at all. No weight file ships inside the app: download one here, or "
-            + "the dictation is delivered exactly as it was transcribed and the app says so. Downloading "
-            + "both is fine and changes nothing above: the work still goes to S1-mini, and while S1-mini "
-            + "is here the 1.5B is never loaded at all. At most one of them is ever resident — it is "
-            + "released after ten minutes without a transform — so the cost in RAM is the model in use, "
-            + "never the sum, and the cost on disk is the sum of the rows you have downloaded."
+        return "The app runs these itself, from its own folder, so uninstalling takes them with it. Two "
+            + "models, two jobs. S1-mini by Superwhisper (462 MB, about 1 GB of memory) is the normalizer "
+            + "English clean-up alone runs on — it cannot be instructed and reads English only. Qwen2.5 7B "
+            + "Instruct (4.68 GB on disk, about 5.3 GB of memory while a rewrite runs — the engine's "
+            + "accounting, not a wired measurement) is the instruction follower that rewrites tone and "
+            + "e-mail in Polish and English. A weight file is a download, not a requirement: without the "
+            + "missing file its job is delivered as transcribed and the app says so, and the other job "
+            + "keeps working. No weight file ships inside the app. Each model is resident only while it is "
+            + "being used — released after ten minutes without a transform — so only the model the last "
+            + "rewrite needed costs memory."
     }
 
     /// What a row says about its model: download state, disk and RAM.
@@ -329,42 +339,53 @@ class SettingsViewModel: ObservableObject {
         return isTransformModelInstalled(model) ? "Installed — \(cost)" : "Not downloaded — \(cost)"
     }
 
-    /// What stays unchanged while `model` is missing, or `nil` when it is
-    /// installed or optional.
+    /// What is missing while `model` is absent, or `nil` when it is installed.
     ///
-    /// Only the floor is a requirement: English runs on it while S1-mini is not
-    /// installed, and that is the one job with no other fallback. Both of the
-    /// others are optional, so neither is ever a warning — the card states which
-    /// model the work really runs on, and nothing is refused.
+    /// Each model is a requirement for its own jobs and not for the other's: a
+    /// missing normalizer costs English clean-up alone (the deterministic scrub
+    /// still runs), a missing instruction model costs tone and e-mail. Saying
+    /// which job stops is the point — a row that warned about "the transform"
+    /// would over-report the loss.
     func transformMissingNotice(for model: TransformModel) -> String? {
-        guard model.id == shippedTransformModel.id, !isTransformModelInstalled(model) else { return nil }
-        return "Without it no English dictation can be transformed at all: it is the model every "
-            + "English transform falls back to while S1-mini is not installed. S1-mini is optional, "
-            + "and this one does its work only while it is absent."
+        guard !isTransformModelInstalled(model) else { return nil }
+        switch model.style {
+        case .normalizer:
+            return "Without it English clean-up alone cannot run: the grammar repair of a clean-up "
+                + "dictation is this model's, so until it is downloaded that job is delivered as the "
+                + "deterministic scrub's output — fillers gone, grammar untouched — and the dictation says "
+                + "so. Tone and the e-mail mode run on the instruction model and do not need this file. "
+                + "Download it here."
+        case .instruction:
+            return "Without it neither a tone rewrite nor the e-mail mode can run, in Polish or English: "
+                + "both jobs run on this instruction model. Until it is downloaded a dictation with the "
+                + "tone switch on is delivered as transcribed — the deterministic scrub still applies when "
+                + "clean-up is on — and the app says so. Download it here."
+        }
     }
 
-    /// Which model the work will run on, and whether the English backend is
-    /// present.
+    /// Which model each job will run on, and whether it is present.
     ///
-    /// The model choice is a preference, so the card states it rather than
-    /// warning about it. English — tone and clean-up alike — runs on S1-mini
-    /// while it is installed and on the shipped model while it is not, and a
-    /// Polish dictation is delivered exactly as it was transcribed. Nothing is
-    /// refused, and nothing has to be downloaded for the feature to work.
+    /// The job decides the model, so this names both: tone and e-mail in either
+    /// language run on the instruction model, English clean-up alone runs on the
+    /// normalizer, and each absence is reported against the job it costs rather
+    /// than against a single "transform".
     var transformLanguageModelDescription: String {
-        let english = transformModelManager.preferredTransformModel
-        let presence = transformModelManager.isNormalizerInstalled
+        let cleanUpPresence = transformModelManager.isNormalizerInstalled
             ? "S1-mini is installed."
-            : "S1-mini is not installed, so the shipped model does the work — nothing is refused, and "
-                + "nothing has to be downloaded."
-        return "Every English transform — tone and clean-up alike — runs on \(english.displayName). "
-            + "Polish dictation is delivered as transcribed: no transform runs on it at all. "
-            + presence
+            : "S1-mini is not installed — download it below; until then English clean-up alone falls back "
+                + "to the deterministic scrub, and the dictation says so."
+        let tonePresence = isTransformModelInstalled(toneTransformModel)
+            ? "\(toneTransformModel.displayName) is installed."
+            : "\(toneTransformModel.displayName) is not installed — download it below; until then a tone "
+                + "or e-mail rewrite is delivered as transcribed, and the app says so."
+        return "Tone and the e-mail mode run on \(toneTransformModel.displayName), in Polish and English "
+            + "alike; English clean-up alone runs on \(transformModel.displayName), the normalizer. "
+            + cleanUpPresence + " " + tonePresence
     }
 
     /// Recomputes the installed state of every backend off the main thread: the
-    /// first check of a hand-placed file hashes it, which is a 462 MB, a 986 MB
-    /// or a 5 GB read. The cached stamp means only that first check pays it.
+    /// first check of a hand-placed file hashes it, which is a 462 MB or a
+    /// 4.68 GB read. The cached stamp means only that first check pays it.
     func refreshTransformModelState() {
         let catalogue = TransformModelManager.availableModels
         let manager = transformModelManager
@@ -441,8 +462,10 @@ class SettingsViewModel: ObservableObject {
         try await WhisperModelManager.shared.downloadModel(url: $0, name: $1, progressCallback: $2)
     }, downloadFluid: @escaping (AsrModelVersion, ProgressHandler?) async throws -> AsrModels = {
         try await AsrModels.downloadAndLoad(version: $0, progressHandler: $1)
-    }, transformModelManager: TransformModelManager = .shared) {
+    }, transformModelManager: TransformModelManager = .shared,
+       qwen3ASRModelManager: Qwen3ASRModelManager = .shared) {
         self.transformModelManager = transformModelManager
+        self.qwen3ASRModelManager = qwen3ASRModelManager
         self.downloadFluid = downloadFluid
         self.downloadWhisper = downloadWhisper
         let prefs = AppPreferences.shared
@@ -481,6 +504,7 @@ class SettingsViewModel: ObservableObject {
         loadAvailableModels()
         initializeDownloadableModels()
         initializeFluidAudioModels()
+        initializeQwen3ASRModels()
         refreshTransformModelState()
     }
     
@@ -493,7 +517,7 @@ class SettingsViewModel: ObservableObject {
     }
     
     func isFluidAudioModelDownloaded(version: String) -> Bool {
-        let asrVersion: AsrModelVersion = version == "v2" ? .v2 : .v3
+        let asrVersion = AsrModelVersion(storedParakeetVersion: version)
         
         // Используем правильный путь к кэшу согласно документации:
         // ~/Library/Application Support/FluidAudio/Models/<version-folder>/
@@ -646,7 +670,7 @@ class SettingsViewModel: ObservableObject {
     /// so what is checked is that every file the engine needs is on disk and
     /// none of them is empty, and the row says exactly that.
     func verifyFluidAudioModel(version: String) {
-        let asrVersion: AsrModelVersion = version == "v2" ? .v2 : .v3
+        let asrVersion = AsrModelVersion(storedParakeetVersion: version)
         let directory = AsrModels.defaultCacheDirectory(for: asrVersion)
         guard checkingPath == nil else { return }
         checkingPath = directory.path
@@ -681,7 +705,7 @@ class SettingsViewModel: ObservableObject {
 
     /// Size on disk of a Parakeet model, for the "Installed" line.
     func fluidAudioModelSizeDescription(version: String) -> String {
-        let asrVersion: AsrModelVersion = version == "v2" ? .v2 : .v3
+        let asrVersion = AsrModelVersion(storedParakeetVersion: version)
         let directory = AsrModels.defaultCacheDirectory(for: asrVersion)
         let files = (try? FileManager.default.contentsOfDirectory(at: directory,
                                                                   includingPropertiesForKeys: [.fileSizeKey])) ?? []
@@ -694,7 +718,7 @@ class SettingsViewModel: ObservableObject {
     /// Deletes a Parakeet model's files. The engine downloads them again on
     /// demand, and the row stops claiming to be installed.
     func removeFluidAudioModel(version: String) {
-        let asrVersion: AsrModelVersion = version == "v2" ? .v2 : .v3
+        let asrVersion = AsrModelVersion(storedParakeetVersion: version)
         let directory = AsrModels.defaultCacheDirectory(for: asrVersion)
         let freed = (try? FileManager.default.contentsOfDirectory(at: directory,
                                                                   includingPropertiesForKeys: [.fileSizeKey]))?
@@ -709,7 +733,10 @@ class SettingsViewModel: ObservableObject {
         }
         checkSummaries[directory.path] = nil
         checkProblems.remove(directory.path)
-        modelStorageNotice = .removed(name: "Parakeet \(version)", bytesFreed: freed)
+        modelStorageNotice = .removed(
+            name: ParakeetModelVersion(stored: version)?.displayName ?? "Parakeet \(version)",
+            bytesFreed: freed
+        )
         initializeFluidAudioModels()
     }
     
@@ -816,6 +843,10 @@ class SettingsViewModel: ObservableObject {
             if let index = downloadableFluidAudioModels.firstIndex(where: { $0.name == modelName }) {
                 downloadableFluidAudioModels[index].downloadProgress = 0.0
             }
+            if let index = downloadableQwen3ASRModels.firstIndex(where: { $0.name == modelName }) {
+                downloadableQwen3ASRModels[index].downloadProgress = 0.0
+                qwen3ASRModelManager.cancelDownload(fileID: downloadableQwen3ASRModels[index].id)
+            }
         }
         isDownloading = false
         downloadingModelName = nil
@@ -825,6 +856,13 @@ class SettingsViewModel: ObservableObject {
     @MainActor
     func downloadFluidAudioModel(_ model: SettingsFluidAudioModel) async throws {
         guard !isDownloading else { return }
+
+        // The row hides this, but the call also arrives from the "download the
+        // selected model" entry point: refuse Redux on a system whose Core ML
+        // cannot load it before 219 MB start moving over the network.
+        if let requested = ParakeetModelVersion(stored: model.version), !requested.isSupportedOnThisMac {
+            throw ParakeetModelError.requiresMacOS15(requested.displayName)
+        }
         try DiskSpaceUtil.ensureEnoughFreeSpaceForModelDownload()
         
         isDownloading = true
@@ -844,7 +882,7 @@ class SettingsViewModel: ObservableObject {
                 if downloadID == id { downloadTask = nil; downloadID = nil }
             }
             do {
-                let version: AsrModelVersion = model.version == "v2" ? .v2 : .v3
+                let version = AsrModelVersion(storedParakeetVersion: model.version)
                 
                 guard !Task.isCancelled else {
                     await MainActor.run {
@@ -963,6 +1001,125 @@ class SettingsViewModel: ObservableObject {
         let versionString = AppPreferences.shared.fluidAudioModelVersion
         if let model = downloadableFluidAudioModels.first(where: { $0.version == versionString }) {
             try await downloadFluidAudioModel(model)
+        }
+    }
+
+    // MARK: - Qwen3-ASR models
+
+    /// The manager the Qwen3-ASR card downloads through and reads installed state
+    /// from. Injecting it is how a test proves the card's words against a real
+    /// directory layout — the app's own, or one a test stages — instead of the
+    /// user's Application Support.
+    let qwen3ASRModelManager: Qwen3ASRModelManager
+
+    /// The two GGUF files as rows. Both are needed for the engine to start, so
+    /// each row is a file to fetch rather than a model to choose.
+    @Published var downloadableQwen3ASRModels: [SettingsQwen3ASRModel] = []
+
+    func initializeQwen3ASRModels() {
+        downloadableQwen3ASRModels = SettingsQwen3ASRModels.rows(for: qwen3ASRModelManager)
+    }
+
+    /// Whether both halves of the engine are on disk at their published size.
+    var isQwen3ASRDownloaded: Bool {
+        qwen3ASRModelManager.installedPaths != nil
+    }
+
+    /// Fetches one of the two files. The engine is reloaded when the last one
+    /// lands, because until then it has nothing to load — and the selection is
+    /// the weights themselves, so that reload is not a no-op.
+    @MainActor
+    func downloadQwen3ASRModel(_ model: SettingsQwen3ASRModel) async throws {
+        guard !isDownloading else { return }
+        guard let file = qwen3ASRModelManager.file(forID: model.id) else { return }
+        try DiskSpaceUtil.ensureEnoughFreeSpaceForModelDownload()
+
+        isDownloading = true
+        downloadingModelName = model.name
+        downloadProgress = 0.0
+
+        let id = UUID()
+        downloadID = id
+        downloadTask = Task {
+            defer {
+                if downloadID == id { downloadTask = nil; downloadID = nil }
+            }
+            do {
+                try await qwen3ASRModelManager.download(file) { [weak self] progress in
+                    Task { @MainActor [weak self] in
+                        guard let self = self, self.downloadID == id, !Task.isCancelled else { return }
+                        guard let task = self.downloadTask, !task.isCancelled else { return }
+
+                        self.downloadProgress = progress
+                        if let index = self.downloadableQwen3ASRModels.firstIndex(where: { $0.id == file.id }) {
+                            self.downloadableQwen3ASRModels[index].downloadProgress = progress
+                        }
+                    }
+                }
+
+                await MainActor.run {
+                    guard self.downloadID == id else { return }
+                    self.resetQwen3ASRDownloadState(of: file.id)
+                    self.initializeQwen3ASRModels()
+                    if self.selectedEngine == Qwen3ASREngine.engineID {
+                        TranscriptionService.shared.reloadEngine()
+                    }
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    guard self.downloadID == id else { return }
+                    self.resetQwen3ASRDownloadState(of: file.id)
+                }
+            } catch {
+                await MainActor.run {
+                    guard self.downloadID == id else { return }
+                    self.resetQwen3ASRDownloadState(of: file.id)
+                }
+                throw error
+            }
+        }
+
+        try await downloadTask?.value
+    }
+
+    /// Removes one of the two files. The engine is reloaded either way: with a
+    /// half removed it must stop transcribing rather than run on weights the
+    /// Model tab says are gone, and the selection is the pair, so a loaded engine
+    /// is unloaded and the load fails with the file to download.
+    @MainActor
+    func removeQwen3ASRModel(_ model: SettingsQwen3ASRModel) {
+        guard let file = qwen3ASRModelManager.file(forID: model.id) else { return }
+        let url = qwen3ASRModelManager.fileURL(for: file)
+        do {
+            try qwen3ASRModelManager.remove(file)
+        } catch {
+            verificationError = error.localizedDescription
+            return
+        }
+        verificationResults[url.path] = nil
+        checkSummaries[url.path] = nil
+        checkProblems.remove(url.path)
+        modelStorageNotice = .removed(name: model.name, bytesFreed: model.sizeBytes)
+        initializeQwen3ASRModels()
+        if selectedEngine == Qwen3ASREngine.engineID {
+            TranscriptionService.shared.reloadEngine()
+        }
+        refreshInstalledModels()
+    }
+
+    /// Checks one of the two files against the digest the catalogue pins, through
+    /// the same check the whisper rows use.
+    func verifyQwen3ASRModel(_ model: SettingsQwen3ASRModel) {
+        guard let file = qwen3ASRModelManager.file(forID: model.id) else { return }
+        verifyModel(at: qwen3ASRModelManager.fileURL(for: file), pinnedSHA256: file.sha256)
+    }
+
+    private func resetQwen3ASRDownloadState(of fileID: String) {
+        isDownloading = false
+        downloadingModelName = nil
+        downloadProgress = 0.0
+        if let index = downloadableQwen3ASRModels.firstIndex(where: { $0.id == fileID }) {
+            downloadableQwen3ASRModels[index].downloadProgress = 0.0
         }
     }
 }
@@ -1302,11 +1459,15 @@ struct SettingsView: View {
             previousModelURL = viewModel.selectedModelURL
             if viewModel.selectedEngine == "fluidaudio" {
                 viewModel.initializeFluidAudioModels()
+            } else if viewModel.selectedEngine == Qwen3ASREngine.engineID {
+                viewModel.initializeQwen3ASRModels()
             }
         }
         .onChange(of: viewModel.selectedEngine) { _, newEngine in
             if newEngine == "fluidaudio" {
                 viewModel.initializeFluidAudioModels()
+            } else if newEngine == Qwen3ASREngine.engineID {
+                viewModel.initializeQwen3ASRModels()
             }
         }
         .onChange(of: viewModel.selectedModelURL) { _, newURL in
@@ -1388,6 +1549,7 @@ struct SettingsView: View {
                 Picker("Engine", selection: $viewModel.selectedEngine) {
                     Text("Parakeet").tag("fluidaudio")
                     Text("Whisper").tag("whisper")
+                    Text("Qwen3-ASR").tag(Qwen3ASREngine.engineID)
                 }
                 .pickerStyle(.segmented)
                 .padding(.bottom, 8)
@@ -1472,6 +1634,71 @@ struct SettingsView: View {
                                 .help("Open models directory")
                             }
                             Text(WhisperModelManager.shared.modelsDirectory.path)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .textSelection(.enabled)
+                                .padding(8)
+                                .background(Color(.textBackgroundColor).opacity(0.5))
+                                .cornerRadius(6)
+                        }
+                        .padding(.top, 8)
+                    }
+                } else if viewModel.selectedEngine == Qwen3ASREngine.engineID {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Qwen3-ASR Model")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+
+                        Text("Download Models")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                            .padding(.top, 8)
+
+                        Text("Both files are needed: the speech model and the audio encoder it is prompted with. The engine fetches them the first time it runs — they are listed here so the download can be seen, verified and the files removed.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        VStack(spacing: 12) {
+                            ForEach($viewModel.downloadableQwen3ASRModels) { $model in
+                                Qwen3ASRModelDownloadItemView(model: $model, viewModel: viewModel)
+                            }
+                        }
+
+                        if !viewModel.isQwen3ASRDownloaded {
+                            Text("Neither file is on disk yet. The engine downloads both the first time it runs, and dictation with it works once they are verified — the app never switches to another engine on its own.")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        if let notice = viewModel.modelStorageNotice {
+                            Text(notice.message)
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        if let error = viewModel.verificationError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Models Directory:")
+                                    .font(.subheadline)
+                                Button(action: {
+                                    NSWorkspace.shared.open(viewModel.qwen3ASRModelManager.directory)
+                                }) {
+                                    Label("Open Folder", systemImage: "folder")
+                                        .font(.subheadline)
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Open models directory")
+                            }
+                            Text(viewModel.qwen3ASRModelManager.directory.path)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .textSelection(.enabled)
@@ -1801,9 +2028,9 @@ struct SettingsView: View {
                 .background(Color(.controlBackgroundColor).opacity(0.3))
                 .cornerRadius(12)
 
-                // Tone & Clean-up
+                // Tone, clean-up and the spoken e-mail trigger.
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Tone & Clean-up")
+                    Text("Tone, Clean-up & E-mail")
                         .font(.headline)
                         .foregroundColor(.primary)
 
@@ -1841,7 +2068,7 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Clean up dictation")
                                     .font(.subheadline)
-                                Text("Remove filler words, stutters and repeats, then fix punctuation, articles and word order in the language you spoke. The scrub needs no model; the grammar repair rides the transform call below.")
+                                Text("Remove filler words, stutters and repeats in any language — that scrub is a function and needs no model. The grammar repair (punctuation, articles, word order) needs a model: on its own it is English-only, on S1-mini; with a tone on it rides the tone call, in Polish or English.")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -1863,13 +2090,27 @@ struct SettingsView: View {
                                     RoundedRectangle(cornerRadius: 8)
                                         .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                                 )
-                            Text("Names, jargon and domain terms you say, one per line — the transform is told to keep these spellings. Optional, and inert while empty. S1-mini's input format is fixed and has no slot for a list, so this rides the shipped model's prompt only.")
+                            Text("Names, jargon and domain terms you say, one per line — the transform is told to keep these spellings. Optional, and inert while empty. It rides the instruction model's prompt (tone and e-mail); S1-mini's input format is fixed and has no slot for a list, so English clean-up alone does not get it.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
 
+                        // E-mail mode is selected by what the dictation opens
+                        // with, not by a control: the trigger phrase is spoken,
+                        // so the card spells it out and says there is no switch.
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("E-mail mode (spoken)")
+                                    .font(.subheadline)
+                                Text("Say the trigger at the start of a dictation — “dyktuję maila” (also “dyktuję mejla”, “napisz maila”, “dyktuję email”, accepted inside the first four words). The phrase is taken off the front and the rest is shaped into a greeting, body paragraphs, a polite closing and a sign-off — no subject line, no placeholders — in Polish or English. There is no switch and no second hotkey; a trigger with nothing after it is discarded as an empty dictation.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+
                         // Built-in runtime: the weights the app downloads and
-                        // runs itself. There is no other backend.
+                        // runs itself. There is no backend outside it.
                         Divider()
 
                         VStack(alignment: .leading, spacing: 12) {
@@ -1885,9 +2126,9 @@ struct SettingsView: View {
                                     .fixedSize(horizontal: false, vertical: true)
                             }
 
-                            // Which model the English work runs on right now, and
-                            // whether S1-mini is present — stated, never warned
-                            // about: it is a preference, not a requirement.
+                            // Which model each job runs on right now, and whether
+                            // each one is present — stated, never warned about:
+                            // the weights are downloads, not requirements.
                             Text(viewModel.transformLanguageModelDescription)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -1971,7 +2212,7 @@ struct SettingsView: View {
                             }
                         }
 
-                        Text("Nothing here changes the language of what you dictated: English comes out English, and Polish dictation is delivered exactly as it was transcribed. The tone switch rewrites the dictation in the register you pick, the clean-up switch removes filler and repairs punctuation, articles and word order, and both ride one model call — with both switches off nothing is sent to a model at all. Every dictation reports the detected language and shows the raw transcript beside the cleaned and rewritten text; history always keeps the raw transcript, and recordings transcribed from the list are never rewritten. The language of each utterance is detected automatically, which needs a multilingual whisper model. Every English transform runs on S1-mini while it is installed and on the shipped 1.5B while it is not; Polish is never sent to a model, so nothing is asked of one for it.")
+                        Text("Nothing here changes the language of what you dictated: Polish comes back Polish and English comes back English, and neither switch is a translation. Tone and the e-mail mode run on the instruction model, in Polish and English alike — Polish tone is new; the deterministic scrub is still what Polish clean-up is — while English clean-up alone runs on S1-mini. With both switches off and no e-mail trigger, nothing is sent to a model at all. Before any model runs, a deterministic function replaces profanity and crude slang with neutral wording that carries the same meaning, so that part is a guarantee rather than the model's judgement; if the model then refuses the job or invents a bracketed placeholder, the answer is thrown away and the dictation is delivered with the profanity already neutralised, with a notice that the rewrite did not happen. Every dictation reports the detected language and shows the raw transcript beside the cleaned and rewritten text; history always keeps the raw transcript, and recordings transcribed from the list are never rewritten. The language of each utterance is detected automatically, which needs a multilingual whisper model.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -2557,6 +2798,14 @@ struct SettingsFluidAudioModel: Identifiable {
     var sizeString: String {
         formatModelSize(megabytes: size)
     }
+
+    /// Whether this Mac can load the model at all. Redux's encoder is built from
+    /// macOS 15 Core ML operations, so on an older system the row offers neither
+    /// its download nor its selection: the engine would refuse the load after
+    /// the whole file had crossed the network.
+    var isSupportedOnThisMac: Bool {
+        ParakeetModelVersion(stored: version)?.isSupportedOnThisMac ?? true
+    }
 }
 
 struct SettingsFluidAudioModels {
@@ -2569,6 +2818,13 @@ struct SettingsFluidAudioModels {
             size: 483
         ),
         SettingsFluidAudioModel(
+            name: "Parakeet Redux",
+            version: "redux",
+            isDownloaded: false,
+            description: "Multilingual, 25 languages — 2-bit ternary encoder, needs macOS 15",
+            size: 219
+        ),
+        SettingsFluidAudioModel(
             name: "Parakeet v2",
             version: "v2",
             isDownloaded: false,
@@ -2576,6 +2832,51 @@ struct SettingsFluidAudioModels {
             size: 464
         )
     ]
+}
+
+/// One Qwen3-ASR GGUF file as the Model tab shows it.
+///
+/// The two files are one download from the user's point of view but two rows on
+/// disk: each has its own URL, digest and size, and the engine starts only when
+/// both are there.
+struct SettingsQwen3ASRModel: Identifiable {
+    let id: String
+    let name: String
+    let fileName: String
+    let url: URL
+    let sizeBytes: Int64
+    let description: String
+    let sha256: String
+    var isDownloaded: Bool
+    var downloadProgress: Double = 0.0
+
+    var sizeString: String {
+        ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file)
+    }
+
+    var huggingFacePageURL: URL? {
+        makeHuggingFacePageURL(fromDownloadURL: url)
+    }
+}
+
+struct SettingsQwen3ASRModels {
+    /// The rows, with what is on disk read from the manager that owns it.
+    static func rows(for manager: Qwen3ASRModelManager) -> [SettingsQwen3ASRModel] {
+        manager.files.map { file in
+            SettingsQwen3ASRModel(
+                id: file.id,
+                name: file.displayName,
+                fileName: file.fileName,
+                url: file.downloadURL,
+                sizeBytes: file.sizeBytes,
+                description: file.id == Qwen3ASRModelManager.projectorFileID
+                    ? "The audio encoder — the text model cannot hear without it"
+                    : "The speech model — the transcript comes from here",
+                sha256: file.sha256,
+                isDownloaded: manager.hasInstalledFile(file)
+            )
+        }
+    }
 }
 
 enum OnboardingModelType {
@@ -2596,7 +2897,7 @@ struct OnboardingUnifiedModel: Identifiable {
         case .whisper(let url, _):
             return makeHuggingFacePageURL(fromDownloadURL: url)
         case .parakeet(let version):
-            let repo = version == "v2" ? "parakeet-tdt-0.6b-v2-coreml" : "parakeet-tdt-0.6b-v3-coreml"
+            let repo = (ParakeetModelVersion(stored: version) ?? .v3).huggingFaceRepo
             return URL(string: "https://huggingface.co/FluidInference/\(repo)")
         }
     }
@@ -2667,6 +2968,12 @@ struct FluidAudioModelDownloadItemView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
+                if !model.isSupportedOnThisMac {
+                    Text("Not available on this Mac — needs macOS 15 or newer")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                }
+
                 if model.isDownloaded {
                     Text("Downloaded — \(viewModel.fluidAudioModelSizeDescription(version: model.version)) on disk")
                         .font(.caption2)
@@ -2704,6 +3011,7 @@ struct FluidAudioModelDownloadItemView: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
+                            .disabled(!model.isSupportedOnThisMac)
                         }
 
                         Button("Remove") {
@@ -2720,11 +3028,11 @@ struct FluidAudioModelDownloadItemView: View {
                         .controlSize(.small)
                     }
 
-                    if viewModel.checkingPath == AsrModels.defaultCacheDirectory(for: model.version == "v2" ? .v2 : .v3).path {
+                    if viewModel.checkingPath == AsrModels.defaultCacheDirectory(for: AsrModelVersion(storedParakeetVersion: model.version)).path {
                         ProgressView().controlSize(.small).scaleEffect(0.7)
                     }
                     if let summary = viewModel.checkSummaries[
-                        AsrModels.defaultCacheDirectory(for: model.version == "v2" ? .v2 : .v3).path] {
+                        AsrModels.defaultCacheDirectory(for: AsrModelVersion(storedParakeetVersion: model.version)).path] {
                         Text(summary)
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -2752,7 +3060,7 @@ struct FluidAudioModelDownloadItemView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(viewModel.isDownloading)
+                    .disabled(viewModel.isDownloading || !model.isSupportedOnThisMac)
                 }
             }
         }
@@ -3013,12 +3321,122 @@ struct InstalledWhisperModelView: View {
     }
 }
 
+/// One Qwen3-ASR file: the same shape as the whisper download row, without the
+/// selection — the engine runs on the pair, so neither file is chosen by itself.
+struct Qwen3ASRModelDownloadItemView: View {
+    @Binding var model: SettingsQwen3ASRModel
+    @ObservedObject var viewModel: SettingsViewModel
+    @State private var showError = false
+    @State private var errorMessage = ""
+
+    private var filePath: String {
+        viewModel.qwen3ASRModelManager.directory.appendingPathComponent(model.fileName).path
+    }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(model.name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    if let pageURL = model.huggingFacePageURL,
+                       let owner = huggingFaceOwner(fromPageURL: pageURL) {
+                        Link(owner, destination: pageURL)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .help("View on Hugging Face")
+                    }
+                }
+
+                Text(model.description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text(model.fileName)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
+
+                if model.isDownloaded {
+                    Text("Downloaded — \(model.sizeString) on disk")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                if viewModel.isDownloading && viewModel.downloadingModelName == model.name {
+                    ProgressView(value: model.downloadProgress)
+                        .progressViewStyle(LinearProgressViewStyle())
+                        .frame(height: 6)
+                        .padding(.top, 4)
+                }
+            }
+
+            Spacer()
+
+            if viewModel.isDownloading && viewModel.downloadingModelName == model.name {
+                Button("Cancel") {
+                    viewModel.cancelDownload()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            } else if model.isDownloaded {
+                VStack(alignment: .trailing, spacing: 6) {
+                    Button("Remove") {
+                        viewModel.removeQwen3ASRModel(model)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Delete this file and free \(model.sizeString)")
+
+                    ModelVerificationView(path: filePath,
+                                          pinnedSHA256: model.sha256,
+                                          viewModel: viewModel)
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Text(model.sizeString)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Button(action: {
+                        Task {
+                            do {
+                                try await viewModel.downloadQwen3ASRModel(model)
+                            } catch is CancellationError {
+                                // A cancelled download is not an error to report.
+                            } catch {
+                                errorMessage = error.localizedDescription
+                                showError = true
+                            }
+                        }
+                    }) {
+                        Label("Download", systemImage: "arrow.down.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(viewModel.isDownloading)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color(.controlBackgroundColor).opacity(0.5))
+        .cornerRadius(8)
+        .alert("Download Error", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage)
+        }
+    }
+}
+
 struct ModelDownloadItemView: View {
     @Binding var model: SettingsDownloadableModel
     @ObservedObject var viewModel: SettingsViewModel
     @State private var showError = false
     @State private var errorMessage = ""
-    
+
     var isSelected: Bool {
         if let selectedURL = viewModel.selectedModelURL {
             let filename = model.filename

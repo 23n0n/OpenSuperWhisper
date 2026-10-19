@@ -451,10 +451,12 @@ final class TransformGuardTests: XCTestCase {
     }
 
     /// Clean-up alone carries no tone policy, so the guard is never consulted for
-    /// it: the caller gates on `promptTone`.
+    /// it: the caller gates on `promptTone`. Tone, clean-up-with-tone and the
+    /// e-mail mode all carry one, so they are all guarded.
     func testGuardAppliesOnlyToPoliciesThatSendToneText() {
         XCTAssertNil(TransformPolicy.cleanUp(language: .english).promptTone)
         XCTAssertNotNil(TransformPolicy.tone(language: .english, tone: .formal).promptTone)
         XCTAssertNotNil(TransformPolicy.cleanUpWithTone(language: .polish, tone: .casual).promptTone)
+        XCTAssertNotNil(TransformPolicy.email(language: .polish, tone: .formal).promptTone)
     }
 }

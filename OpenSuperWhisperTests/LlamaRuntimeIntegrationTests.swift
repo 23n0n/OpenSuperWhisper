@@ -9,14 +9,15 @@ import XCTest
 /// can be seen with a fake model.
 final class LlamaRuntimeIntegrationTests: XCTestCase {
 
-    /// The weights the app downloads, as `Scripts/transform-server.sh` places
-    /// them. Read-only: nothing here writes to the user's model directory.
+    /// The instruction model the app downloads for tone and e-mail, as the test
+    /// harness places it. Read-only: nothing here writes to the user's model
+    /// directory.
     private static var weightsPath: String {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        return home.appendingPathComponent("models/qwen2.5-1.5b-instruct-q4_k_m.gguf").path
+        return home.appendingPathComponent("models/Qwen2.5-7B-Instruct-Q4_K_M.gguf").path
     }
 
-    /// The English backend, as the app downloads it. Read-only as well.
+    /// The English clean-up backend, as the app downloads it. Read-only as well.
     private static var normalizerWeightsPath: String {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home.appendingPathComponent("models/s1-mini-q4_k_m.gguf").path

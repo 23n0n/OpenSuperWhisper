@@ -258,8 +258,23 @@ enum KeyboardSimulator {
     /// Virtual key code for Return.
     static let returnKeyCode: CGKeyCode = 0x24
 
+    /// Virtual key code for the space bar.
+    static let spaceKeyCode: CGKeyCode = 0x31
+
     /// Virtual key code for Tab.
     static let tabKeyCode: CGKeyCode = 0x30
+
+    /// The device-dependent flag that says **which** Option key is held.
+    ///
+    /// `CGEventFlags.maskAlternate` does not distinguish the sides; the low bits
+    /// of the event's flags do — the classic `NX_DEVICERALTKEYMASK`, `0x40`
+    /// (`NX_DEVICELALTKEYMASK` is `0x20`). Every Polish diacritic on this layout
+    /// rides Option, and in the application the captain dictates into the *left*
+    /// Option is taken by that application's own shortcut, so the character never
+    /// arrives: his words are that the Polish characters have to go out with the
+    /// right Option. A physical keyboard sends whichever side the hand pressed;
+    /// the app has to pick one, and it picks the side that is free.
+    static let rightOptionDeviceFlag = CGEventFlags(rawValue: 0x40)
 
     /// A key code the system defines no key for.
     ///
@@ -305,7 +320,21 @@ enum KeyboardSimulator {
     /// The Unicode field still carries the character, so a target that reads the
     /// field — every native macOS target — is unaffected by any of this.
     static func key(for character: String) -> ClipboardUtil.ResolvedKey {
-        guard let first = character.first, let resolved = ClipboardUtil.findKey(for: first) else {
+        guard let first = character.first else {
+            return ClipboardUtil.ResolvedKey(keyCode: unmappedKeyCode, flags: [])
+        }
+        // Whitespace is never a modified key. A dictated text carries whatever the
+        // engine wrote, and that includes spaces with no key of their own (a
+        // non-breaking or thin space): the layer walk answers those with an Option
+        // combination, and a target that rebuilds characters from key codes
+        // instead of reading the Unicode payload turns that into a character of
+        // *its* layout — on a US layout Option+A is `å`, which is a character the
+        // user never said, appearing at the end of a dictation. A space is typed
+        // as a space, on every layer.
+        if first.isWhitespace {
+            return ClipboardUtil.ResolvedKey(keyCode: spaceKeyCode, flags: [])
+        }
+        guard let resolved = ClipboardUtil.findKey(for: first) else {
             return ClipboardUtil.ResolvedKey(keyCode: unmappedKeyCode, flags: [])
         }
         return resolved
@@ -429,7 +458,13 @@ enum KeyboardSimulator {
             switch character {
             case "\n":
                 guard flushBuffer() else { break characterLoop }
-                guard emitUnlessInterrupted(makeKeyEvents(for: returnKeyCode), characters: 1) else {
+                // Shift+Enter, not Enter: see `makeKeyEvents(for:flags:)` — Enter
+                // sends in a chat client, so a multi-line dictation arrived as
+                // several messages.
+                guard emitUnlessInterrupted(
+                    makeKeyEvents(for: returnKeyCode, flags: .maskShift),
+                    characters: 1
+                ) else {
                     break characterLoop
                 }
             case "\t":
@@ -443,6 +478,23 @@ enum KeyboardSimulator {
         }
 
         flushBuffer()
+
+        // The last three characters of what was typed, as code points, plus the
+        // non-ASCII count — so a stray character at the end of a dictation can be
+        // identified from the log instead of guessed at. The need is measured: a
+        // character the user never said appeared at the end of a dictation twice,
+        // and the record carried event counts only.
+        if !normalized.isEmpty {
+            let tail = normalized.suffix(3).unicodeScalars
+                .map { String(format: "U+%04X", $0.value) }
+                .joined(separator: " ")
+            let nonASCII = normalized.filter { !$0.isASCII }.count
+            log.notice("""
+                typed tail \(tail, privacy: .public) \
+                nonASCII=\(nonASCII, privacy: .public) \
+                characters=\(normalized.count, privacy: .public)
+                """)
+        }
 
         return InjectionResult(
             trusted: trusted,
@@ -493,15 +545,27 @@ enum KeyboardSimulator {
         // so a still-held hotkey cannot turn the character into a shortcut (Command+A)
         // instead of plain text — while Option and Shift, which the character may
         // genuinely need, are what a physical keyboard would be holding.
-        keyDown.flags = resolved.flags
-        keyUp.flags = resolved.flags
+        //
+        // Which *side* of Option is held matters to the target, and the layer walk
+        // cannot say: it answers with the generic `.maskAlternate`. An application
+        // whose own shortcut owns the left Option swallows the character, which is
+        // the captain's case — "polskie znaki muszą iść z prawym Option" — so the
+        // option case is posted with the right key's device bit, the side that is
+        // free, and never with the left one.
+        var flags = resolved.flags
+        if flags.contains(.maskAlternate) {
+            flags.insert(rightOptionDeviceFlag)
+        }
+        keyDown.flags = flags
+        keyUp.flags = flags
 
         keyDown.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
         keyUp.keyboardSetUnicodeString(stringLength: 0, unicodeString: [])
         return [keyDown, keyUp]
     }
 
-    /// Builds a plain keyDown/keyUp pair for a virtual key code (no Unicode).
+    /// Builds a keyDown/keyUp pair for a virtual key code (no Unicode), with
+    /// `flags` held.
     ///
     /// Both events have their Unicode string cleared to length zero. Unset, the
     /// field reports the character the key code produces — Return on the Return
@@ -511,16 +575,24 @@ enum KeyboardSimulator {
     /// its release. A target that needs the character derives it from the key
     /// code, which is what makes Return a newline in a text view and in a guest
     /// alike.
-    static func makeKeyEvents(for keyCode: CGKeyCode) -> [CGEvent] {
+    ///
+    /// `flags` exists for one caller, the line break. Enter *sends* in every chat
+    /// client, so an e-mail's greeting, body and sign-off arrived as three
+    /// separate messages; Shift+Enter breaks the line in the same client without
+    /// sending. The break is therefore posted as a shifted Return — what the
+    /// user's own hands would do — and the flags are set after the clear below,
+    /// or they would be cleared themselves.
+    static func makeKeyEvents(for keyCode: CGKeyCode, flags: CGEventFlags = []) -> [CGEvent] {
         guard let source = CGEventSource(stateID: .combinedSessionState),
               let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         else { return [] }
 
         // Clear inherited modifier flags so a still-held hotkey cannot turn
-        // Return/Tab into a modified key.
-        keyDown.flags = []
-        keyUp.flags = []
+        // Return/Tab into a modified key, then hold exactly what the caller asked
+        // for.
+        keyDown.flags = flags
+        keyUp.flags = flags
 
         keyDown.keyboardSetUnicodeString(stringLength: 0, unicodeString: [])
         keyUp.keyboardSetUnicodeString(stringLength: 0, unicodeString: [])

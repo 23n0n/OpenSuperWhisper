@@ -88,7 +88,7 @@ final class DictationInjectionTests: XCTestCase {
     /// These tests are about the injection hook, not about the transform gate.
     /// An identity transform keeps them independent of the user's tone and
     /// clean-up switches — and of whether any transform weights are installed.
-    private static let passthroughTransform: (String, String?) async -> TransformService.TransformOutcome = { text, _ in
+    private static let passthroughTransform: (String, String?, Bool) async -> TransformService.TransformOutcome = { text, _, _ in
         TransformService.TransformOutcome(text: text, policy: nil, didRunModel: false)
     }
 
@@ -448,7 +448,7 @@ final class DictationInjectionTests: XCTestCase {
                 injected.append(text)
                 return KeyboardSimulator.InjectionResult(trusted: true, eventsPosted: 4)
             },
-            transformText: { _, _ in
+            transformText: { _, _, _ in
                 TransformService.TransformOutcome(
                     text: pasted,
                     policy: .cleanUp(language: .english),
@@ -523,7 +523,7 @@ final class DictationInjectionTests: XCTestCase {
             },
             // The service's own outcome when the guard refuses the answer: the
             // transcript is what was pasted, with the reason kept.
-            transformText: { _, _ in
+            transformText: { _, _, _ in
                 TransformService.TransformOutcome(
                     text: raw,
                     policy: policy,

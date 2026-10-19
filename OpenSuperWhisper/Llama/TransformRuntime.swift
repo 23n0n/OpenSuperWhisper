@@ -35,12 +35,11 @@ final class CancellationFlag {
 /// only resident while the feature is actually in use.
 ///
 /// One model at a time, by design: a dictation runs on the model its language
-/// resolves to (`TransformModelManager.model(for:)`) — and the runtime holds
-/// exactly that one, swapping it (unload, then load) when a dictation needs a
-/// different one. Holding more than one would cost S1-mini's 0.9 GB *and* the
-/// floor's 1.1 GB wired for a switch the user makes between dictations. Polish
-/// reaches no model at all, so in practice the resident backend is the English
-/// one.
+/// resolves to (`TransformModelManager.model(for:)`) — and with the catalogue
+/// down to one entry the runtime never has a second one to hold, so the swap in
+/// `loadedModel(for:)` is the guard for a catalogue that grows again rather than
+/// a step this build can take. Polish reaches no model at all, so the resident
+/// backend is always the English one.
 final class TransformRuntime {
     static let shared = TransformRuntime()
 
@@ -136,8 +135,8 @@ final class TransformRuntime {
     /// warms the model the current switches imply, resolved through the same
     /// `model(for:)` the dictation path uses. English stands in for the language
     /// the speech has not revealed, which is the backend almost every dictation
-    /// uses: S1-mini where it is installed, and the shipped floor where it is
-    /// not. A Polish dictation is delivered raw, so nothing is warmed for it.
+    /// uses: S1-mini, the one model there is. A Polish dictation is delivered
+    /// raw, so nothing is warmed for it.
     func warmUpIfEnabled() {
         let prefs = AppPreferences.shared
         guard prefs.toneEnabled || prefs.cleanUpEnabled else { return }

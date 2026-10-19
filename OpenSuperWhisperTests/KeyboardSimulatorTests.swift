@@ -61,7 +61,62 @@ final class KeyboardSimulatorTests: XCTestCase {
 
     // MARK: - Control characters
 
-    func testNewlineMapsToReturnKeyCode() throws {
+    /// The flags that are not about *which side* of a modifier is held.
+    ///
+    /// `NSEvent.ModifierFlags.deviceIndependentFlagsMask` is `0xFFFF0000`; the low
+    /// sixteen bits are the device-dependent ones (`0x20` left Option, `0x40`
+    /// right Option), and `CGEventFlags` has no named constant for the mask.
+    static let deviceIndependentFlags = CGEventFlags(rawValue: 0xFFFF0000)
+
+    /// A Polish diacritic rides the **right** Option.
+    ///
+    /// The layout produces all nine of them with Option, and the application the
+    /// captain dictates into owns the left Option for a shortcut of its own, so a
+    /// generic (left) Option never delivers the character there. The posted pair
+    /// carries the right key's device bit and never the left one's.
+    func testDiacriticsRideTheRightOptionKey() {
+        var events: [CGEvent] = []
+        KeyboardSimulator.typeText("ą") { events.append($0) }
+
+        XCTAssertEqual(events.count, 2, "one character, one key pair")
+        for event in events {
+            XCTAssertTrue(event.flags.contains(KeyboardSimulator.rightOptionDeviceFlag),
+                          "the diacritic has to be posted with the right Option: \(event.flags)")
+            XCTAssertEqual(event.flags.rawValue & 0x20, 0,
+                           "the left Option bit must never be set: \(event.flags)")
+        }
+        TestFixtures.report("[keyboard] diacritic flags: \(events[0].flags.rawValue)")
+    }
+
+    /// A space with no key of its own is typed as a plain space, never as an
+    /// Option combination.
+    ///
+    /// The layer walk answers a non-breaking or thin space with Option+Space or
+    /// worse, and a target that rebuilds characters from key codes rather than
+    /// reading the Unicode payload turns that into a character of its own layout
+    /// — `å` on a US layout, which is the stray character that appeared at the end
+    /// of a dictation twice.
+    func testWhitespaceNeverRidesAModifiedLayer() {
+        for space in [" ", "\u{00A0}", "\u{2009}", "\u{202F}"] {
+            let resolved = KeyboardSimulator.key(for: space)
+            XCTAssertEqual(resolved.keyCode, KeyboardSimulator.spaceKeyCode,
+                           "\(space.debugDescription) has to be typed as a space")
+            XCTAssertEqual(resolved.flags, [], "\(space.debugDescription) must carry no modifiers")
+        }
+        // …and the diacritics keep their layer: this is a whitespace rule, not a
+        // retreat from the layout walk.
+        XCTAssertEqual(KeyboardSimulator.key(for: "Ś").flags, [.maskAlternate, .maskShift])
+    }
+
+    /// A line break travels as **Shift+Return**, not Return.
+    ///
+    /// Return *sends* in every chat client — an e-mail dictated as greeting,
+    /// body and sign-off arrived as three separate messages — while Shift+Return
+    /// breaks the line in the same client without sending. The break is therefore
+    /// posted the way the user's own hands would post it, and the flag is on both
+    /// events of the pair: a client that tracks modifier state across the press
+    /// and its release reads a different key if only one of them carries it.
+    func testNewlineMapsToShiftedReturnKeyCode() throws {
         var events: [CGEvent] = []
         KeyboardSimulator.typeText("\n") { events.append($0) }
 
@@ -71,10 +126,13 @@ final class KeyboardSimulatorTests: XCTestCase {
         for event in events {
             XCTAssertEqual(event.getIntegerValueField(.keyboardEventKeycode),
                            Int64(KeyboardSimulator.returnKeyCode))
+            XCTAssertEqual(event.flags, .maskShift,
+                           "a bare Return sends in a chat client; the line break has to be shifted")
         }
     }
 
-    func testTabMapsToTabKeyCode() throws {
+    /// Tab keeps no modifiers: nothing about a tab sends a message.
+    func testTabMapsToTabKeyCodeWithNoModifiers() throws {
         var events: [CGEvent] = []
         KeyboardSimulator.typeText("\t") { events.append($0) }
 
@@ -82,6 +140,7 @@ final class KeyboardSimulatorTests: XCTestCase {
         for event in events {
             XCTAssertEqual(event.getIntegerValueField(.keyboardEventKeycode),
                            Int64(KeyboardSimulator.tabKeyCode))
+            XCTAssertEqual(event.flags, [])
         }
     }
 
@@ -237,10 +296,26 @@ final class KeyboardSimulatorTests: XCTestCase {
                 + "\(String(reflecting: first)) with, or with the unmapped code"
             )
             let flags = keyDown.flags
+            // The *device* bits say which side of a modifier is held, and the app
+            // deliberately posts the right Option for a diacritic — the target
+            // application owns the left one for a shortcut of its own — so the
+            // layer comparison drops the device-dependent bits and the side is
+            // asserted on its own right after.
             XCTAssertEqual(
-                flags, resolved?.flags ?? [],
+                flags.intersection(Self.deviceIndependentFlags),
+                (resolved?.flags ?? []).intersection(Self.deviceIndependentFlags),
                 "…and with the modifiers that layer needs, and no others"
             )
+            if (resolved?.flags ?? []).contains(.maskAlternate) {
+                XCTAssertTrue(
+                    flags.contains(KeyboardSimulator.rightOptionDeviceFlag),
+                    "an Option layer has to ride the right Option key: \(flags)"
+                )
+                XCTAssertEqual(
+                    flags.rawValue & 0x20, 0,
+                    "the left Option bit must never be set: \(flags)"
+                )
+            }
             // No assertion about key code 0 here. Which key produces which
             // character is the layout's business: on the layout active on this
             // machine 0 is the `a` key, and on a Polish typewriter layout the
@@ -498,7 +573,16 @@ final class HidForwardedReceiverView: NSView {
         guard event.type == .keyDown else { return }
         switch event.getIntegerValueField(.keyboardEventKeycode) {
         case Int64(KeyboardSimulator.returnKeyCode):
-            inserted += "\n"
+            // A chat client's rule, which is the rule this target models: a bare
+            // Return sends the message, a shifted Return breaks the line. So the
+            // receiver marks a send instead of inserting a newline, and an
+            // unshifted Return anywhere in the delivery fails the round-trip
+            // assertion below — which is exactly the defect it exists to catch.
+            if event.flags.contains(.maskShift) {
+                inserted += "\n"
+            } else {
+                inserted += "<sent>"
+            }
         case Int64(KeyboardSimulator.tabKeyCode):
             inserted += "\t"
         default:
@@ -626,5 +710,29 @@ final class KeyboardSimulatorDeliveryTests: XCTestCase {
             "a target that inserts what each event carries has to receive the transcript once; "
             + "it received \(receiver.inserted.count) characters for a \(Self.payload.count)-character payload"
         )
+    }
+
+    /// The captain's own case: a dictated e-mail is three lines, and it has to
+    /// arrive as **one** message.
+    ///
+    /// The target here is the chat client's rule — a bare Return sends, a shifted
+    /// Return breaks the line — so this fails with `<sent>` in place of a
+    /// newline if the break ever goes out unshifted again, which is exactly what
+    /// happened: greeting, body and sign-off arrived as three messages.
+    func testAMultiLineEmailArrivesAsOneMessage() {
+        let email = "Dzień dobry,\n\nprzesuwam wdrożenie na poniedziałek.\n\nZ poważaniem"
+        let receiver = HidForwardedReceiverView()
+
+        let result = KeyboardSimulator.typeText(email, trusted: true) { receiver.receive($0) }
+
+        XCTAssertTrue(result.injected)
+        XCTAssertEqual(receiver.inserted, email,
+                       "a three-paragraph e-mail has to arrive whole")
+        XCTAssertFalse(receiver.inserted.contains("<sent>"),
+                       "no line break may be sent as a bare Return: \(receiver.inserted)")
+        XCTAssertEqual(receiver.inserted.filter { $0 == "\n" }.count, 4,
+                       "all four line breaks of the e-mail have to survive")
+        TestFixtures.report("[keyboard] multi-line e-mail delivered as one message, "
+                            + "\(result.eventsPosted) events")
     }
 }

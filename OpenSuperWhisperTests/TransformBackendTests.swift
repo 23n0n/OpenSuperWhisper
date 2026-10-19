@@ -1,8 +1,7 @@
-import CryptoKit
 import XCTest
 @testable import OpenSuperWhisper
 
-/// What the transform does with the model's answer, and which model each
+/// What the transform does with the model's answer, and which model each job and
 /// language runs on. The built-in runtime is driven through an injected local
 /// transform, so no test here loads real weights.
 final class TransformBackendTests: XCTestCase {
@@ -11,7 +10,7 @@ final class TransformBackendTests: XCTestCase {
         var systemPrompts: [String] = []
         var userTexts: [String] = []
         /// The model each call was routed to, so a test can assert which one a
-        /// language resolved to — by name, without loading any weights.
+        /// job and language resolved to — by name, without loading any weights.
         var models: [TransformModel] = []
         var result: Result<String, Error> = .success("Please send the report.")
         var calls: Int { systemPrompts.count }
@@ -20,7 +19,7 @@ final class TransformBackendTests: XCTestCase {
     private func service(
         local: LocalRecorder,
         settings: GateSettings = GateSettings(tone: true, cleanUp: false, toneMode: .neutral),
-        model: @escaping (TransformPolicy) -> TransformModel = { _ in TransformModelManager.shared.defaultModel }
+        model: @escaping (TransformPolicy) -> TransformModel = { _ in TransformModelStandIn.instruct }
     ) -> TransformService {
         TransformService(
             localTransform: { systemPrompt, userText, chosen in
@@ -108,7 +107,7 @@ final class TransformBackendTests: XCTestCase {
                 settings: GateSettings(tone: false, cleanUp: false, toneMode: .neutral),
                 model: { _ in
                     XCTFail("no model may be resolved when nothing is switched on")
-                    return TransformModelManager.shared.defaultModel
+                    return TransformModelStandIn.instruct
                 }
             )
 
@@ -120,99 +119,16 @@ final class TransformBackendTests: XCTestCase {
         }
     }
 
-    // MARK: - Which model a language runs on
+    // MARK: - Which model a job runs on
 
-    /// The model choice is a **preference**, resolved from what is on disk, and
-    /// **the language is what makes it**: English takes S1-mini while it is
-    /// installed and the floor while it is not, and the job — tone, clean-up, or
-    /// both — does not change the answer. Nothing is refused for a missing
-    /// optional model, and nothing is substituted silently.
-    func testEnglishPrefersTheNormalizerAndTheFloorWithoutIt() throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("osw-preference-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-
-        let payload = Data(repeating: 0x5A, count: 512)
-        let shipped = TransformModel(
-            id: TransformModelManager.defaultModelID,
-            displayName: "Shipped",
-            fileName: "shipped.gguf",
-            style: .instruction,
-            downloadURL: URL(string: "https://example.invalid/shipped.gguf")!,
-            sha256: sha256(payload),
-            sizeBytes: Int64(payload.count),
-            memoryBytes: 1,
-            licence: "Apache-2.0",
-            source: "test"
-        )
-        let normalizer = TransformModel(
-            id: TransformModelManager.normalizerModelID,
-            displayName: "S1-mini",
-            fileName: "s1-mini.gguf",
-            style: .normalizer,
-            downloadURL: URL(string: "https://example.invalid/s1-mini.gguf")!,
-            sha256: sha256(payload),
-            sizeBytes: Int64(payload.count),
-            memoryBytes: 5,
-            licence: "Apache-2.0",
-            source: "test"
-        )
-        let manager = TransformModelManager(directory: directory, catalogue: [shipped, normalizer])
-
-        // Neither installed: English runs on the floor, whatever the switches
-        // asked for. Nothing is refused for a missing optional model, and the
-        // caller is told which model it will really run on.
-        XCTAssertFalse(manager.isNormalizerInstalled)
-        XCTAssertEqual(manager.preferredTransformModel.id, shipped.id)
-        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, shipped.id)
-        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, shipped.id)
-        XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .neutral)).id, shipped.id)
-
-        // The record-start warm-up resolves through the same function, so it
-        // warms what the next dictation will use rather than a model nothing
-        // then asks for.
-        XCTAssertEqual(
-            manager.model(for: TransformRuntime.warmUpPolicy(toneEnabled: true, toneMode: .neutral)).id,
-            shipped.id,
-            "with the normalizer missing, the warm-up warms the floor"
-        )
-
-        // Install the normalizer: **every** English job moves onto it. The job
-        // does not decide — tone alone, clean-up alone and both together all
-        // resolve to the English backend.
-        let source = directory.appendingPathComponent("downloaded.gguf")
-        try payload.write(to: source)
-        try manager.install(fileAt: source, model: normalizer)
-        XCTAssertTrue(manager.isNormalizerInstalled)
-        XCTAssertEqual(manager.preferredTransformModel.id, normalizer.id)
-        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id, normalizer.id)
-        XCTAssertEqual(manager.model(for: .tone(language: .english, tone: .formal)).id, normalizer.id,
-                       "an English tone rewrite runs on the normalizer when it is installed")
-        XCTAssertEqual(manager.model(for: .cleanUpWithTone(language: .english, tone: .casual)).id, normalizer.id)
-        XCTAssertEqual(
-            manager.model(for: TransformRuntime.warmUpPolicy(toneEnabled: false, toneMode: .neutral)).id,
-            normalizer.id,
-            "clean-up alone warms the same backend: the language is what chooses"
-        )
-
-        TestFixtures.report("[transform] model preference: English runs on \(shipped.id) while the "
-                    + "normalizer is missing and on \(normalizer.id) once it is installed, for tone and "
-                    + "clean-up alike; the warm-up warms the same one")
-    }
-
-    /// Polish has no backend, and the catalogue says so rather than keeping a row
-    /// nothing resolves to: the transform is English-only, so the only two models
-    /// the app offers are the two the English work chooses between. A policy that
-    /// carried Polish would still be handed the floor — the one model left — and
-    /// `TransformPolicy.resolve` is what keeps such a policy from ever existing.
-    func testPolishHasNoBackendOfItsOwn() throws {
-        XCTAssertEqual(TransformModelManager.availableModels.map(\.id),
-                       [TransformModelManager.normalizerModelID, TransformModelManager.defaultModelID],
-                       "two entries, and neither of them is a Polish model")
-        XCTAssertNil(TransformPolicy.resolve(tone: true, cleanUp: true, language: "pl", toneMode: .formal),
-                     "Polish never reaches a model, so it never resolves a policy either")
-
+    /// The routing is by job first and language second, because the two backends
+    /// are not interchangeable: a tone (Polish or English alike) and the e-mail
+    /// mode take the instruction model, English clean-up alone takes the
+    /// normalizer, and a Polish clean-up policy is never handed out by the gate
+    /// at all — the deterministic scrub is what Polish clean-up is. What is on
+    /// disk does not change the answer; a missing file is what the runtime
+    /// refuses on, with the file to download.
+    func testEachJobResolvesToItsBackend() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("osw-preference-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -222,34 +138,121 @@ final class TransformBackendTests: XCTestCase {
             catalogue: TransformModelManager.availableModels
         )
 
-        XCTAssertEqual(manager.model(for: .cleanUp(language: .polish)).id, TransformModelManager.defaultModelID,
-                       "if a Polish policy ever existed, the floor is the only model it could run on")
-        TestFixtures.report("[transform] Polish resolves through no backend of its own: the catalogue is "
+        // English clean-up alone: the normalizer, built for exactly that job and a
+        // tenth of the instruction model's memory.
+        XCTAssertEqual(manager.model(for: .cleanUp(language: .english)).id,
+                       TransformModelManager.normalizerModelID)
+
+        // Every tone, in either language, and the e-mail mode: the instruction
+        // model. Polish tone is the reason it exists.
+        let tonePolicies: [TransformPolicy] = [
+            .tone(language: .english, tone: .formal),
+            .tone(language: .polish, tone: .formal),
+            .cleanUpWithTone(language: .english, tone: .neutral),
+            .cleanUpWithTone(language: .polish, tone: .casual),
+            .email(language: .english, tone: .formal),
+            .email(language: .polish, tone: .neutral),
+        ]
+        for policy in tonePolicies {
+            XCTAssertEqual(manager.model(for: policy).id, TransformModelManager.toneModelID, "\(policy)")
+        }
+
+        // A Polish clean-up policy never exists — `TransformPolicy.resolve`
+        // refuses it — but `model(for:)` covers the whole enum, and it answers
+        // with the instruction model rather than the English-only normalizer.
+        XCTAssertEqual(manager.model(for: .cleanUp(language: .polish)).id,
+                       TransformModelManager.toneModelID)
+
+        // The record-start warm-up resolves through the same function, so it
+        // warms the backend the switches imply: a tone-enabled install the
+        // instruction model, clean-up alone the normalizer.
+        XCTAssertEqual(
+            manager.model(for: TransformRuntime.warmUpPolicy(toneEnabled: true, toneMode: .neutral)).id,
+            TransformModelManager.toneModelID,
+            "a tone-enabled install warms the tone model"
+        )
+        XCTAssertEqual(
+            manager.model(for: TransformRuntime.warmUpPolicy(toneEnabled: false, toneMode: .neutral)).id,
+            TransformModelManager.normalizerModelID,
+            "clean-up alone in English warms the normalizer"
+        )
+
+        TestFixtures.report("[transform] routing: English clean-up → "
+                    + "\(TransformModelManager.normalizerModelID); every tone and the e-mail mode → "
+                    + "\(TransformModelManager.toneModelID), installed or not")
+    }
+
+    /// Polish no longer reaches no backend: a Polish **tone** resolves to the
+    /// instruction model — that is the point of the two-model catalogue. Polish
+    /// clean-up alone still resolves nothing, because it is the deterministic
+    /// scrub and there is no model call to make.
+    func testPolishToneResolvesAndPolishCleanUpAloneDoesNot() throws {
+        XCTAssertEqual(
+            TransformPolicy.resolve(tone: true, cleanUp: false, language: "pl", toneMode: .formal),
+            .tone(language: .polish, tone: .formal),
+            "Polish tone now resolves: the instruction model reads Polish"
+        )
+        XCTAssertEqual(
+            TransformPolicy.resolve(tone: true, cleanUp: true, language: "pl", toneMode: .casual),
+            .cleanUpWithTone(language: .polish, tone: .casual)
+        )
+        XCTAssertNil(
+            TransformPolicy.resolve(tone: false, cleanUp: true, language: "pl", toneMode: .formal),
+            "Polish clean-up alone is the deterministic scrub, so it never resolves a policy"
+        )
+        TestFixtures.report("[transform] Polish tone resolves to the instruction model; the catalogue is "
                     + "\(TransformModelManager.availableModels.map(\.id).joined(separator: ", "))")
     }
 
-    /// The service hands the **policy's** model to the runtime, so the preference
-    /// is what the transform actually runs on. The policy carries the language,
-    /// and the language carries the model.
-    func testThePreferredModelIsTheOneTheRuntimeIsHanded() async {
+    /// The service hands the **policy's** model to the runtime, so the route is
+    /// what the transform actually runs on. The policy carries the job and the
+    /// language, and those carry the model.
+    func testTheResolvedModelIsTheOneTheRuntimeIsHanded() async {
         let normalizer = TransformModelManager.shared.normalizerModel
-        let local = LocalRecorder()
-        let subject = service(local: local, model: { policy in
-            policy.language == .english ? normalizer : TransformModelManager.shared.defaultModel
-        })
+        let tone = TransformModelManager.shared.toneModel
+        let resolver: (TransformPolicy) -> TransformModel = { TransformModelManager.shared.model(for: $0) }
 
-        _ = await subject.transformIfEnabled("Please send the report.", sourceLanguage: "en")
-        XCTAssertEqual(local.models.map(\.id), [normalizer.id])
+        // Tone, English: the instruction model.
+        let englishTone = LocalRecorder()
+        let englishToneService = service(
+            local: englishTone,
+            settings: GateSettings(tone: true, cleanUp: false, toneMode: .neutral),
+            model: resolver
+        )
+        _ = await englishToneService.transformIfEnabled("Please send the report.", sourceLanguage: "en")
+        XCTAssertEqual(englishTone.models.map(\.id), [tone.id])
 
-        // A Polish dictation is not handed to any model at all.
-        _ = await subject.transformIfEnabled("Cześć", sourceLanguage: "pl")
-        XCTAssertEqual(local.models.map(\.id), [normalizer.id],
-                       "Polish resolves no model, so the runtime is handed nothing more")
-    }
+        // Clean-up alone, English: the normalizer.
+        let englishCleanUp = LocalRecorder()
+        let englishCleanUpService = service(
+            local: englishCleanUp,
+            settings: GateSettings(tone: false, cleanUp: true, toneMode: .neutral),
+            model: resolver
+        )
+        _ = await englishCleanUpService.transformIfEnabled("Please send the report.", sourceLanguage: "en")
+        XCTAssertEqual(englishCleanUp.models.map(\.id), [normalizer.id])
 
-    private func sha256(_ data: Data) -> String {
-        var hasher = SHA256()
-        hasher.update(data: data)
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        // Polish tone: still the instruction model — the point of the change.
+        let polishTone = LocalRecorder()
+        let polishToneService = service(
+            local: polishTone,
+            settings: GateSettings(tone: true, cleanUp: false, toneMode: .formal),
+            model: resolver
+        )
+        _ = await polishToneService.transformIfEnabled("Cześć, jak się masz?", sourceLanguage: "pl")
+        XCTAssertEqual(polishTone.models.map(\.id), [tone.id],
+                       "Polish tone runs on the instruction model")
+
+        // Polish clean-up alone resolves no model, so the runtime is handed
+        // nothing at all.
+        let polishCleanUp = LocalRecorder()
+        let polishCleanUpService = service(
+            local: polishCleanUp,
+            settings: GateSettings(tone: false, cleanUp: true, toneMode: .neutral),
+            model: resolver
+        )
+        _ = await polishCleanUpService.transformIfEnabled("Cześć, jak się masz?", sourceLanguage: "pl")
+        XCTAssertTrue(polishCleanUp.models.isEmpty,
+                      "Polish clean-up alone is the scrub, not a model call")
     }
 }

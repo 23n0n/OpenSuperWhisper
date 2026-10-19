@@ -16,10 +16,12 @@ import XCTest
 /// like `LlamaRuntimeIntegrationTests`, so CI stays hermetic.
 final class TransformDeterminismIntegrationTests: XCTestCase {
 
-    /// The weights the app installs. Read-only: nothing here writes to the
-    /// user's model directory.
+    /// The weights the app installs for tone and e-mail: the instruction model.
+    /// Read-only: nothing here writes to the user's model directory.
     private static var home: URL { FileManager.default.homeDirectoryForCurrentUser }
-    private static var englishWeights: URL { home.appendingPathComponent("models/qwen2.5-1.5b-instruct-q4_k_m.gguf") }
+    private static var toneWeights: URL {
+        home.appendingPathComponent("models/Qwen2.5-7B-Instruct-Q4_K_M.gguf")
+    }
 
     private static func sha256(_ text: String) -> String {
         SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
@@ -75,21 +77,22 @@ final class TransformDeterminismIntegrationTests: XCTestCase {
         }
     }
 
-    /// Polish, on the shipped model: the language the captain dictates in, on
-    /// the weights every install has.
+    /// Polish, on the shipped instruction model: the language the captain
+    /// dictates in, and the language tone was opened up to.
     func testPolishRewriteIsIdenticalOnEveryRepeat() throws {
         try assertOneInputGivesOneOutput(
-            weights: Self.englishWeights,
+            weights: Self.toneWeights,
             language: .polish, tone: .formal,
             input: "nie mogę dzisiaj przyjść na spotkanie przepraszam "
                  + "czy możemy przełożyć je na przyszły tydzień"
         )
     }
 
-    /// English, on the shipped model: the other language, rewritten in place.
+    /// English, on the shipped instruction model: the other language, rewritten
+    /// in place.
     func testEnglishRewriteIsIdenticalOnEveryRepeat() throws {
         try assertOneInputGivesOneOutput(
-            weights: Self.englishWeights,
+            weights: Self.toneWeights,
             language: .english, tone: .casual,
             input: "I can't come to the meeting today, I'm sorry. "
                  + "Could we move it to next week?"
