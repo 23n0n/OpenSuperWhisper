@@ -63,6 +63,14 @@ They land in the app's own directory next to the others
 that lists the downloaded models removes them too. Selecting the engine without them fails the
 load with the file to fetch; nothing falls back to whisper.
 
+The engine also refuses a recording with no speech in it before the decoder runs. Qwen3-ASR
+decodes whatever it is handed, and on a muted microphone it answers with a fluent sentence nobody
+said (a Chinese one, most often) — the decoder offers no `no_speech_prob` for the transcript to be
+judged on afterwards, the way whisper's is. So the engine runs the bundled Silero VAD
+(`ggml-silero-v5.1.2.bin`, the same one the whisper engine ships) as evidence rather than as a
+filter: no speech segment means `TranscriptionError.noSpeechDetected(.noSpeechSegment)`, which
+`DictationFailurePolicy` settles as silence — no alert, no history row, and nothing pasted.
+
 Because the app verifies what it downloads against those digests (`TransformRuntime` refuses a
 transform model whose digest does not match), the digests in the Swift files are the whole
 contract: a file of the right name and the wrong bytes is not usable, and no model may be taken

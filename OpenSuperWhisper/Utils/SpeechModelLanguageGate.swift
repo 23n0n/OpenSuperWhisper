@@ -90,7 +90,7 @@ struct SpeechPresenceConflict: Equatable {
     var message: String {
         var text = "No speech was detected in this recording, so nothing was transcribed and nothing "
             + "was typed. \(modelName) wrote text over audio it heard no speech in — silence is where "
-            + "whisper invents phrases nobody said — so the transcript was discarded instead of "
+            + "a speech model invents phrases nobody said — so the transcript was discarded instead of "
             + "pasted."
         switch presence {
         case .noSpeechSegment:

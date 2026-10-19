@@ -44,6 +44,14 @@ final class Qwen3ASREngine: TranscriptionEngine {
 
     private let isCancelled = CancellationFlag()
 
+    /// The Silero model the whisper engine already ships, used here as evidence
+    /// rather than as a filter: Qwen3-ASR decodes whatever it is handed, and on
+    /// a recording that carries no voice it writes a fluent phrase nobody said —
+    /// with a muted microphone, a Chinese one. The decoder offers no
+    /// `no_speech_prob` to catch that, so the VAD decides before the decode
+    /// instead of the transcript being judged after it.
+    private var vadContext: MyWhisperVadContext?
+
     var isModelLoaded: Bool { engine?.isLoaded == true }
 
     /// `threadCount` is the work that does not run on the GPU; the default is
@@ -71,6 +79,13 @@ final class Qwen3ASREngine: TranscriptionEngine {
         try await installWeightsIfNeeded()
 
         let paths = try modelManager.requireInstalledPaths()
+        // Built before the weights: a recording that never reaches the decoder
+        // should not first cost 2.5 GB of loads to be refused.
+        guard let vadModelPath = WhisperEngine.vadModelPath,
+              let vad = MyWhisperVadContext(modelPath: vadModelPath) else {
+            throw TranscriptionError.contextInitializationFailed
+        }
+        vadContext = vad
         engine = try Qwen3ASRNative(textModelPath: paths.model,
                                     projectorPath: paths.projector,
                                     threadCount: threadCount)
@@ -125,6 +140,30 @@ final class Qwen3ASREngine: TranscriptionEngine {
         guard !isCancelled.isSet else { throw CancellationError() }
         guard let samples, !samples.isEmpty else {
             throw TranscriptionError.audioConversionFailed
+        }
+
+        guard let vadContext else {
+            throw TranscriptionError.contextInitializationFailed
+        }
+        guard let speechSegments = vadContext.speechSegments(
+            in: samples,
+            params: WhisperEngine.vadParams
+        ) else {
+            throw TranscriptionError.processingFailed
+        }
+        // Nothing in the recording to transcribe. Without this the decoder runs
+        // on it anyway and returns fluent text nobody said — the app's other
+        // engines have a decoder-level measurement that refuses that text, and
+        // this one does not, so the refusal has to come from the audio. The
+        // failure policy treats it as silence: no alert, no history row.
+        if speechSegments.isEmpty {
+            throw TranscriptionError.noSpeechDetected(
+                SpeechPresenceConflict(
+                    modelName: engineName,
+                    presence: .noSpeechSegment,
+                    noSpeechThreshold: settings.noSpeechThreshold
+                )
+            )
         }
 
         onProgressUpdate?(0.35)
